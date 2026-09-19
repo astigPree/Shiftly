@@ -63,7 +63,7 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 1 — Create the Django foundation
 
-- [ ] Select and pin supported Python and Django versions and runtime dependencies.
+- [x] Pin supported Python, Django, PostgreSQL adapter, and production server versions in .python-version and requirements files; record support rationale in SHIFTLY_TECH_STACK.md.
 - [ ] Create the Django project and configuration package with manage.py, URL routing, WSGI, and production settings.
 - [ ] Create the modular Django apps for accounts, organizations, employees, schedules, attendance, timesheets, reports, and audit.
 - [ ] Configure PostgreSQL for development and production from the start; do not base the application on SQLite.
