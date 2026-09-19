@@ -278,6 +278,8 @@ EMPLOYEE
 
 Do not build separate login systems.
 
+MVP account and tenancy rules are defined in SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md: one employer owner per organization, one organization and one role per user, employer-created employee invitations, and organization timezone locked after the first shift. Use that document as the behavioral authority for attendance and timesheet calculations.
+
 ---
 
 # 7. Authorization
@@ -332,6 +334,7 @@ AuditEvent
 
 ```text
 id
+owner_id
 name
 timezone
 created_at
@@ -357,7 +360,7 @@ updated_at
 ```text
 id
 organization_id
-user_id
+user_id  # unique, required, EMPLOYEE role
 employee_code
 status
 created_at
@@ -370,10 +373,10 @@ updated_at
 id
 organization_id
 employee_id
-date
-scheduled_start
-scheduled_end
-break_minutes
+local_work_date
+scheduled_start  # timezone-aware instant
+scheduled_end    # timezone-aware instant; may fall on the next local date
+scheduled_break_minutes
 status
 created_at
 updated_at
@@ -749,6 +752,8 @@ USE_TZ = True
 Store organization timezone.
 
 Display times using the organization's timezone.
+
+Require an IANA timezone at organization creation. Lock it after the first shift is created in MVP. See SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md for daylight-saving validation and local date rules.
 
 Avoid naive datetimes.
 

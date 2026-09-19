@@ -173,6 +173,8 @@ Payroll-ready attendance record
 
 The server is the source of truth for all attendance data.
 
+See SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md for the resolved MVP rules and acceptance scenarios. It governs account provisioning, organization timezone, shifts, attendance states, breaks, calculations, timesheet review, reports, exports, and audit behavior.
+
 Shiftly must store attendance events such as:
 
 - Clock-in timestamp
@@ -213,11 +215,14 @@ Timesheet states:
 - Rejected
 - Needs Review
 
+MVP exception handling:
+
+- Missing Clock Out is shown as a warning on an open session after scheduled end. The employee may still clock out; no final timesheet exists before clock-out, and the employer cannot edit attendance in MVP.
+
 Future exception states:
 
-- Missing Clock Out
 - Overbreak
-- Undertime
+- Undertime exception alerts/workflows
 - Overtime
 - Missing Attendance
 

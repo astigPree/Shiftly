@@ -41,24 +41,25 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 0 — Resolve product rules before implementation
 
-The source documents intentionally leave some operational rules open. Record decisions in the project documentation before building dependent behavior.
+**Status: Complete.** Resolved behavior and end-to-end acceptance scenarios are recorded in [SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md](SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md). The Project Description and Tech Stack now point to that document as the MVP behavior authority.
 
-- [ ] Confirm employer onboarding: who can create an organization, whether there is one employer owner per organization in MVP, and how employee accounts are activated.
-- [ ] Define employee access provisioning, password reset, deactivation, and what happens to attendance history when an employee leaves.
-- [ ] Define organization membership and whether any user may belong to more than one organization.
-- [ ] Define how the organization timezone is selected and changed, and how existing shifts and records display after a timezone change.
-- [ ] Define the dated shift model, including shifts that end the following day and daylight-saving transitions.
-- [ ] Define permitted early/late clock-in behavior and whether clocking is allowed without an assigned shift.
-- [ ] Define the MVP lateness rule, including grace period (the roadmap places grace periods after MVP).
-- [ ] Define when a scheduled employee becomes absent and how that status changes if they later clock in.
-- [ ] Define whether breaks are unpaid, whether scheduled break minutes are informational or deducted, and whether multiple breaks are allowed.
-- [ ] Define how incomplete attendance is handled, especially a missing clock-out: status, timesheet creation, review outcome, and whether the MVP leaves it unresolved for manual follow-up.
-- [ ] Define how work, break, late, undertime, and payable minutes are calculated, including precision and rounding.
-- [ ] Define whether early clock-out counts as undertime and how scheduled end, actual end, and work duration relate. Keep overtime pay rules out of MVP.
-- [ ] Define the timesheet unit and lifecycle: one timesheet per completed shift, when it is created, whether rejection can be resubmitted, and which states are terminal.
-- [ ] Define rejection comment requirements and which employer actions must be audited.
-- [ ] Define MVP report date ranges, organization-local date boundaries, and CSV columns.
-- [ ] Capture the resolved rules in a concise acceptance-criteria document and use it to keep the Description, Tech Stack, and task plan aligned.
+- [x] Confirm employer onboarding, single-owner organization ownership, employee invitation, and activation behavior.
+- [x] Define employee access provisioning, password reset, deactivation, and retention of attendance history.
+- [x] Define one-organization/one-role membership for each user in MVP.
+- [x] Define organization IANA timezone selection, UTC storage, local display, and locking after the first shift.
+- [x] Define dated and overnight shift storage, elapsed-time behavior, and daylight-saving validation.
+- [x] Define assigned-shift-only clocking, the 30-minute early window, and the clock-in cutoff.
+- [x] Define lateness with no grace period and whole-minute reporting.
+- [x] Define absence at scheduled end when there is no clock-in, and prohibit clock-in after the shift is absent.
+- [x] Define multiple unpaid breaks, scheduled break allowance behavior, and actual break deductions.
+- [x] Define missing clock-out handling: flag the open session for follow-up, create no final timesheet, and keep employer corrections out of MVP.
+- [x] Define duration, break, payable, late, undertime, precision, and flooring rules.
+- [x] Define one timesheet per completed shift, generation after clock-out, review states, terminal decisions, and Needs Review behavior.
+- [x] Require a rejection comment and define append-only audit coverage.
+- [x] Define organization-local daily/weekly report boundaries and CSV columns.
+- [x] Capture decisions in the acceptance-criteria document and align the Project Description, Tech Stack, and task plan.
+
+---
 
 ## Phase 1 — Create the Django foundation
 
@@ -104,7 +105,7 @@ The source documents intentionally leave some operational rules open. Record dec
 - [ ] Implement a Shift model linked to an organization and employee, with local work date, scheduled start/end, break allowance, status, and timestamps.
 - [ ] Store shift datetimes consistently and support overnight shifts whose end falls on the next local date.
 - [ ] Implement schedule creation, assignment, editing, cancellation, list, detail, and filtering by date and employee.
-- [ ] Validate start/end ordering, employee organization membership, duplicate/conflicting assignments, and edits after attendance has started.
+- [ ] Validate start/end ordering, scheduled break allowance bounds, employee organization membership, same-date assignments, cross-date overlaps, and edits after attendance has started.
 - [ ] Prevent schedule changes from silently rewriting completed attendance or approved timesheets.
 - [ ] Display shifts in the organization timezone and make cancelled shifts visible as cancelled.
 - [ ] Provide accessible empty states and form validation for employees without schedules and schedules without matches.
