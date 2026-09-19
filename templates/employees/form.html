@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}Add employee{% else %}Edit {{ employee.full_name }}{% endif %} | Shiftly{% endblock %}
+{% block content %}
+<section class="content-card">
+  <p><a href="{% if is_create %}{% url 'employees:list' %}{% else %}{% url 'employees:detail' employee.pk %}{% endif %}">← Back to employees</a></p>
+  <h1>{% if is_create %}Add an employee{% else %}Edit employee{% endif %}</h1>
+  <p class="muted">{% if is_create %}We will email an account activation link after the profile is saved.{% else %}Employee records are retained when access is deactivated.{% endif %}</p>
+  {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+  <form method="post" novalidate>{% csrf_token %}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
+    <button type="submit">{% if is_create %}Create employee and send invite{% else %}Save changes{% endif %}</button>
+  </form>
+</section>
+{% endblock %}

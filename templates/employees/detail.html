@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ employee.full_name }} | Employees | Shiftly{% endblock %}
+{% block content %}
+<section class="content-card">
+  <p><a href="{% url 'employees:list' %}">← Employees</a></p>
+  <div class="page-header"><div><h1>{{ employee.full_name }}</h1><p class="muted">{{ employee.get_status_display }} · {{ employee.employee_code }}</p></div><a class="button-link" href="{% url 'employees:edit' employee.pk %}">Edit profile</a></div>
+  <dl class="detail-list"><dt>Email</dt><dd>{{ employee.email }}</dd><dt>Job title</dt><dd>{{ employee.job_title|default:"—" }}</dd><dt>Account</dt><dd>{% if employee.user_id %}Active account{% else %}Not activated{% endif %}</dd><dt>Created</dt><dd>{{ employee.created_at|date:"M j, Y" }}</dd></dl>
+  {% if not employee.user_id and employee.status == "ACTIVE" %}
+  <div class="subsection"><h2>Account invitation</h2>{% if latest_invitation %}<p class="muted">Latest link expires {{ latest_invitation.expires_at|date:"M j, Y H:i" }}{% if latest_invitation.accepted_at %} · Accepted{% elif latest_invitation.revoked_at %} · Revoked{% else %} · Sent{% endif %}</p>{% else %}<p>No invitation has been sent.</p>{% endif %}<form method="post" action="{% url 'employees:resend_invitation' employee.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Send a new activation link</button></form></div>
+  {% endif %}
+  <div class="subsection"><h2>Access</h2><p class="muted">{% if employee.status == "ACTIVE" %}Deactivating prevents sign-in and revokes unused invitations. Work history is retained.{% else %}Reactivating restores sign-in for the linked account.{% endif %}</p><form method="post" action="{% url 'employees:toggle_status' employee.pk %}">{% csrf_token %}<button class="{% if employee.status == 'ACTIVE' %}button-danger{% else %}button-secondary{% endif %}" type="submit">{% if employee.status == "ACTIVE" %}Deactivate employee{% else %}Reactivate employee{% endif %}</button></form></div>
+</section>
+{% endblock %}

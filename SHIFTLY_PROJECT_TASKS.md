@@ -92,12 +92,12 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 3 — Employee management
 
-- [ ] Implement the Employee profile with organization, optional linked user, unique organization-scoped employee code, employment status, and timestamps.
-- [ ] Implement employee creation with validated profile fields and the agreed account provisioning behavior.
-- [ ] Implement employee list, search, status filtering, pagination, detail, and edit pages.
-- [ ] Implement deactivation rather than destructive deletion for employees with work history.
-- [ ] Prevent duplicate employee codes within an organization and handle duplicate account emails clearly.
-- [ ] Show employee role/team title or other profile details only where defined for MVP.
+- [x] Implement the Employee profile with organization, optional linked user, unique organization-scoped employee code, employment status, and timestamps.
+- [x] Implement employee creation with validated profile fields and the agreed account provisioning behavior.
+- [x] Implement employee list, search, status filtering, pagination, detail, and edit pages.
+- [x] Implement deactivation rather than destructive deletion for employees with work history.
+- [x] Prevent duplicate employee codes within an organization and handle duplicate account emails clearly.
+- [x] Show employee role/team title or other profile details only where defined for MVP.
 - [ ] Add tests for employee validation, organization scoping, deactivation, and form permissions.
 
 ## Phase 4 — Dated shift and schedule management
