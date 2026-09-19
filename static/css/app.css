@@ -1,0 +1,22 @@
+:root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #172033; background: #f5f8fc; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+a { color: #0866d8; }
+button, input, select { font: inherit; }
+button { min-height: 44px; padding: 0 18px; color: white; background: #0866d8; border: 1px solid #0866d8; border-radius: 8px; font-weight: 600; cursor: pointer; }
+button:hover { background: #0758b9; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+.page-shell { width: min(100% - 32px, 1040px); margin: 48px auto; }
+.auth-card, .content-card { width: min(100%, 520px); margin: 8vh auto; padding: 32px; background: white; border: 1px solid #dfe7f1; border-radius: 14px; box-shadow: 0 12px 36px rgb(30 55 90 / 6%); }
+.brand { color: #15213a; font-size: 25px; font-weight: 750; text-decoration: none; }
+h1 { margin: 20px 0 8px; font-size: clamp(24px, 5vw, 32px); }
+.muted, small { color: #63738d; }
+.field { display: grid; gap: 7px; margin: 18px 0; }
+.field label { font-weight: 600; }
+.field input, .field select { width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; }
+.field-error, .error-list { color: #b42318; }
+.error-list { margin: 16px 0; padding: 10px 12px; background: #fff1f0; border-radius: 7px; }
+.notice { margin-bottom: 16px; padding: 12px 16px; background: #eaf4ff; border-radius: 8px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; }
+.button-secondary { color: #172033; background: white; border-color: #cbd5e1; }
+@media (max-width: 600px) { .page-shell { width: min(100% - 24px, 520px); margin: 20px auto; } .auth-card, .content-card { margin: 4vh auto; padding: 22px; } }

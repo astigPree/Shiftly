@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Activate your account | Shiftly{% endblock %}
+{% block content %}
+<section class="auth-card" aria-labelledby="page-title">
+  <a class="brand" href="{% url 'accounts:index' %}">Shiftly</a>
+  <h1 id="page-title">Activate your account</h1>
+  <p class="muted">{{ employee.full_name }}, you were invited to join {{ organization.name }}.</p>
+  {% if requires_logout %}
+    <p>You are currently signed in as {{ request.user.email }}. Sign out, then reopen this invitation link to continue.</p>
+    <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit">Sign out</button></form>
+  {% else %}
+    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>
+      {% endfor %}
+      <button type="submit">Set password and activate</button>
+    </form>
+  {% endif %}
+</section>
+{% endblock %}

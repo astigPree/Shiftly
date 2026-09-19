@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Home | Shiftly{% endblock %}
+{% block content %}
+<header class="page-header">
+  <a class="brand" href="{% url 'accounts:home' %}">Shiftly</a>
+  <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="button-secondary" type="submit">Sign out</button></form>
+</header>
+<section class="content-card">
+  <h1>Hello, {{ request.user.first_name|default:request.user.email }}</h1>
+  {% if request.user.role == "EMPLOYER" %}
+    <p class="muted">{{ organization.name }} · {{ organization.timezone }}</p>
+    <p>Your workspace is ready. Employee, scheduling, attendance, and timesheet workflows are being built.</p>
+  {% else %}
+    <p class="muted">{{ organization.name }}</p>
+    <p>Your employee account is active. Your schedule and attendance tools will appear here.</p>
+  {% endif %}
+</section>
+{% endblock %}

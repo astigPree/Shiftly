@@ -65,29 +65,29 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 - [x] Pin supported Python, Django, PostgreSQL adapter, and production server versions in .python-version and requirements files; record support rationale in SHIFTLY_TECH_STACK.md.
 - [x] Create the Django project and configuration package with manage.py, URL routing, WSGI/ASGI entry points, and production-safe settings.
-- [ ] Create the modular Django apps for accounts, organizations, employees, schedules, attendance, timesheets, reports, and audit.
-- [ ] Configure PostgreSQL for development and production from the start; do not base the application on SQLite.
-- [ ] Configure environment-based settings for secrets, debug mode, hosts, database, email, and trusted origins; keep secrets out of version control.
-- [ ] Set timezone-aware datetime handling and establish UTC storage plus organization-timezone display.
-- [ ] Add app template, static asset, and shared component directories using Django templates, vanilla CSS, and vanilla JavaScript.
+- [x] Create the modular Django apps for accounts, organizations, employees, schedules, attendance, timesheets, reports, and audit.
+- [x] Configure PostgreSQL for development and production from the start; do not base the application on SQLite.
+- [x] Configure environment-based settings for secrets, debug mode, hosts, database, email, and trusted origins; keep secrets out of version control.
+- [x] Set timezone-aware datetime handling and establish UTC storage plus organization-timezone display.
+- [x] Add app template, static asset, and shared component directories using Django templates, vanilla CSS, and vanilla JavaScript.
 - [ ] Add dependency and environment setup instructions so a developer can run migrations and start the app locally.
-- [ ] Add a shared base template, semantic page structure, navigation slots, messages, and reusable template components.
+- [x] Add a shared base template, semantic page structure, navigation slots, messages, and reusable template components.
 - [ ] Add custom 403, 404, and 500 pages consistent with the product UI.
 - [ ] Document the local setup and the rule that views stay thin and business logic lives in services.
 
 ## Phase 2 — Identity, organizations, and access control
 
-- [ ] Implement the custom Django User model before the first migration, using normalized unique email authentication and the agreed role fields.
-- [ ] Implement employer and employee roles using Django authentication and password hashing.
-- [ ] Implement Organization with name, timezone, timestamps, and the agreed owner or membership relationship.
-- [ ] Implement the agreed employee-to-user and user-to-organization relationships without allowing cross-organization ambiguity.
-- [ ] Build employer registration/onboarding to create the initial organization and employer account according to Phase 0 decisions.
-- [ ] Build the agreed secure employee account activation/invitation flow and password reset flow.
-- [ ] Add login, logout, inactive-account handling, and role-aware post-login routing.
-- [ ] Create reusable login-required, employer-only, employee-only, and organization-ownership checks.
-- [ ] Scope every organization-owned list, detail, update, and action query by the authenticated user's organization.
-- [ ] Ensure employees can access only their own profile, schedules, attendance, and timesheets.
-- [ ] Add database constraints and indexes for organization ownership and frequently filtered identifiers.
+- [x] Implement the custom Django User model before the first migration, using normalized unique email authentication and the agreed role fields.
+- [x] Implement employer and employee roles using Django authentication and password hashing.
+- [x] Implement Organization with name, timezone, timestamps, and the agreed owner or membership relationship.
+- [x] Implement the agreed employee-to-user and user-to-organization relationships without allowing cross-organization ambiguity.
+- [x] Build employer registration/onboarding to create the initial organization and employer account according to Phase 0 decisions.
+- [x] Build the agreed secure employee account activation/invitation flow and password reset flow.
+- [x] Add login, logout, inactive-account handling, and role-aware post-login routing.
+- [x] Create reusable login-required, employer-only, employee-only, and organization-ownership checks.
+- [x] Scope every organization-owned list, detail, update, and action query by the authenticated user's organization.
+- [x] Ensure employees can access only their own profile, schedules, attendance, and timesheets.
+- [x] Add database constraints and indexes for organization ownership and frequently filtered identifiers.
 - [ ] Add tests proving role restrictions and cross-organization object access are denied.
 
 ## Phase 3 — Employee management

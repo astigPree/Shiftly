@@ -49,6 +49,14 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "accounts.apps.AccountsConfig",
+    "organizations.apps.OrganizationsConfig",
+    "employees.apps.EmployeesConfig",
+    "schedules.apps.SchedulesConfig",
+    "attendance.apps.AttendanceConfig",
+    "timesheets.apps.TimesheetsConfig",
+    "reports.apps.ReportsConfig",
+    "audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
@@ -118,6 +126,10 @@ DATABASES = {
 }
 
 AUTH_USER_MODEL = "accounts.User"
+LOGIN_URL = "accounts:login"
+LOGIN_REDIRECT_URL = "accounts:home"
+LOGOUT_REDIRECT_URL = "accounts:login"
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24 * 3
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",

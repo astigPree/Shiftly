@@ -60,7 +60,7 @@ Selected on 2026-09-19 and pinned in the repository:
 
 - Python 3.14.7 in .python-version. Django officially supports the latest micro release in each supported Python series; 3.14.7 is the current Python 3.14 maintenance release.
 - Django 5.2.17 in requirements/base.txt. Django 5.2 is the LTS series and supports Python 3.14 from 5.2.8; its extended security support runs through April 2028.
-- Psycopg 3.3.6 with its binary extra in requirements/base.txt for PostgreSQL connections across Windows development and Ubuntu production.
+- Psycopg 3.3.6 with its binary extra in requirements/base.txt for PostgreSQL connections across Windows development and Ubuntu production; tzdata 2026.4 supplies IANA timezone data on Windows.
 - Gunicorn 26.2.0 in requirements/production.txt for the Ubuntu WSGI deployment. Keep this production-only dependency out of the Windows development install.
 
 Install shared dependencies with pip install -r requirements/base.txt. Production environments install pip install -r requirements/production.txt. Update exact pins deliberately after checking upstream support and security releases.
