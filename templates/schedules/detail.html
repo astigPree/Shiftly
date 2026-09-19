@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load tz %}
+{% block title %}Shift for {{ shift.employee.full_name }} | Shiftly{% endblock %}
+{% block content %}
+<section class="content-card">
+  <p><a href="{% url 'schedules:list' %}">← Schedules</a></p>
+  <div class="page-header"><div><h1>{{ shift.employee.full_name }}</h1><p class="muted">{{ shift.work_date|date:"l, F j, Y" }} · {{ organization.timezone }}</p></div><span class="status-badge status-{{ shift.status|lower }}">{{ shift.get_status_display }}</span></div>
+  <dl class="detail-list"><dt>Employee code</dt><dd>{{ shift.employee.employee_code }}</dd><dt>Scheduled start</dt><dd>{{ shift.scheduled_start|timezone:organization.timezone|date:"M j, Y, g:i:s A T" }}</dd><dt>Scheduled end</dt><dd>{{ shift.scheduled_end|timezone:organization.timezone|date:"M j, Y, g:i:s A T" }}</dd><dt>Scheduled duration</dt><dd>{{ shift.scheduled_gross_minutes }} gross minutes · {{ shift.scheduled_minutes }} scheduled minutes after allowance</dd><dt>Unpaid break allowance</dt><dd>{{ shift.scheduled_break_minutes }} minutes</dd></dl>
+  {% if shift.status == "SCHEDULED" %}<div class="subsection"><a class="button-link" href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><form class="inline-form" method="post" action="{% url 'schedules:cancel' shift.pk %}">{% csrf_token %}<button class="button-danger" type="submit">Cancel shift</button></form><p class="muted">Once attendance begins, the shift cannot be edited or cancelled.</p></div>{% endif %}
+</section>
+{% endblock %}

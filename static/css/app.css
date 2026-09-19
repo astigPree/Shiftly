@@ -5,6 +5,7 @@ a { color: #0866d8; }
 button, input, select { font: inherit; }
 button { min-height: 44px; padding: 0 18px; color: white; background: #0866d8; border: 1px solid #0866d8; border-radius: 8px; font-weight: 600; cursor: pointer; }
 button:hover { background: #0758b9; }
+button:disabled { cursor: not-allowed; opacity: .55; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
 .page-shell { width: min(100% - 32px, 1040px); margin: 48px auto; }
 .auth-card, .content-card { width: min(100%, 520px); margin: 8vh auto; padding: 32px; background: white; border: 1px solid #dfe7f1; border-radius: 14px; box-shadow: 0 12px 36px rgb(30 55 90 / 6%); }
@@ -39,4 +40,8 @@ th { color: #52627c; font-size: 14px; }
 .detail-list dd { margin: 0; }
 .subsection { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e3eaf2; }
 .subsection h2 { font-size: 18px; }
+.compact-field { min-width: 160px; margin: 0; }
+.compact-field input, .compact-field select { min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; }
+.inline-form { display: inline-block; margin-left: 10px; }
+.status-cancelled { color: #475467; background: #eef1f5; }
 @media (max-width: 600px) { .page-shell { width: min(100% - 24px, 520px); margin: 20px auto; } .auth-card, .content-card { margin: 4vh auto; padding: 22px; } }

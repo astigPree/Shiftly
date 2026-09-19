@@ -102,15 +102,15 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 4 — Dated shift and schedule management
 
-- [ ] Implement a Shift model linked to an organization and employee, with local work date, scheduled start/end, break allowance, status, and timestamps.
-- [ ] Store shift datetimes consistently and support overnight shifts whose end falls on the next local date.
-- [ ] Implement schedule creation, assignment, editing, cancellation, list, detail, and filtering by date and employee.
-- [ ] Validate start/end ordering, scheduled break allowance bounds, employee organization membership, same-date assignments, cross-date overlaps, and edits after attendance has started.
-- [ ] Prevent schedule changes from silently rewriting completed attendance or approved timesheets.
-- [ ] Display shifts in the organization timezone and make cancelled shifts visible as cancelled.
-- [ ] Provide accessible empty states and form validation for employees without schedules and schedules without matches.
+- [x] Implement a Shift model linked to an organization and employee, with local work date, scheduled start/end, break allowance, status, and timestamps.
+- [x] Store shift datetimes consistently and support overnight shifts whose end falls on the next local date.
+- [x] Implement schedule creation, assignment, editing, cancellation, list, detail, and filtering by date and employee.
+- [x] Validate start/end ordering, scheduled break allowance bounds, employee organization membership, same-date assignments, cross-date overlaps, and edits after attendance has started.
+- [x] Prevent schedule changes from silently rewriting completed attendance or approved timesheets.
+- [x] Display shifts in the organization timezone and make cancelled shifts visible as cancelled.
+- [x] Provide accessible empty states and form validation for employees without schedules and schedules without matches.
 - [ ] Add tests for timezone boundaries, overnight shifts, invalid assignments, conflicts, and organization isolation.
-- [ ] Keep recurring schedules, templates, and bulk schedule generation out of MVP.
+- [x] Keep recurring schedules, templates, and bulk schedule generation out of MVP.
 
 ## Phase 5 — Attendance records and clock workflow
 

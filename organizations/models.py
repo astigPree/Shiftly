@@ -26,8 +26,19 @@ class Organization(models.Model):
     def clean(self):
         super().clean()
         validate_iana_timezone(self.timezone)
+        if self.pk and Organization.objects.filter(pk=self.pk).exists():
+            prior = Organization.objects.get(pk=self.pk)
+            if prior.timezone != self.timezone and self.shifts.exists():
+                raise ValidationError({"timezone": "The organization time zone is locked after its first shift."})
         if self.owner_id and self.owner.role != self.owner.Role.EMPLOYER:
             raise ValidationError({"owner": "Organization owners must be employers."})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            prior_timezone = Organization.objects.filter(pk=self.pk).values_list("timezone", flat=True).first()
+            if prior_timezone and prior_timezone != self.timezone and self.shifts.exists():
+                raise ValidationError({"timezone": "The organization time zone is locked after its first shift."})
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

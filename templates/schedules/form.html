@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %} | Shiftly{% endblock %}
+{% block content %}
+<section class="content-card">
+  <p><a href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">← Back to schedules</a></p>
+  <h1>{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %}</h1>
+  <p class="muted">Times are entered in the organization time zone. Ambiguous and nonexistent daylight-saving times are not accepted.</p>
+  {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
+  {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+  <form method="post" novalidate>{% csrf_token %}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
+    <p class="muted">If the end time is earlier than the start time, the shift ends the next local day. An equal start and end is invalid.</p>
+    <button type="submit"{% if not has_employees %} disabled{% endif %}>{% if is_create %}Create shift{% else %}Save shift{% endif %}</button>
+  </form>
+</section>
+{% endblock %}

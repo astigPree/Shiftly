@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load tz %}
+{% block title %}Schedules | Shiftly{% endblock %}
+{% block content %}
+<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>Schedules</h1><p class="muted">One-off shifts for {{ organization.name }} · {{ organization.timezone }}</p></div><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></header>
+<section class="content-card wide-card">
+  <form method="get" class="filters">
+    <div class="field compact-field"><label for="id_start_date">From date</label>{{ filter_form.start_date }}</div>
+    <div class="field compact-field"><label for="id_end_date">To date</label>{{ filter_form.end_date }}</div>
+    <div class="field compact-field"><label for="id_employee">Employee</label>{{ filter_form.employee }}</div>
+    <div class="field compact-field"><label for="id_status">Status</label>{{ filter_form.status }}</div>
+    <button type="submit">Filter</button>
+  </form>
+  {% if filter_form.errors %}<div class="error-list" role="alert">Correct the schedule filters to apply them.</div>{% endif %}
+  {% if page.object_list %}<div class="table-wrap"><table><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Break allowance</th><th scope="col">Status</th></tr></thead><tbody>
+    {% for shift in page.object_list %}<tr><td><a href="{% url 'schedules:detail' shift.pk %}">{{ shift.work_date|date:"D, M j, Y" }}</a></td><td>{{ shift.employee.full_name }}<br><span class="muted">{{ shift.employee.employee_code }}</span></td><td>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %}<span class="muted"> (overnight)</span>{% endif %}</td><td>{{ shift.scheduled_break_minutes }} min</td><td><span class="status-badge status-{{ shift.status|lower }}">{{ shift.get_status_display }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty-state"><h2>No shifts found</h2><p>{% if request.GET %}Try adjusting the date or employee filters.{% else %}Create a one-off shift and assign it to an employee.{% endif %}</p>{% if not request.GET %}<a class="button-link" href="{% url 'schedules:create' %}">Schedule first shift</a>{% endif %}</div>{% endif %}
+  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Schedule pages">{% if page.has_previous %}<a href="?{{ request.GET.urlencode }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?{{ request.GET.urlencode }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+</section>
+{% endblock %}
