@@ -16,7 +16,7 @@ urlpatterns = [
     ),
     path(
         "logout/",
-        auth_views.LogoutView.as_view(next_page=reverse_lazy("accounts:login")),
+        views.logout_view,
         name="logout",
     ),
     path("home/", views.home, name="home"),
@@ -24,7 +24,7 @@ urlpatterns = [
     path("profile/", views.employee_profile, name="profile"),
     path(
         "password-reset/",
-        auth_views.PasswordResetView.as_view(
+        views.ShiftlyPasswordResetView.as_view(
             template_name="registration/password_reset_form.html",
             email_template_name="registration/password_reset_email.html",
             subject_template_name="registration/password_reset_subject.txt",
@@ -41,7 +41,7 @@ urlpatterns = [
     ),
     path(
         "reset/<uidb64>/<token>/",
-        auth_views.PasswordResetConfirmView.as_view(
+        views.ShiftlyPasswordResetConfirmView.as_view(
             template_name="registration/password_reset_confirm.html",
             success_url=reverse_lazy("accounts:password_reset_complete"),
         ),

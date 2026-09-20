@@ -1,5 +1,6 @@
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
+from django.contrib.auth.views import PasswordResetConfirmView, PasswordResetView
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -7,7 +8,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
 from accounts.models import User
@@ -41,10 +42,34 @@ class ShiftlyLoginView(LoginView):
         return super().form_invalid(form)
 
 
+class ShiftlyPasswordResetView(PasswordResetView):
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.info(
+            self.request,
+            "If an active account matches that email, a password reset link is on its way.",
+        )
+        return response
+
+
+class ShiftlyPasswordResetConfirmView(PasswordResetConfirmView):
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "Your password has been updated. You can now sign in.")
+        return response
+
+
 @require_GET
 def index(request):
     if request.user.is_authenticated:
         return redirect("accounts:home")
+    return redirect("accounts:login")
+
+
+@require_POST
+def logout_view(request):
+    logout(request)
+    messages.success(request, "You have been signed out.")
     return redirect("accounts:login")
 
 
