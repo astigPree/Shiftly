@@ -15,7 +15,10 @@ from audit.models import AuditEvent
 from audit.services import record_event
 from employees.forms import EmployeeProfileForm
 from employees.models import EmployeeInvitation
-from employees.services import accept_employee_invitation, update_employee_profile
+from employees.services import (
+    accept_employee_invitation as activate_employee_invitation,
+    update_employee_profile,
+)
 from organizations.models import Organization
 from .permissions import employee_required, employer_required, organization_for_user
 from .services import employer_dashboard_data, save_workspace_settings
@@ -218,7 +221,7 @@ def accept_employee_invitation(request, token):
     )
     if request.method == "POST" and form.is_valid():
         try:
-            user = accept_employee_invitation(
+            user = activate_employee_invitation(
                 token,
                 password=form.cleaned_data["password1"],
             )
