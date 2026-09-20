@@ -154,17 +154,15 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [x] Ensure UI status badges always include readable text, not color alone.
 - [ ] Add tests for dashboard counts, filtered attendance visibility, and employer page access.
 
-## Phase 8 — Employee workspace and attendance UI
-
-- [ ] Build a simpler employee app shell and mobile-friendly navigation for Home, Schedule, Timesheets, and Profile.
-- [ ] Build the employee dashboard with today's assigned shift, current status, attendance action, live elapsed timer, weekly hours, and recent timesheets.
-- [ ] Implement clock-in, start-break, end-break, and clock-out controls that call the server-side attendance workflow.
-- [ ] Disable or replace actions according to the server-confirmed attendance state and display useful validation errors.
-- [ ] Implement the live timer as display-only JavaScript derived from a server timestamp; refresh/reconcile it after navigation.
-- [ ] Show a completed shift summary and clearly distinguish work time from break time.
-- [ ] Implement today's/upcoming schedule view and the employee's weekly work-hour summary.
-- [ ] Implement employee timesheet list/detail with status, shift date, hours, and employer decision.
-- [ ] Ensure employees cannot view other employees' records, even by changing a URL or submitted identifier.
+- [x] Build a simpler employee app shell and mobile-friendly navigation for Home, Schedule, Timesheets, and Profile.
+- [x] Build the employee dashboard with today's assigned shift, current status, attendance action, live elapsed timer, weekly hours, and recent timesheets.
+- [x] Implement clock-in, start-break, end-break, and clock-out controls that call the server-side attendance workflow.
+- [x] Disable or replace actions according to the server-confirmed attendance state and display useful validation errors.
+- [x] Implement the live timer as display-only JavaScript derived from a server timestamp; refresh/reconcile it after navigation.
+- [x] Show a completed shift summary and clearly distinguish work time from break time.
+- [x] Implement today's/upcoming schedule view and the employee's weekly work-hour summary.
+- [x] Implement employee timesheet list/detail with status, shift date, hours, and employer decision.
+- [x] Ensure employees cannot view other employees' records, even by changing a URL or submitted identifier.
 - [ ] Add tests for employee pages, action visibility, weekly totals, and ownership restrictions.
 
 ## Phase 9 — Reports, CSV export, and audit history

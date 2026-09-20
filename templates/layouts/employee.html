@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block body_class %}app-body{% endblock %}
 {% block main_class %}app-shell-root{% endblock %}
 {% block messages %}{% endblock %}
@@ -13,8 +14,10 @@
     </details>
   </header>
   <nav class="employee-nav" aria-label="Employee navigation">
-    <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" href="{% url 'attendance:my_attendance' %}">Home</a>
+    <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" href="{% url 'attendance:my_attendance' %}"><span aria-hidden="true">⌂</span>Home</a>
+    <a class="nav-link{% if request.resolver_match.namespace == 'schedules' %} active{% endif %}" href="{% url 'schedules:my_schedule' %}"><span aria-hidden="true">▦</span>Schedule</a>
     <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" href="{% url 'timesheets:my_list' %}">Timesheets</a>
+    <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'profile' %} active{% endif %}" href="{% url 'accounts:profile' %}"><span aria-hidden="true">♙</span>Profile</a>
   </nav>
   <main class="app-content employee-content">
     {% include "components/messages.html" %}
@@ -22,3 +25,4 @@
   </main>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/attendance_timer.js' %}" defer></script>{% endblock %}

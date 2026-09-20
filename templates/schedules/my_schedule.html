@@ -1,0 +1,17 @@
+{% extends "layouts/employee.html" %}
+{% load tz %}
+{% block title %}My schedule | Shiftly{% endblock %}
+{% block app_content %}
+<header class="employee-dashboard-heading"><div><p class="eyebrow">{{ organization.name }}</p><h1>My schedule</h1><p class="muted">Today's and upcoming shifts · {{ organization.timezone }}</p></div><div class="weekly-hours-compact"><span>This week</span><strong>{{ weekly_hours_label }}</strong></div></header>
+<section class="content-card schedule-list-card" aria-labelledby="schedule-list-heading">
+  <h2 id="schedule-list-heading" class="visually-hidden">Upcoming shifts</h2>
+  {% if cards %}<div class="employee-schedule-list">{% for card in cards %}{% with shift=card.shift state=card.state %}
+    <article class="employee-schedule-row{% if state.code == 'CANCELLED' %} is-cancelled{% endif %}">
+      <div class="schedule-date"><strong>{{ shift.work_date|date:"D" }}</strong><span>{{ shift.work_date|date:"M j" }}</span></div>
+      <div class="schedule-time"><h3>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <small>(overnight)</small>{% endif %}</h3><p class="muted">{{ shift.scheduled_break_minutes }} min scheduled break</p>{% if state.missing_clock_out %}<p class="warning-text">Missing clock-out</p>{% endif %}</div>
+      <span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span>
+    </article>
+  {% endwith %}{% endfor %}</div>
+  {% else %}<div class="empty-state"><h2>No upcoming shifts</h2><p>Your employer has not scheduled any shifts in the next two weeks.</p></div>{% endif %}
+</section>
+{% endblock %}

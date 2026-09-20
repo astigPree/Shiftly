@@ -21,6 +21,7 @@ urlpatterns = [
     ),
     path("home/", views.home, name="home"),
     path("settings/", views.workspace_settings, name="settings"),
+    path("profile/", views.employee_profile, name="profile"),
     path(
         "password-reset/",
         auth_views.PasswordResetView.as_view(

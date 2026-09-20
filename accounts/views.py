@@ -10,10 +10,11 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
 from accounts.models import User
+from employees.forms import EmployeeProfileForm
 from employees.models import EmployeeInvitation
-from employees.services import accept_employee_invitation
+from employees.services import accept_employee_invitation, update_employee_profile
 from organizations.models import Organization
-from .permissions import employer_required, organization_for_user
+from .permissions import employee_required, employer_required, organization_for_user
 from .services import employer_dashboard_data, save_workspace_settings
 
 
@@ -66,12 +67,7 @@ def home(request):
             "accounts/dashboard.html",
             {"organization": organization, "greeting_name": request.user.first_name or request.user.email, **context},
         )
-    employee = getattr(request.user, "employee_profile", None)
-    return render(
-        request,
-        "accounts/home.html",
-        {"organization": organization, "employee": employee},
-    )
+    return redirect("attendance:my_attendance")
 
 
 @require_http_methods(["GET", "POST"])
@@ -106,6 +102,34 @@ def workspace_settings(request):
         request,
         "accounts/settings.html",
         {"form": form, "organization": organization, "timezone_locked": timezone_locked},
+    )
+
+
+@require_http_methods(["GET", "POST"])
+@employee_required
+def employee_profile(request):
+    employee = request.user.employee_profile
+    form = EmployeeProfileForm(
+        request.POST or None,
+        initial={"first_name": employee.first_name, "last_name": employee.last_name},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            employee = update_employee_profile(
+                employee=employee,
+                user=request.user,
+                first_name=form.cleaned_data["first_name"],
+                last_name=form.cleaned_data["last_name"],
+            )
+        except ValidationError as error:
+            form.add_error(None, error)
+        else:
+            messages.success(request, "Your profile has been updated.")
+            return redirect("accounts:profile")
+    return render(
+        request,
+        "accounts/profile.html",
+        {"form": form, "organization": employee.organization, "employee": employee},
     )
 
 

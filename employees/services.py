@@ -103,3 +103,18 @@ def accept_employee_invitation(token, password):
     invitation.accepted_at = now
     invitation.save(update_fields=["accepted_at"])
     return user
+
+
+@transaction.atomic
+def update_employee_profile(*, employee, user, first_name, last_name):
+    employee = Employee.objects.select_for_update().get(pk=employee.pk, user=user)
+    user = get_user_model().objects.select_for_update().get(pk=user.pk)
+    if employee.status != Employee.Status.ACTIVE or user.role != User.Role.EMPLOYEE:
+        raise PermissionDenied
+    employee.first_name = first_name.strip()
+    employee.last_name = last_name.strip()
+    employee.save(update_fields=["first_name", "last_name", "updated_at"])
+    user.first_name = employee.first_name
+    user.last_name = employee.last_name
+    user.save(update_fields=["first_name", "last_name"])
+    return employee

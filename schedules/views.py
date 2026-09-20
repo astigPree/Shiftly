@@ -1,14 +1,21 @@
+from datetime import timedelta
+from zoneinfo import ZoneInfo
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.permissions import employer_required, organization_for_user
+from accounts.permissions import employee_required, employer_required, organization_for_user
+from attendance.services import attendance_state
 from .forms import ShiftForm
 from .forms_filter import ShiftFilterForm
 from .models import Shift
 from .services import cancel_shift, create_shift, update_shift
+from timesheets.models import Timesheet
 
 
 def _scoped_shifts(user):
@@ -126,3 +133,47 @@ def shift_cancel(request, pk):
     else:
         messages.success(request, "Shift cancelled.")
     return redirect("schedules:detail", pk=shift.pk)
+
+
+@employee_required
+def my_schedule(request):
+    employee = request.user.employee_profile
+    organization = employee.organization
+    now = timezone.now()
+    local_today = timezone.localdate(now, timezone=ZoneInfo(organization.timezone))
+    week_start = local_today - timedelta(days=local_today.weekday())
+    shifts = (
+        Shift.objects.filter(organization=organization, employee=employee)
+        .filter(
+            Q(work_date__range=(local_today, local_today + timedelta(days=14)))
+            | Q(attendance_session__isnull=False, attendance_session__clock_out_at__isnull=True)
+        )
+        .select_related("organization", "employee", "attendance_session")
+        .order_by("work_date", "scheduled_start")
+    )
+    cards = [
+        {
+            "shift": shift,
+            "session": getattr(shift, "attendance_session", None),
+            "state": attendance_state(shift, at=now),
+        }
+        for shift in shifts
+    ]
+    weekly_minutes = Timesheet.objects.filter(
+        organization=organization,
+        employee=employee,
+        shift__work_date__range=(week_start, week_start + timedelta(days=6)),
+    ).aggregate(total=Sum("worked_minutes"))["total"] or 0
+    weekly_hours, weekly_remainder = divmod(weekly_minutes, 60)
+    return render(
+        request,
+        "schedules/my_schedule.html",
+        {
+            "cards": cards,
+            "organization": organization,
+            "local_today": local_today,
+            "week_start": week_start,
+            "weekly_minutes": weekly_minutes,
+            "weekly_hours_label": f"{weekly_hours} hr {weekly_remainder:02d} min" if weekly_hours else f"{weekly_remainder} min",
+        },
+    )

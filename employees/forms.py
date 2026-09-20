@@ -44,3 +44,20 @@ class EmployeeForm(forms.ModelForm):
 
     def clean_job_title(self):
         return self.cleaned_data["job_title"].strip()
+
+
+class EmployeeProfileForm(forms.Form):
+    first_name = forms.CharField(max_length=150, label="First name")
+    last_name = forms.CharField(max_length=150, label="Last name")
+
+    def clean_first_name(self):
+        value = self.cleaned_data["first_name"].strip()
+        if not value:
+            raise ValidationError("Enter your first name.")
+        return value
+
+    def clean_last_name(self):
+        value = self.cleaned_data["last_name"].strip()
+        if not value:
+            raise ValidationError("Enter your last name.")
+        return value
