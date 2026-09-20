@@ -2,7 +2,8 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 from django.core.paginator import Paginator
-from django.db.models import Count, Prefetch, Sum
+from django.db.models import Count, Prefetch, Q, Sum, Value
+from django.db.models.functions import Coalesce
 from django.http import HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
@@ -187,46 +188,56 @@ def report_home(request):
         selected_week_of = week_filters["week_of"]
         selected_week_start = selected_week_of - timedelta(days=selected_week_of.weekday())
         selected_week_end = selected_week_start + timedelta(days=6)
-        weekly_rows = (
-            Timesheet.objects.filter(
-                organization=organization,
-                shift__work_date__range=(selected_week_start, selected_week_end),
-            )
-            .order_by()
-            .values("employee_id")
-            .annotate(worked_minutes=Sum("worked_minutes"), completed_shifts=Count("pk"))
+        week_timesheets = Timesheet.objects.filter(
+            organization=organization,
+            shift__work_date__range=(selected_week_start, selected_week_end),
         )
-        weekly_by_employee = {row["employee_id"]: row for row in weekly_rows}
+        weekly_totals = week_timesheets.aggregate(
+            worked_minutes=Sum("worked_minutes"),
+            completed_shifts=Count("pk"),
+        )
+        employee_week_filter = Q(
+            timesheets__organization=organization,
+            timesheets__shift__work_date__range=(selected_week_start, selected_week_end),
+        )
+        weekly_employees_query = (
+            Employee.objects.filter(organization=organization)
+            .annotate(
+                worked_minutes=Coalesce(
+                    Sum("timesheets__worked_minutes", filter=employee_week_filter),
+                    Value(0),
+                ),
+                completed_shifts=Count("timesheets__pk", filter=employee_week_filter),
+            )
+            .order_by("-worked_minutes", "last_name", "first_name", "pk")
+        )
+        hours_page = Paginator(weekly_employees_query, 30).get_page(request.GET.get("page"))
         weekly_employees = []
-        for employee in Employee.objects.filter(organization=organization).order_by(
-            "last_name", "first_name"
-        ):
-            row = weekly_by_employee.get(employee.pk, {})
-            minutes = row.get("worked_minutes") or 0
+        for employee in hours_page.object_list:
+            minutes = employee.worked_minutes or 0
             weekly_employees.append(
                 {
                     "employee": employee,
                     "worked_minutes": minutes,
                     "worked_label": _duration_label(minutes),
-                    "completed_shifts": row.get("completed_shifts", 0),
+                    "completed_shifts": employee.completed_shifts,
                 }
             )
-        weekly_employees.sort(
-            key=lambda row: (-row["worked_minutes"], row["employee"].last_name, row["employee"].first_name)
-        )
-        total_worked_minutes = sum(row["worked_minutes"] for row in weekly_employees)
-        total_completed_shifts = sum(row["completed_shifts"] for row in weekly_employees)
+        total_worked_minutes = weekly_totals["worked_minutes"] or 0
+        total_completed_shifts = weekly_totals["completed_shifts"] or 0
         context.update(
             {
                 "week_form": week_form,
                 "selected_week_start": selected_week_start,
                 "selected_week_end": selected_week_end,
+                "hours_page": hours_page,
                 "weekly_employees": weekly_employees,
                 "weekly_summary": {
                     "worked_minutes": total_worked_minutes,
                     "worked_label": _duration_label(total_worked_minutes),
                     "completed_shifts": total_completed_shifts,
                 },
+                **_page_context(request, hours_page),
             }
         )
 
@@ -286,8 +297,17 @@ def report_home(request):
         )
 
     else:
-        context["recent_activity"] = (
-            AuditEvent.objects.filter(organization=organization).select_related("actor")[:25]
+        activity_page = Paginator(
+            AuditEvent.objects.filter(organization=organization)
+            .select_related("actor")
+            .order_by("-created_at", "-pk"),
+            25,
+        ).get_page(request.GET.get("page"))
+        context.update(
+            {
+                "activity_page": activity_page,
+                **_page_context(request, activity_page),
+            }
         )
 
     return render(request, "reports/index.html", context)

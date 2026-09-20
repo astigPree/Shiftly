@@ -357,6 +357,7 @@
 .report-data-table {
   width: 100%;
   min-width: 850px;
+  table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
 }
@@ -385,12 +386,40 @@
 }
 
 .report-attendance-table {
-  min-width: 960px;
+  min-width: 1040px;
+}
+
+.report-attendance-table th:nth-child(1) { width: 22%; }
+.report-attendance-table th:nth-child(2) { width: 17%; }
+.report-attendance-table th:nth-child(3) { width: 14%; }
+.report-attendance-table th:nth-child(4) { width: 18%; }
+.report-attendance-table th:nth-child(5) { width: 16%; }
+.report-attendance-table th:nth-child(6) { width: 13%; }
+
+.report-hours-table {
+  min-width: 760px;
+}
+
+.report-hours-table th:first-child {
+  width: 52%;
+}
+
+.report-hours-table th:nth-child(2),
+.report-hours-table th:nth-child(3) {
+  width: 24%;
 }
 
 .report-timesheet-table {
-  min-width: 980px;
+  min-width: 1080px;
 }
+
+.report-timesheet-table th:nth-child(1) { width: 12%; }
+.report-timesheet-table th:nth-child(2) { width: 24%; }
+.report-timesheet-table th:nth-child(3) { width: 13%; }
+.report-timesheet-table th:nth-child(4) { width: 13%; }
+.report-timesheet-table th:nth-child(5) { width: 13%; }
+.report-timesheet-table th:nth-child(6) { width: 15%; }
+.report-timesheet-table th:nth-child(7) { width: 10%; }
 
 .report-employee-name,
 .report-cell-meta {
