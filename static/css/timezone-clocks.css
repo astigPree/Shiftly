@@ -1,0 +1,135 @@
+.timezone-clocks {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.timezone-clock {
+  display: grid;
+  min-width: 142px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: baseline;
+  column-gap: 10px;
+  padding: 6px 10px;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  line-height: 1.25;
+}
+
+.timezone-clock--company {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-100);
+}
+
+.timezone-clock__label {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timezone-clock__time {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.timezone-clock__meta {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shift-time-viewer {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.dual-shift-time {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .timezone-clock {
+    min-width: 0;
+    padding: 5px 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .timezone-clocks {
+    gap: 5px;
+  }
+
+  .timezone-clock {
+    max-width: 132px;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    row-gap: 2px;
+  }
+
+  .timezone-clock__meta {
+    grid-column: 1;
+  }
+
+  .topbar-context {
+    min-width: 0;
+  }
+
+  .mobile-org-name {
+    display: none;
+  }
+
+  .timezone-clock {
+    max-width: 86px;
+    padding: 4px 6px;
+  }
+
+  .timezone-clock__label {
+    max-width: 72px;
+    font-size: 9px;
+  }
+
+  .timezone-clock__time {
+    font-size: 11px;
+  }
+
+  .timezone-clock__meta {
+    display: none;
+  }
+
+  .employee-topbar {
+    gap: 8px;
+  }
+
+  .employee-topbar .timezone-clocks {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .employee-topbar .timezone-clock {
+    max-width: 74px;
+    flex: 1 1 0;
+  }
+
+  .employee-topbar .timezone-clock__label {
+    max-width: 62px;
+  }
+
+  .employee-topbar .account-menu {
+    flex: 0 0 auto;
+  }
+}

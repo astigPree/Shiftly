@@ -1,0 +1,9 @@
+{% load tz %}
+{% if viewer_timezone != organization.timezone %}
+  <small class="dual-shift-time">
+    Your time ({{ viewer_timezone_label }}):
+    <time datetime="{{ shift.scheduled_start|date:'c' }}">{{ shift.scheduled_start|timezone:viewer_timezone|date:"M j, g:i A T" }}</time>
+    &ndash;
+    <time datetime="{{ shift.scheduled_end|date:'c' }}">{{ shift.scheduled_end|timezone:viewer_timezone|date:"M j, g:i A T" }}</time>
+  </small>
+{% endif %}

@@ -15,7 +15,11 @@
   <section class="form-card form-card--wide" aria-label="Shift details">
     {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
     {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post" novalidate data-shift-form data-organization-timezone="{{ organization.timezone }}">
+    <form method="post" novalidate data-shift-form
+          data-organization-timezone="{{ organization.timezone }}"
+          data-viewer-timezone="{{ viewer_timezone }}"
+          data-company-label="{{ company_timezone_label }}"
+          data-viewer-label="{{ viewer_timezone_label }}">
       {% csrf_token %}
       <div class="form-grid">
         {% for field in form %}
@@ -30,7 +34,8 @@
         {% include "components/icon.html" with icon_name="clock" %}
         <div>
           <strong data-shift-preview-title>Shift time preview</strong>
-          <span data-shift-preview-detail>Enter the date and times to see when this shift starts and ends. An earlier end time means it ends the next local day.</span>
+          <span data-shift-preview-company>Enter a date and times to preview the shift in your organization's time zone.</span>
+          <span data-shift-preview-viewer hidden></span>
         </div>
       </div>
       <div class="form-callout" role="note">

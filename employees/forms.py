@@ -1,8 +1,11 @@
+from zoneinfo import available_timezones
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from .models import Employee
+from organizations.validators import validate_iana_timezone
 
 
 class EmployeeForm(forms.ModelForm):
@@ -76,6 +79,11 @@ class EmployeeForm(forms.ModelForm):
 class EmployeeProfileForm(forms.Form):
     first_name = forms.CharField(max_length=150, label="First name")
     last_name = forms.CharField(max_length=150, label="Last name")
+    preferred_timezone = forms.ChoiceField(
+        choices=[(name, name) for name in sorted(available_timezones())],
+        label="Your time zone",
+        help_text="Used for your local time display. Schedules stay in your organization's time zone.",
+    )
 
     def clean_first_name(self):
         value = self.cleaned_data["first_name"].strip()
@@ -87,4 +95,9 @@ class EmployeeProfileForm(forms.Form):
         value = self.cleaned_data["last_name"].strip()
         if not value:
             raise ValidationError("Enter your last name.")
+        return value
+
+    def clean_preferred_timezone(self):
+        value = self.cleaned_data["preferred_timezone"]
+        validate_iana_timezone(value)
         return value

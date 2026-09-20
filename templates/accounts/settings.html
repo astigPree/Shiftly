@@ -84,6 +84,7 @@
       <div class="settings-fields">
         {% include "components/form_field.html" with field=profile_form.first_name %}
         {% include "components/form_field.html" with field=profile_form.last_name %}
+        {% include "components/form_field.html" with field=profile_form.preferred_timezone %}
         <div class="settings-email-field settings-field-full">
           <span class="settings-field-label">Login email</span>
           <p class="settings-field-description">This email is used to sign in to Shiftly.</p>

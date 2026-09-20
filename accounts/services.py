@@ -123,10 +123,14 @@ def save_organization_settings(*, organization, user, organization_name, timezon
 
 
 @transaction.atomic
-def save_employer_profile(*, user, first_name, last_name):
+def save_employer_profile(*, user, first_name, last_name, preferred_timezone=None):
     user.first_name = first_name
     user.last_name = last_name
-    user.save(update_fields=["first_name", "last_name"])
+    update_fields = ["first_name", "last_name"]
+    if preferred_timezone is not None:
+        user.preferred_timezone = preferred_timezone
+        update_fields.append("preferred_timezone")
+    user.save(update_fields=update_fields)
 
 
 @transaction.atomic

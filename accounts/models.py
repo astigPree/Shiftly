@@ -43,6 +43,7 @@ class User(AbstractUser):
         default=Role.EMPLOYEE,
         db_index=True,
     )
+    preferred_timezone = models.CharField(max_length=64, blank=True, default="")
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

@@ -30,12 +30,14 @@
         <span class="shift-time-label">Start</span>
         <strong>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}</strong>
         <span>{{ shift.scheduled_start|timezone:organization.timezone|date:"M j, Y · l" }}</span>
+        {% if viewer_timezone != organization.timezone %}<small class="shift-time-viewer">Your time · {{ shift.scheduled_start|timezone:viewer_timezone|date:"D, M j, Y · g:i A" }} · {{ viewer_timezone }}</small>{% endif %}
       </div>
       <span class="shift-time-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="arrow-right" %}</span>
       <div class="shift-time-point">
         <span class="shift-time-label">End</span>
         <strong>{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</strong>
         <span>{{ shift.scheduled_end|timezone:organization.timezone|date:"M j, Y · l" }}</span>
+        {% if viewer_timezone != organization.timezone %}<small class="shift-time-viewer">Your time · {{ shift.scheduled_end|timezone:viewer_timezone|date:"D, M j, Y · g:i A" }} · {{ viewer_timezone }}</small>{% endif %}
       </div>
       {% if shift.is_overnight %}<span class="shift-overnight-badge">{% include "components/icon.html" with icon_name="moon" %}<span>Overnight</span></span>{% endif %}
     </div>

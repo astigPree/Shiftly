@@ -10,6 +10,7 @@
   <div class="employee-shift-details">
     <h3>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <span class="employee-shift-overnight">Overnight</span>{% endif %}</h3>
     <p class="employee-shift-meta"><span>{{ card.scheduled_duration_label }} scheduled</span><span aria-hidden="true">·</span><span>Break: {{ card.break_allowance_label }}</span></p>
+    {% include "components/dual_shift_time.html" with shift=shift organization=organization %}
     {% if state.missing_clock_out %}<p class="employee-shift-warning">Your scheduled end time has passed. Please finish attendance from Home.</p>{% endif %}
   </div>
 

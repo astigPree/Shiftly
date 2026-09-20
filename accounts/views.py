@@ -170,6 +170,7 @@ def workspace_settings(request):
     profile_form = EmployerProfileSettingsForm(
         request.POST if request.method == "POST" and active_section == "profile" else None,
         user=request.user,
+        organization=organization,
     )
 
     settings_form_invalid = False
@@ -199,6 +200,7 @@ def workspace_settings(request):
                     user=request.user,
                     first_name=profile_form.cleaned_data["first_name"],
                     last_name=profile_form.cleaned_data["last_name"],
+                    preferred_timezone=profile_form.cleaned_data["preferred_timezone"],
                 )
                 messages.success(request, "Your profile has been updated.")
                 return redirect(
@@ -229,7 +231,12 @@ def employee_profile(request):
     employee = request.user.employee_profile
     form = EmployeeProfileForm(
         request.POST or None,
-        initial={"first_name": employee.first_name, "last_name": employee.last_name},
+        initial={
+            "first_name": employee.first_name,
+            "last_name": employee.last_name,
+            "preferred_timezone": request.user.preferred_timezone
+            or employee.organization.timezone,
+        },
     )
     if request.method == "POST" and form.is_valid():
         try:
@@ -238,6 +245,7 @@ def employee_profile(request):
                 user=request.user,
                 first_name=form.cleaned_data["first_name"],
                 last_name=form.cleaned_data["last_name"],
+                preferred_timezone=form.cleaned_data["preferred_timezone"],
             )
         except ValidationError as error:
             form.add_error(None, error)

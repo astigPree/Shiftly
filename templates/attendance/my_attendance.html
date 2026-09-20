@@ -46,6 +46,7 @@
           <span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span>
         </div>
 
+        {% if state.code != "CANCELLED" %}{% include "components/dual_shift_time.html" with shift=shift organization=organization %}{% endif %}
         {% if state.code == "CANCELLED" %}
           <div class="employee-focus-message">
             <p>This shift was cancelled. No attendance action is required.</p>
@@ -148,6 +149,7 @@
           <h2 id="next-shift-heading">{{ upcoming_card.shift.work_date|date:"l, M j, Y" }}</h2>
           <p class="employee-next-shift-time">{{ upcoming_card.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ upcoming_card.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if upcoming_card.shift.is_overnight %} <span>(overnight)</span>{% endif %}</p>
           <p class="muted">{{ upcoming_card.scheduled_duration_label }} scheduled</p>
+          {% include "components/dual_shift_time.html" with shift=upcoming_card.shift organization=organization %}
         </div>
         <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
       </section>

@@ -1,0 +1,16 @@
+{% load tz %}
+<section class="timezone-clocks" aria-label="Organization and personal time zones"
+         data-timezone-clocks data-now="{{ timezone_now|date:'c' }}">
+  <div class="timezone-clock timezone-clock--company" data-timezone-clock data-timezone="{{ organization.timezone }}">
+    <span class="timezone-clock__label">Company · {{ company_timezone_label }}</span>
+    <time class="timezone-clock__time" datetime="{{ timezone_now|date:'c' }}">{{ timezone_now|timezone:organization.timezone|date:"g:i A" }}</time>
+    <small class="timezone-clock__meta">{{ timezone_now|timezone:organization.timezone|date:"D, M j" }} · {{ organization.timezone }}</small>
+  </div>
+  {% if viewer_timezone != organization.timezone %}
+    <div class="timezone-clock timezone-clock--viewer" data-timezone-clock data-timezone="{{ viewer_timezone }}">
+      <span class="timezone-clock__label">Your time · {{ viewer_timezone_label }}</span>
+      <time class="timezone-clock__time" datetime="{{ timezone_now|date:'c' }}">{{ timezone_now|timezone:viewer_timezone|date:"g:i A" }}</time>
+      <small class="timezone-clock__meta">{{ timezone_now|timezone:viewer_timezone|date:"D, M j" }} · {{ viewer_timezone }}</small>
+    </div>
+  {% endif %}
+</section>

@@ -108,7 +108,9 @@ def accept_employee_invitation(token, password):
 
 
 @transaction.atomic
-def update_employee_profile(*, employee, user, first_name, last_name):
+def update_employee_profile(
+    *, employee, user, first_name, last_name, preferred_timezone=None
+):
     employee = Employee.objects.select_for_update().get(pk=employee.pk, user=user)
     user = get_user_model().objects.select_for_update().get(pk=user.pk)
     if employee.status != Employee.Status.ACTIVE or user.role != User.Role.EMPLOYEE:
@@ -118,7 +120,14 @@ def update_employee_profile(*, employee, user, first_name, last_name):
     employee.save(update_fields=["first_name", "last_name", "updated_at"])
     user.first_name = employee.first_name
     user.last_name = employee.last_name
-    user.save(update_fields=["first_name", "last_name"])
+    user_update_fields = ["first_name", "last_name"]
+    changed_fields = ["first_name", "last_name"]
+    if preferred_timezone is not None:
+        if user.preferred_timezone != preferred_timezone:
+            changed_fields.append("preferred_timezone")
+        user.preferred_timezone = preferred_timezone
+        user_update_fields.append("preferred_timezone")
+    user.save(update_fields=user_update_fields)
     record_event(
         organization=employee.organization,
         actor=user,
@@ -126,6 +135,6 @@ def update_employee_profile(*, employee, user, first_name, last_name):
         target_type="employee",
         target_id=employee.pk,
         summary="Updated own employee profile.",
-        metadata={"changed_fields": ["first_name", "last_name"]},
+        metadata={"changed_fields": changed_fields},
     )
     return employee
