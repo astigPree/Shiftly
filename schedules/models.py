@@ -40,11 +40,11 @@ class Shift(models.Model):
                 name="schedules_employee_work_date_unique",
             ),
             models.CheckConstraint(
-                condition=Q(scheduled_end__gt=models.F("scheduled_start")),
+                check=Q(scheduled_end__gt=models.F("scheduled_start")),
                 name="schedules_end_after_start",
             ),
             models.CheckConstraint(
-                condition=Q(status__in=["SCHEDULED", "CANCELLED"]),
+                check=Q(status__in=["SCHEDULED", "CANCELLED"]),
                 name="schedules_status_valid",
             ),
         ]

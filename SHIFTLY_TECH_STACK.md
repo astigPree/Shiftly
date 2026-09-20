@@ -56,16 +56,16 @@ GitHub
 
 ## Pinned Runtime Versions
 
-Selected on 2026-09-19 and pinned in the repository:
+Selected on 2026-09-20 to match the existing development environment:
 
-- Python 3.14.7 in .python-version. Django officially supports the latest micro release in each supported Python series; 3.14.7 is the current Python 3.14 maintenance release.
-- Django 5.2.17 in requirements/base.txt. Django 5.2 is the LTS series and supports Python 3.14 from 5.2.8; its extended security support runs through April 2028.
-- Psycopg 3.3.6 with its binary extra in requirements/base.txt for PostgreSQL connections across Windows development and Ubuntu production; tzdata 2026.4 supplies IANA timezone data on Windows.
-- Gunicorn 26.2.0 in requirements/production.txt for the Ubuntu WSGI deployment. Keep this production-only dependency out of the Windows development install.
+- Python 3.9.13 in .python-version.
+- Django 4.2.30 in requirements/base.txt, the last Django release series compatible with Python 3.9. Django 4.2 security support ended in April 2026, and Python 3.9 security support ended in October 2025. This stack is for local development only and must not be used for production.
+- Psycopg 3.2.13 with its binary extra in requirements/base.txt for PostgreSQL connections; this release supports Python 3.9. tzdata 2026.4 supplies IANA timezone data on Windows.
+- Gunicorn 23.0.0 in requirements/production.txt is retained for compatibility with Python 3.9, but the Python and Django end-of-support status makes this production manifest unsuitable for deployment.
 
 For local development, install with pip install -r requirements.txt; this root manifest includes the shared dependencies from requirements/base.txt and excludes the production server. Production environments install pip install -r requirements/production.txt. Update exact pins deliberately after checking upstream support and security releases.
 
-Sources: [Django supported releases](https://www.djangoproject.com/download/), [Django Python compatibility](https://docs.djangoproject.com/en/5.2/faq/install/), [Python 3.14 releases](https://www.python.org/doc/versions/), [Psycopg installation](https://www.psycopg.org/psycopg3/docs/basic/install.html), and [Gunicorn 26.2.0](https://pypi.org/project/gunicorn/26.2.0/).
+Sources: [Django 4.2 Python compatibility and support dates](https://docs.djangoproject.com/en/4.2/faq/install/), [Python 3.9.13 release](https://www.python.org/downloads/release/python-3913/), [Psycopg 3.2.13](https://pypi.org/project/psycopg/3.2.13/), and [Gunicorn 23.0.0](https://pypi.org/project/gunicorn/23.0.0/).
 
 ---
 # 2. Explicitly Not Used in MVP

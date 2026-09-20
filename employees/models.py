@@ -56,7 +56,7 @@ class Employee(models.Model):
                 Lower("email"), name="employees_email_ci_unique"
             ),
             models.CheckConstraint(
-                condition=Q(status__in=["ACTIVE", "INACTIVE"]),
+                check=Q(status__in=["ACTIVE", "INACTIVE"]),
                 name="employees_status_valid",
             ),
         ]
@@ -105,7 +105,7 @@ class EmployeeInvitation(models.Model):
                 name="employees_one_open_invitation",
             ),
             models.CheckConstraint(
-                condition=Q(expires_at__gt=models.F("created_at")),
+                check=Q(expires_at__gt=models.F("created_at")),
                 name="employees_invitation_expiry_after_creation",
             ),
         ]

@@ -55,7 +55,7 @@ class User(AbstractUser):
                 Lower("email"), name="accounts_user_email_ci_unique"
             ),
             models.CheckConstraint(
-                condition=Q(role__in=["EMPLOYER", "EMPLOYEE"]),
+                check=Q(role__in=["EMPLOYER", "EMPLOYEE"]),
                 name="accounts_user_role_valid",
             ),
         ]

@@ -55,15 +55,15 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='attendancesession',
-            constraint=models.CheckConstraint(condition=models.Q(('clock_out_at__isnull', True), ('clock_out_at__gt', models.F('clock_in_at')), _connector='OR'), name='attendance_clockout_after_clockin'),
+            constraint=models.CheckConstraint(check=models.Q(('clock_out_at__isnull', True), ('clock_out_at__gt', models.F('clock_in_at')), _connector='OR'), name='attendance_clockout_after_clockin'),
         ),
         migrations.AddConstraint(
             model_name='attendancesession',
-            constraint=models.CheckConstraint(condition=models.Q(models.Q(('clock_out_at__isnull', False), ('status', 'COMPLETED')), models.Q(('clock_out_at__isnull', True), ('status__in', ['WORKING', 'ON_BREAK'])), _connector='OR'), name='attendance_status_clockout_consistent'),
+            constraint=models.CheckConstraint(check=models.Q(models.Q(('clock_out_at__isnull', False), ('status', 'COMPLETED')), models.Q(('clock_out_at__isnull', True), ('status__in', ['WORKING', 'ON_BREAK'])), _connector='OR'), name='attendance_status_clockout_consistent'),
         ),
         migrations.AddConstraint(
             model_name='attendancesession',
-            constraint=models.CheckConstraint(condition=models.Q(('status__in', ['WORKING', 'ON_BREAK', 'COMPLETED'])), name='attendance_status_valid'),
+            constraint=models.CheckConstraint(check=models.Q(('status__in', ['WORKING', 'ON_BREAK', 'COMPLETED'])), name='attendance_status_valid'),
         ),
         migrations.AddConstraint(
             model_name='attendancesession',
@@ -75,7 +75,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='breaksession',
-            constraint=models.CheckConstraint(condition=models.Q(('ended_at__isnull', True), ('ended_at__gt', models.F('started_at')), _connector='OR'), name='attendance_break_end_after_start'),
+            constraint=models.CheckConstraint(check=models.Q(('ended_at__isnull', True), ('ended_at__gt', models.F('started_at')), _connector='OR'), name='attendance_break_end_after_start'),
         ),
         migrations.AddConstraint(
             model_name='breaksession',

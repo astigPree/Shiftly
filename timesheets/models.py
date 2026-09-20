@@ -51,15 +51,15 @@ class Timesheet(models.Model):
         ordering = ["-shift__work_date", "-created_at"]
         constraints = [
             models.CheckConstraint(
-                condition=Q(status__in=["PENDING", "APPROVED", "REJECTED", "NEEDS_REVIEW"]),
+                check=Q(status__in=["PENDING", "APPROVED", "REJECTED", "NEEDS_REVIEW"]),
                 name="timesheets_status_valid",
             ),
-            models.CheckConstraint(condition=Q(scheduled_minutes__gte=0), name="timesheets_scheduled_nonneg"),
-            models.CheckConstraint(condition=Q(break_minutes__gte=0), name="timesheets_break_nonneg"),
-            models.CheckConstraint(condition=Q(worked_minutes__gte=0), name="timesheets_worked_nonneg"),
-            models.CheckConstraint(condition=Q(payable_minutes__gte=0), name="timesheets_payable_nonneg"),
-            models.CheckConstraint(condition=Q(late_minutes__gte=0), name="timesheets_late_nonneg"),
-            models.CheckConstraint(condition=Q(undertime_minutes__gte=0), name="timesheets_undertime_nonneg"),
+            models.CheckConstraint(check=Q(scheduled_minutes__gte=0), name="timesheets_scheduled_nonneg"),
+            models.CheckConstraint(check=Q(break_minutes__gte=0), name="timesheets_break_nonneg"),
+            models.CheckConstraint(check=Q(worked_minutes__gte=0), name="timesheets_worked_nonneg"),
+            models.CheckConstraint(check=Q(payable_minutes__gte=0), name="timesheets_payable_nonneg"),
+            models.CheckConstraint(check=Q(late_minutes__gte=0), name="timesheets_late_nonneg"),
+            models.CheckConstraint(check=Q(undertime_minutes__gte=0), name="timesheets_undertime_nonneg"),
         ]
         indexes = [
             models.Index(fields=["organization", "status"], name="timesheets_org_status_idx"),
@@ -127,9 +127,9 @@ class TimesheetApproval(models.Model):
     class Meta:
         ordering = ["-reviewed_at", "-id"]
         constraints = [
-            models.CheckConstraint(condition=Q(action__in=["APPROVED", "REJECTED"]), name="timesheets_review_action_valid"),
+            models.CheckConstraint(check=Q(action__in=["APPROVED", "REJECTED"]), name="timesheets_review_action_valid"),
             models.CheckConstraint(
-                condition=Q(action="APPROVED") | ~Q(comment=""),
+                check=Q(action="APPROVED") | ~Q(comment=""),
                 name="timesheets_rejection_comment_required",
             ),
         ]

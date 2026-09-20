@@ -71,7 +71,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='employee',
-            constraint=models.CheckConstraint(condition=models.Q(('status__in', ['ACTIVE', 'INACTIVE'])), name='employees_status_valid'),
+            constraint=models.CheckConstraint(check=models.Q(('status__in', ['ACTIVE', 'INACTIVE'])), name='employees_status_valid'),
         ),
         migrations.AddIndex(
             model_name='employeeinvitation',
@@ -83,6 +83,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='employeeinvitation',
-            constraint=models.CheckConstraint(condition=models.Q(('expires_at__gt', models.F('created_at'))), name='employees_invitation_expiry_after_creation'),
+            constraint=models.CheckConstraint(check=models.Q(('expires_at__gt', models.F('created_at'))), name='employees_invitation_expiry_after_creation'),
         ),
     ]

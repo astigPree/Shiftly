@@ -34,18 +34,18 @@ class AttendanceSession(models.Model):
         ordering = ["-clock_in_at", "id"]
         constraints = [
             models.CheckConstraint(
-                condition=Q(clock_out_at__isnull=True) | Q(clock_out_at__gt=models.F("clock_in_at")),
+                check=Q(clock_out_at__isnull=True) | Q(clock_out_at__gt=models.F("clock_in_at")),
                 name="attendance_clockout_after_clockin",
             ),
             models.CheckConstraint(
-                condition=(
+                check=(
                     Q(status="COMPLETED", clock_out_at__isnull=False)
                     | Q(status__in=["WORKING", "ON_BREAK"], clock_out_at__isnull=True)
                 ),
                 name="attendance_status_clockout_consistent",
             ),
             models.CheckConstraint(
-                condition=Q(status__in=["WORKING", "ON_BREAK", "COMPLETED"]),
+                check=Q(status__in=["WORKING", "ON_BREAK", "COMPLETED"]),
                 name="attendance_status_valid",
             ),
             models.UniqueConstraint(
@@ -104,7 +104,7 @@ class BreakSession(models.Model):
         ordering = ["started_at", "id"]
         constraints = [
             models.CheckConstraint(
-                condition=Q(ended_at__isnull=True) | Q(ended_at__gt=models.F("started_at")),
+                check=Q(ended_at__isnull=True) | Q(ended_at__gt=models.F("started_at")),
                 name="attendance_break_end_after_start",
             ),
             models.UniqueConstraint(

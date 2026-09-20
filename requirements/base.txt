@@ -1,4 +1,4 @@
 # Shared application runtime dependencies.
-Django==5.2.17
-psycopg[binary]==3.3.6
+Django==4.2.30
+psycopg[binary]==3.2.13
 tzdata==2026.4

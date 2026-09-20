@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ['email'],
-                'constraints': [models.UniqueConstraint(django.db.models.functions.text.Lower('email'), name='accounts_user_email_ci_unique'), models.CheckConstraint(condition=models.Q(('role__in', ['EMPLOYER', 'EMPLOYEE'])), name='accounts_user_role_valid')],
+                'constraints': [models.UniqueConstraint(django.db.models.functions.text.Lower('email'), name='accounts_user_email_ci_unique'), models.CheckConstraint(check=models.Q(('role__in', ['EMPLOYER', 'EMPLOYEE'])), name='accounts_user_role_valid')],
             },
             managers=[
                 ('objects', accounts.models.UserManager()),

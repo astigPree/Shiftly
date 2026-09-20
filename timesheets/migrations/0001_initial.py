@@ -69,38 +69,38 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('status__in', ['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_REVIEW'])), name='timesheets_status_valid'),
+            constraint=models.CheckConstraint(check=models.Q(('status__in', ['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_REVIEW'])), name='timesheets_status_valid'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('scheduled_minutes__gte', 0)), name='timesheets_scheduled_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('scheduled_minutes__gte', 0)), name='timesheets_scheduled_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('break_minutes__gte', 0)), name='timesheets_break_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('break_minutes__gte', 0)), name='timesheets_break_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('worked_minutes__gte', 0)), name='timesheets_worked_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('worked_minutes__gte', 0)), name='timesheets_worked_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('payable_minutes__gte', 0)), name='timesheets_payable_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('payable_minutes__gte', 0)), name='timesheets_payable_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('late_minutes__gte', 0)), name='timesheets_late_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('late_minutes__gte', 0)), name='timesheets_late_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheet',
-            constraint=models.CheckConstraint(condition=models.Q(('undertime_minutes__gte', 0)), name='timesheets_undertime_nonneg'),
+            constraint=models.CheckConstraint(check=models.Q(('undertime_minutes__gte', 0)), name='timesheets_undertime_nonneg'),
         ),
         migrations.AddConstraint(
             model_name='timesheetapproval',
-            constraint=models.CheckConstraint(condition=models.Q(('action__in', ['APPROVED', 'REJECTED'])), name='timesheets_review_action_valid'),
+            constraint=models.CheckConstraint(check=models.Q(('action__in', ['APPROVED', 'REJECTED'])), name='timesheets_review_action_valid'),
         ),
         migrations.AddConstraint(
             model_name='timesheetapproval',
-            constraint=models.CheckConstraint(condition=models.Q(('action', 'APPROVED'), models.Q(('comment', ''), _negated=True), _connector='OR'), name='timesheets_rejection_comment_required'),
+            constraint=models.CheckConstraint(check=models.Q(('action', 'APPROVED'), models.Q(('comment', ''), _negated=True), _connector='OR'), name='timesheets_rejection_comment_required'),
         ),
     ]

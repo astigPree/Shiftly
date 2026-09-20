@@ -31,7 +31,7 @@ class Migration(migrations.Migration):
             options={
                 'ordering': ['work_date', 'scheduled_start', 'id'],
                 'indexes': [models.Index(fields=['organization', 'work_date'], name='schedules_org_date_idx'), models.Index(fields=['employee', 'work_date'], name='schedules_employee_date_idx')],
-                'constraints': [models.UniqueConstraint(fields=('employee', 'work_date'), name='schedules_employee_work_date_unique'), models.CheckConstraint(condition=models.Q(('scheduled_end__gt', models.F('scheduled_start'))), name='schedules_end_after_start'), models.CheckConstraint(condition=models.Q(('status__in', ['SCHEDULED', 'CANCELLED'])), name='schedules_status_valid')],
+                'constraints': [models.UniqueConstraint(fields=('employee', 'work_date'), name='schedules_employee_work_date_unique'), models.CheckConstraint(check=models.Q(('scheduled_end__gt', models.F('scheduled_start'))), name='schedules_end_after_start'), models.CheckConstraint(check=models.Q(('status__in', ['SCHEDULED', 'CANCELLED'])), name='schedules_status_valid')],
             },
         ),
     ]

@@ -1,3 +1,3 @@
 # Production-only WSGI server for Ubuntu.
 -r base.txt
-gunicorn==26.2.0
+gunicorn==23.0.0
