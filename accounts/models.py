@@ -63,7 +63,7 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         if self.email:
-            self.email = self.objects.normalize_email(self.email)
+            self.email = type(self).objects.normalize_email(self.email)
         return super().save(*args, **kwargs)
 
     def __str__(self):
