@@ -9,7 +9,7 @@
     <a class="shell-brand" href="{% url 'attendance:my_attendance' %}"><img class="brand-mark" src="{% static 'assets/shiftly-mark.svg' %}" alt=""><span>Shiftly</span></a>
     <span class="employee-org">{{ organization.name }}</span>
     <details class="account-menu">
-      <summary><span class="account-avatar" aria-hidden="true">{{ request.user.first_name|first|upper|default:"E" }}</span><span class="account-name"><strong>{{ request.user.get_full_name|default:request.user.email }}</strong><small>Employee</small></span><span aria-hidden="true">⌄</span></summary>
+      <summary><span class="account-avatar" aria-hidden="true">{{ request.user.first_name|first|upper|default:"E" }}</span><span class="account-name"><strong>{{ request.user.get_full_name|default:request.user.email }}</strong><small>Employee</small></span><span class="account-chevron" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-down" icon_class="account-chevron-icon" %}</span></summary>
       <div class="account-popover"><p>{{ request.user.email }}</p><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit" class="menu-signout">Sign out</button></form></div>
     </details>
   </header>

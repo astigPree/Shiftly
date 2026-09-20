@@ -159,6 +159,22 @@
 .account-menu summary::-webkit-details-marker {
   display: none;
 }
+.account-chevron {
+  display: grid;
+  width: 20px;
+  height: 36px;
+  flex: 0 0 auto;
+  color: var(--color-gray-500);
+  place-items: center;
+}
+.account-chevron-icon {
+  width: 16px;
+  height: 16px;
+  transition: transform 140ms ease;
+}
+.account-menu[open] .account-chevron-icon {
+  transform: rotate(180deg);
+}
 .account-name {
   display: grid;
   gap: 2px;
