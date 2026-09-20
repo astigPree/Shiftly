@@ -63,7 +63,7 @@
                 <td class="timesheet-duration">{{ row.worked_label }}</td>
                 <td class="timesheet-variance timesheet-variance--{{ row.variance_tone }}">{{ row.variance_label }}</td>
                 <td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td>
-                <td class="timesheet-action-cell"><a class="timesheet-view-link" href="{% url 'timesheets:detail' timesheet.pk %}">View</a></td>
+                <td class="timesheet-action-cell"><a class="timesheet-view-link table-action-button" href="{% url 'timesheets:detail' timesheet.pk %}">View</a></td>
               </tr>
             {% endwith %}{% endfor %}
           </tbody>
@@ -142,7 +142,7 @@
                 <td>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if timesheet.shift.is_overnight %} <span class="employee-timesheet-overnight">(overnight)</span>{% endif %}</td>
                 <td class="employee-timesheet-worked">{{ timesheet.worked_display }}</td>
                 <td><span class="status-badge status-{{ timesheet.status|lower }} employee-timesheet-status">{{ timesheet.get_status_display }}</span></td>
-                <td><a class="employee-timesheet-view" href="{% url 'timesheets:my_detail' timesheet.pk %}">View details <span aria-hidden="true">›</span></a></td>
+                <td><a class="employee-timesheet-view table-action-button" href="{% url 'timesheets:my_detail' timesheet.pk %}">View details <span aria-hidden="true">›</span></a></td>
               </tr>
             {% endfor %}
           </tbody>

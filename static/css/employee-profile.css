@@ -618,7 +618,7 @@
   text-decoration: none;
 }
 
-.employee-profile-table td a:hover {
+.employee-profile-table td a:not(.table-action-button):hover {
   text-decoration: underline;
 }
 

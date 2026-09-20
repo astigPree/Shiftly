@@ -106,7 +106,7 @@
                   {% else %}<small>Clocked in</small>{% endif %}
                 {% else %}—{% endif %}
               </td>
-              <td><a href="{% url 'schedules:detail' row.shift.pk %}" aria-label="View {{ row.shift.employee.full_name }}'s shift">View</a></td>
+              <td><a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}" aria-label="View {{ row.shift.employee.full_name }}'s shift">View</a></td>
             </tr>
           {% endfor %}
         </tbody>

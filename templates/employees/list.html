@@ -68,7 +68,7 @@
                   <td>{{ employee.job_title|default:"—" }}</td>
                   <td><span class="status-badge status-{{ employee.status|lower }}">{{ employee.get_status_display }}</span></td>
                   <td><span class="account-state account-state--{{ employee.account_state_class }}">{{ employee.account_state_label }}</span></td>
-                  <td><a class="employee-edit-link" href="{% url 'employees:edit' employee.pk %}" aria-label="Edit {{ employee.full_name }}">Edit</a></td>
+                  <td><a class="employee-edit-link table-action-button" href="{% url 'employees:edit' employee.pk %}" aria-label="Edit {{ employee.full_name }}">Edit</a></td>
                 </tr>
               {% endfor %}
             </tbody>

@@ -90,7 +90,7 @@
                 <td><span class="status-badge status-{{ shift.attendance_state.code|lower }}">{{ shift.attendance_state.label }}</span></td>
                 <td class="schedule-actions-cell">
                   <details class="schedule-row-menu">
-                    <summary aria-label="Actions for {{ shift.employee.full_name }} on {{ shift.work_date|date:'M j, Y' }}"><span aria-hidden="true">•••</span></summary>
+                    <summary class="table-action-button table-action-menu-trigger" aria-label="Actions for {{ shift.employee.full_name }} on {{ shift.work_date|date:'M j, Y' }}"><span aria-hidden="true">•••</span></summary>
                     <div class="schedule-row-menu-popover">
                       <a href="{% url 'schedules:detail' shift.pk %}">View shift</a>
                       {% if shift.can_manage %}<a href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><button type="button" class="schedule-menu-danger" data-open-shift-cancel aria-haspopup="dialog" aria-controls="shift-cancel-dialog-{{ shift.pk }}">Cancel shift</button>{% endif %}

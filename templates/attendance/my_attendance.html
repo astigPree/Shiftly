@@ -170,7 +170,7 @@
                 <td>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if timesheet.shift.is_overnight %} <span class="muted">(overnight)</span>{% endif %}</td>
                 <td>{{ timesheet.worked_duration_label }}</td>
                 <td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td>
-                <td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">View</a></td>
+                <td><a class="table-action-button" href="{% url 'timesheets:my_detail' timesheet.pk %}">View</a></td>
               </tr>
             {% endfor %}
           </tbody>
