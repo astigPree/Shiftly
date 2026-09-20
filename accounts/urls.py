@@ -11,7 +11,7 @@ urlpatterns = [
     path("signup/", views.employer_signup, name="signup"),
     path(
         "login/",
-        auth_views.LoginView.as_view(template_name="registration/login.html"),
+        views.ShiftlyLoginView.as_view(),
         name="login",
     ),
     path(

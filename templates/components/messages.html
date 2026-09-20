@@ -1,3 +1,26 @@
-{% for message in messages %}
-  <div class="notice notice-{{ message.tags|default:'info' }}"{% if "error" in message.tags %} role="alert" aria-live="assertive"{% else %} role="status" aria-live="polite"{% endif %}>{{ message }}</div>
-{% endfor %}
+{% load static %}
+<div class="toast-region" data-toast-region aria-label="Notifications"
+     data-toast-icon-error="{% static 'assets/icons/status-error.svg' %}"
+     data-toast-icon-loading="{% static 'assets/icons/status-loading.svg' %}"
+     data-toast-icon-success="{% static 'assets/icons/status-success.svg' %}"
+     data-toast-icon-warning="{% static 'assets/icons/status-warning.svg' %}"
+     data-toast-icon-info="{% static 'assets/icons/status-info.svg' %}">
+  {% for message in messages %}
+    <section class="toast toast--{{ message.tags|default:'info' }}" data-toast data-toast-duration="{% if 'error' in message.tags %}8500{% else %}5000{% endif %}"{% if 'error' in message.tags %} role="alert" aria-live="assertive"{% else %} role="status" aria-live="polite"{% endif %}>
+      {% if 'success' in message.tags %}
+        <img class="toast__icon" src="{% static 'assets/icons/status-success.svg' %}" alt="">
+        <div class="toast__copy"><strong class="toast__title">Success</strong><p class="toast__message">{{ message }}</p></div>
+      {% elif 'error' in message.tags %}
+        <img class="toast__icon" src="{% static 'assets/icons/status-error.svg' %}" alt="">
+        <div class="toast__copy"><strong class="toast__title">Please check</strong><p class="toast__message">{{ message }}</p></div>
+      {% elif 'warning' in message.tags %}
+        <img class="toast__icon" src="{% static 'assets/icons/status-warning.svg' %}" alt="">
+        <div class="toast__copy"><strong class="toast__title">Attention</strong><p class="toast__message">{{ message }}</p></div>
+      {% else %}
+        <img class="toast__icon" src="{% static 'assets/icons/status-info.svg' %}" alt="">
+        <div class="toast__copy"><strong class="toast__title">Notice</strong><p class="toast__message">{{ message }}</p></div>
+      {% endif %}
+      <button class="toast__dismiss" type="button" data-toast-dismiss aria-label="Dismiss notification"><span aria-hidden="true">&times;</span></button>
+    </section>
+  {% endfor %}
+</div>

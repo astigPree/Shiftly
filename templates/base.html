@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="{% static 'css/timesheets.css' %}">
   <link rel="stylesheet" href="{% static 'css/reports.css' %}">
   <link rel="stylesheet" href="{% static 'css/accessibility.css' %}">
+  <link rel="stylesheet" href="{% static 'css/auth.css' %}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% block page %}
@@ -23,6 +24,7 @@
       {% block content %}{% endblock %}
     </main>
   {% endblock %}
+  <script src="{% static 'js/toasts.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,24 +1,56 @@
 {% extends "base.html" %}
-{% load form_tags static %}
+{% load static %}
 {% block title %}Create your Shiftly workspace{% endblock %}
+{% block body_class %}auth-body{% endblock %}
 {% block content %}
-<section class="auth-card" aria-labelledby="page-title">
-  <a class="brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
-  <h1 id="page-title">Create your workspace</h1>
-  <p class="muted">Set up your employer account and organization.</p>
-  <form method="post" novalidate>
+<section class="auth-card auth-card--signup" aria-labelledby="page-title">
+  <a class="auth-brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
+  <header class="auth-heading">
+    <h1 id="page-title">Create your workspace</h1>
+    <p>Start managing attendance, shifts, and timesheets with Shiftly.</p>
+  </header>
+
+  <form class="auth-form auth-form--signup" method="post" novalidate data-auth-form data-loading-message="Creating your workspace…" data-validation-message="Please complete the required fields and check their format.">
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    {% for field in form %}
-      <div class="field">
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-        {{ field|accessible_field }}
-        {% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}
-        {% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}
+
+    <section class="auth-form-section" aria-labelledby="signup-profile-title">
+      <header class="auth-section-heading">
+        <span class="auth-section-icon"><img src="{% static 'assets/icons/user-profile.svg' %}" alt=""></span>
+        <div><h2 id="signup-profile-title">Your details</h2><p>Tell us a bit about yourself.</p></div>
+      </header>
+      <div class="auth-field-grid">
+        {% include "components/auth_field.html" with field=form.first_name %}
+        {% include "components/auth_field.html" with field=form.last_name %}
+        {% include "components/auth_field.html" with field=form.email icon="assets/icons/mail.svg" full_width=True %}
       </div>
-    {% endfor %}
-    <button type="submit">Create workspace</button>
+    </section>
+
+    <section class="auth-form-section" aria-labelledby="signup-workspace-title">
+      <header class="auth-section-heading">
+        <span class="auth-section-icon"><img src="{% static 'assets/icons/building.svg' %}" alt=""></span>
+        <div><h2 id="signup-workspace-title">Workspace</h2><p>Set up your company or team.</p></div>
+      </header>
+      <div class="auth-field-grid auth-field-grid--single">
+        {% include "components/auth_field.html" with field=form.organization_name icon="assets/icons/building.svg" %}
+        {% include "components/auth_field.html" with field=form.timezone icon="assets/icons/globe-timezone.svg" %}
+      </div>
+    </section>
+
+    <section class="auth-form-section" aria-labelledby="signup-security-title">
+      <header class="auth-section-heading">
+        <span class="auth-section-icon"><img src="{% static 'assets/icons/lock.svg' %}" alt=""></span>
+        <div><h2 id="signup-security-title">Account security</h2><p>Choose a secure password for your account.</p></div>
+      </header>
+      <div class="auth-field-grid">
+        {% include "components/auth_field.html" with field=form.password1 icon="assets/icons/lock.svg" password=True %}
+        {% include "components/auth_field.html" with field=form.password2 icon="assets/icons/lock.svg" password=True %}
+      </div>
+    </section>
+
+    <button class="auth-submit" type="submit" data-loading-label="Creating workspace…"><span data-button-label>Create workspace</span></button>
   </form>
-  <p class="muted">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></p>
+
+  <p class="auth-footer auth-footer--signup">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></p>
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/auth-ui.js' %}" defer></script>{% endblock %}

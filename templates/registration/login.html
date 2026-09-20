@@ -1,20 +1,45 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Sign in | Shiftly{% endblock %}
+{% block body_class %}auth-body{% endblock %}
 {% block content %}
-<section class="auth-card" aria-labelledby="page-title">
-  <a class="brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
-  <h1 id="page-title">Welcome back</h1>
-  <p class="muted">Sign in to continue to your workspace.</p>
-  {% if form.errors %}<div id="login-error" class="error-list" role="alert">Email or password is incorrect, or this account is inactive.</div>{% endif %}
-  <form method="post">
+<section class="auth-card auth-card--login" aria-labelledby="page-title">
+  <a class="auth-brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
+  <header class="auth-heading">
+    <h1 id="page-title">Welcome back</h1>
+    <p>Sign in to manage schedules, attendance, and timesheets.</p>
+  </header>
+  <form class="auth-form auth-form--login" method="post" novalidate data-auth-form data-loading-message="Signing you in…" data-validation-message="Enter a valid email address and password to continue.">
     {% csrf_token %}
-    <div class="field"><label for="id_username">Email</label><input id="id_username" type="email" name="username" autocomplete="email" required autofocus{% if form.errors %} aria-invalid="true" aria-describedby="login-error"{% endif %}></div>
-    <div class="field"><label for="id_password">Password</label><input id="id_password" type="password" name="password" autocomplete="current-password" required{% if form.errors %} aria-invalid="true" aria-describedby="login-error"{% endif %}></div>
+    <div class="auth-field{% if form.errors %} auth-field--invalid{% endif %}">
+      <label for="id_username">Email address</label>
+      <div class="auth-input-shell">
+        <img class="auth-field-icon" src="{% static 'assets/icons/mail.svg' %}" alt="">
+        <input id="id_username" type="email" name="username" autocomplete="email" placeholder="you@company.com" required{% if form.errors %} aria-invalid="true"{% endif %}>
+      </div>
+    </div>
+    <div class="auth-field{% if form.errors %} auth-field--invalid{% endif %}">
+      <label for="id_password">Password</label>
+      <div class="auth-input-shell">
+        <img class="auth-field-icon" src="{% static 'assets/icons/lock.svg' %}" alt="">
+        <input id="id_password" type="password" name="password" autocomplete="current-password" placeholder="Enter your password" required{% if form.errors %} aria-invalid="true"{% endif %}>
+        <button class="password-toggle" type="button" data-password-toggle data-target="id_password" data-visible-icon="{% static 'assets/icons/visibility-off.svg' %}" data-hidden-icon="{% static 'assets/icons/visibility.svg' %}" aria-label="Show password">
+          <img src="{% static 'assets/icons/visibility.svg' %}" alt="">
+        </button>
+      </div>
+    </div>
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-    <button type="submit">Sign in</button>
+    <div class="auth-options">
+      <label class="remember-option" for="remember_me">
+        <input id="remember_me" type="checkbox" name="remember_me" value="1"{% if request.POST.remember_me %} checked{% endif %}>
+        <span>Remember me</span>
+      </label>
+      <a class="auth-text-link" href="{% url 'accounts:password_reset' %}"><img src="{% static 'assets/icons/key.svg' %}" alt="">Forgot password?</a>
+    </div>
+    <button class="auth-submit" type="submit" data-loading-label="Signing in…"><span data-button-label>Sign in</span></button>
   </form>
-  <p><a href="{% url 'accounts:password_reset' %}">Forgot your password?</a></p>
-  <p class="muted">New to Shiftly? <a href="{% url 'accounts:signup' %}">Create an employer account</a></p>
+  <div class="auth-divider" aria-hidden="true"><span>or</span></div>
+  <p class="auth-footer">Don’t have an account? <a href="{% url 'accounts:signup' %}">Create a workspace</a></p>
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/auth-ui.js' %}" defer></script>{% endblock %}

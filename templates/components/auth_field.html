@@ -1,0 +1,15 @@
+{% load form_tags static %}
+<div class="auth-field{% if field.errors %} auth-field--invalid{% endif %}{% if full_width %} auth-field--full{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  <div class="auth-input-shell">
+    {% if icon %}<img class="auth-field-icon" src="{% static icon %}" alt="">{% endif %}
+    {{ field|accessible_field }}
+    {% if password %}
+      <button class="password-toggle" type="button" data-password-toggle data-target="{{ field.auto_id }}" data-visible-icon="{% static 'assets/icons/visibility-off.svg' %}" data-hidden-icon="{% static 'assets/icons/visibility.svg' %}" aria-label="Show password">
+        <img src="{% static 'assets/icons/visibility.svg' %}" alt="">
+      </button>
+    {% endif %}
+  </div>
+  {% if field.help_text %}<small class="auth-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}
+  {% if field.errors %}<div class="field-error" id="{{ field.auto_id }}_errors">{{ field.errors }}</div>{% endif %}
+</div>

@@ -9,20 +9,57 @@ from organizations.validators import validate_iana_timezone
 
 
 class EmployerSignupForm(forms.Form):
-    email = forms.EmailField(max_length=254)
-    first_name = forms.CharField(max_length=150)
-    last_name = forms.CharField(max_length=150)
-    organization_name = forms.CharField(max_length=120, label="Company name")
+    email = forms.EmailField(
+        max_length=254,
+        widget=forms.EmailInput(
+            attrs={"autocomplete": "email", "placeholder": "you@company.com"}
+        ),
+    )
+    first_name = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(
+            attrs={"autocomplete": "given-name", "placeholder": "e.g. Miguel"}
+        ),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        widget=forms.TextInput(
+            attrs={"autocomplete": "family-name", "placeholder": "e.g. Tan"}
+        ),
+    )
+    organization_name = forms.CharField(
+        max_length=120,
+        label="Company / workspace name",
+        widget=forms.TextInput(
+            attrs={"autocomplete": "organization", "placeholder": "e.g. Acme Co."}
+        ),
+    )
     timezone = forms.ChoiceField(
         choices=[(name, name) for name in sorted(available_timezones())],
         initial="UTC",
-        label="Organization time zone",
+        label="Time zone",
+        help_text="Used for schedules, attendance times, and reports.",
     )
     password1 = forms.CharField(
-        label="Password", strip=False, widget=forms.PasswordInput
+        label="Password",
+        strip=False,
+        help_text="Use at least 8 characters and avoid common passwords.",
+        widget=forms.PasswordInput(
+            attrs={
+                "autocomplete": "new-password",
+                "placeholder": "At least 8 characters",
+            }
+        ),
     )
     password2 = forms.CharField(
-        label="Confirm password", strip=False, widget=forms.PasswordInput
+        label="Confirm password",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "autocomplete": "new-password",
+                "placeholder": "Re-enter your password",
+            }
+        ),
     )
 
     def clean_email(self):

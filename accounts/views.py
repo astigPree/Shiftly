@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404
@@ -20,6 +21,23 @@ from .permissions import employee_required, employer_required, organization_for_
 from .services import employer_dashboard_data, save_workspace_settings
 
 
+class ShiftlyLoginView(LoginView):
+    template_name = "registration/login.html"
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        if self.request.POST.get("remember_me"):
+            self.request.session.set_expiry(None)
+        else:
+            self.request.session.set_expiry(0)
+        messages.success(self.request, "Welcome back. You are signed in.")
+        return response
+
+    def form_invalid(self, form):
+        messages.error(self.request, "We could not sign you in. Check your email and password.")
+        return super().form_invalid(form)
+
+
 @require_GET
 def index(request):
     if request.user.is_authenticated:
@@ -33,36 +51,43 @@ def employer_signup(request):
         return redirect("accounts:home")
 
     form = EmployerSignupForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        try:
-            with transaction.atomic():
-                user = User.objects.create_user(
-                    email=form.cleaned_data["email"],
-                    password=form.cleaned_data["password1"],
-                    first_name=form.cleaned_data["first_name"].strip(),
-                    last_name=form.cleaned_data["last_name"].strip(),
-                    role=User.Role.EMPLOYER,
+    if request.method == "POST":
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    user = User.objects.create_user(
+                        email=form.cleaned_data["email"],
+                        password=form.cleaned_data["password1"],
+                        first_name=form.cleaned_data["first_name"].strip(),
+                        last_name=form.cleaned_data["last_name"].strip(),
+                        role=User.Role.EMPLOYER,
+                    )
+                    organization = Organization.objects.create(
+                        owner=user,
+                        name=form.cleaned_data["organization_name"],
+                        timezone=form.cleaned_data["timezone"],
+                    )
+                    record_event(
+                        organization=organization,
+                        actor=user,
+                        action=AuditEvent.Action.ORGANIZATION_CREATED,
+                        target_type="organization",
+                        target_id=organization.pk,
+                        summary="Created the organization workspace.",
+                        metadata={"timezone": organization.timezone},
+                    )
+            except IntegrityError:
+                form.add_error(
+                    "email", "An account with this email address already exists."
                 )
-                organization = Organization.objects.create(
-                    owner=user,
-                    name=form.cleaned_data["organization_name"],
-                    timezone=form.cleaned_data["timezone"],
-                )
-                record_event(
-                    organization=organization,
-                    actor=user,
-                    action=AuditEvent.Action.ORGANIZATION_CREATED,
-                    target_type="organization",
-                    target_id=organization.pk,
-                    summary="Created the organization workspace.",
-                    metadata={"timezone": organization.timezone},
-                )
-        except IntegrityError:
-            form.add_error("email", "An account with this email address already exists.")
-        else:
-            login(request, user)
-            messages.success(request, "Your Shiftly workspace is ready.")
-            return redirect("accounts:home")
+            else:
+                login(request, user)
+                messages.success(request, "Your Shiftly workspace is ready.")
+                return redirect("accounts:home")
+        messages.error(
+            request,
+            "We could not create your workspace. Review the highlighted fields and try again.",
+        )
 
     return render(request, "accounts/signup.html", {"form": form})
 
