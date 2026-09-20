@@ -16,6 +16,7 @@
         }
 
         event.preventDefault();
+        event.stopImmediatePropagation();
         pendingForm = form;
         title.textContent = form.dataset.confirmTitle || "Confirm this attendance action?";
         description.textContent = form.dataset.confirmDescription || "Please confirm before continuing.";

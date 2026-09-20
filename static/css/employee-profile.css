@@ -856,3 +856,235 @@
     border-left: 0;
   }
 }
+
+.employee-self-profile {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+}
+
+.employee-self-profile__heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 0 0 24px;
+}
+
+.employee-self-profile__page-icon,
+.employee-self-profile__section-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+  border-radius: var(--radius-lg);
+}
+
+.employee-self-profile__page-icon {
+  width: 68px;
+  height: 68px;
+}
+
+.employee-self-profile__page-icon .icon {
+  width: 30px;
+  height: 30px;
+}
+
+.employee-self-profile__heading h1 {
+  margin: 0 0 4px;
+  font-size: clamp(26px, 3vw, 36px);
+  letter-spacing: -0.03em;
+}
+
+.employee-self-profile__heading p,
+.employee-self-profile__section-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.employee-self-profile__heading p {
+  font-size: var(--text-lg);
+}
+
+.employee-self-profile__card {
+  padding: 28px 32px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.employee-self-profile__section-heading {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+}
+
+.employee-self-profile__section-icon {
+  width: 56px;
+  height: 56px;
+}
+
+.employee-self-profile__section-icon .icon {
+  width: 25px;
+  height: 25px;
+}
+
+.employee-self-profile__section-heading h2 {
+  margin: 0 0 4px;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.employee-self-profile__section-heading p {
+  font-size: var(--text-base);
+}
+
+.employee-self-profile__details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 24px 0 0;
+}
+
+.employee-self-profile__details > div {
+  display: grid;
+  min-width: 0;
+  min-height: 82px;
+  align-content: center;
+  gap: 7px;
+  padding: 14px 16px;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.employee-self-profile__details dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-self-profile__details dd {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.employee-self-profile__personal {
+  margin-top: 28px;
+  padding-top: 25px;
+  border-top: 1px solid var(--color-border);
+}
+
+.employee-self-profile__personal form {
+  margin: 24px 0 0;
+}
+
+.employee-self-profile__personal .error-list {
+  margin: 0 0 16px;
+}
+
+.employee-self-profile__form-grid {
+  gap: 18px 20px;
+}
+
+.employee-self-profile__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 17px;
+  border-top: 1px solid var(--color-border);
+}
+
+.employee-self-profile__actions button {
+  min-height: 48px;
+  padding: 0 20px;
+}
+
+@media (max-width: 760px) {
+  .employee-self-profile__details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-self-profile__heading {
+    align-items: flex-start;
+    gap: 13px;
+    margin-bottom: 18px;
+  }
+
+  .employee-self-profile__page-icon {
+    width: 52px;
+    height: 52px;
+  }
+
+  .employee-self-profile__page-icon .icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .employee-self-profile__heading p,
+  .employee-self-profile__section-heading p {
+    font-size: var(--text-sm);
+  }
+
+  .employee-self-profile__card {
+    padding: 20px 16px;
+  }
+
+  .employee-self-profile__section-heading {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .employee-self-profile__section-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .employee-self-profile__section-icon .icon {
+    width: 21px;
+    height: 21px;
+  }
+
+  .employee-self-profile__details {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    margin-top: 18px;
+  }
+
+  .employee-self-profile__details > div {
+    min-height: 72px;
+    padding: 12px 14px;
+  }
+
+  .employee-self-profile__details dd {
+    font-size: var(--text-base);
+  }
+
+  .employee-self-profile__personal {
+    margin-top: 22px;
+    padding-top: 20px;
+  }
+
+  .employee-self-profile__personal form {
+    margin-top: 18px;
+  }
+
+  .employee-self-profile__form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .employee-self-profile__actions {
+    margin-top: 18px;
+  }
+
+  .employee-self-profile__actions button {
+    width: 100%;
+  }
+}

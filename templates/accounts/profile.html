@@ -1,30 +1,61 @@
 {% extends "layouts/employee.html" %}
 {% block title %}Profile | Shiftly{% endblock %}
 {% block app_content %}
-<section class="form-page" aria-labelledby="profile-title">
-  <header class="form-page-heading">
-    <span class="form-heading-icon">{% include "components/icon.html" with icon_name="user" %}</span>
-    <div><h1 id="profile-title">Your profile</h1><p class="muted">Manage the name shown on your Shiftly account.</p></div>
+<section class="employee-self-profile" aria-labelledby="profile-title">
+  <header class="employee-self-profile__heading">
+    <span class="employee-self-profile__page-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="user" %}</span>
+    <div>
+      <h1 id="profile-title">Your profile</h1>
+      <p>Manage your personal information and view your employment details.</p>
+    </div>
   </header>
-  <section class="form-card form-card--wide" aria-label="Personal profile details">
-    <h2 class="form-section-label">Personal details</h2>
-    <p class="muted">Your employer manages your email, employee code, and job title.</p>
-    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post" novalidate>
-      {% csrf_token %}
-      <div class="form-readonly-list" aria-label="Employer managed details">
-        <div class="form-readonly-item"><span>Email address</span><strong>{{ request.user.email }}</strong></div>
-        <div class="form-readonly-item"><span>Employee code</span><strong>{{ employee.employee_code }}</strong></div>
-        <div class="form-readonly-item"><span>Job title</span><strong>{{ employee.job_title|default:"Not specified" }}</strong></div>
-      </div>
-      <div class="form-grid">
-        {% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}
-      </div>
-      <div class="form-actions">
-        <a class="form-cancel-link" href="{% url 'attendance:my_attendance' %}">Cancel</a>
-        <button type="submit">Save profile</button>
-      </div>
-    </form>
-  </section>
+
+  <div class="employee-self-profile__card">
+    <section aria-labelledby="employee-information-title">
+      <header class="employee-self-profile__section-heading">
+        <span class="employee-self-profile__section-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="building" %}</span>
+        <div>
+          <h2 id="employee-information-title">Employee information</h2>
+          <p>Employment details are managed by your employer.</p>
+        </div>
+      </header>
+
+      <dl class="employee-self-profile__details">
+        <div>
+          <dt>Email address</dt>
+          <dd>{{ request.user.email }}</dd>
+        </div>
+        <div>
+          <dt>Employee code</dt>
+          <dd>{{ employee.employee_code }}</dd>
+        </div>
+        <div>
+          <dt>Job title</dt>
+          <dd>{{ employee.job_title|default:"Not specified" }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="employee-self-profile__personal" aria-labelledby="personal-information-title">
+      <header class="employee-self-profile__section-heading">
+        <span class="employee-self-profile__section-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="user" %}</span>
+        <div>
+          <h2 id="personal-information-title">Personal information</h2>
+          <p>Update the name shown in Shiftly.</p>
+        </div>
+      </header>
+
+      <form method="post" novalidate data-toast-loading-message="Saving your profile…">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="form-grid employee-self-profile__form-grid">
+          {% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}
+        </div>
+        <footer class="employee-self-profile__actions">
+          <button type="submit">Save changes</button>
+        </footer>
+      </form>
+    </section>
+  </div>
 </section>
 {% endblock %}
