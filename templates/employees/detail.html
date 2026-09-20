@@ -1,13 +1,121 @@
 {% extends "layouts/employer.html" %}
+{% load tz static %}
 {% block title %}{{ employee.full_name }} | Employees | Shiftly{% endblock %}
 {% block app_content %}
-<section class="content-card">
-  <p><a href="{% url 'employees:list' %}">← Employees</a></p>
-  <div class="page-header"><div><h1>{{ employee.full_name }}</h1><p class="muted">{{ employee.get_status_display }} · {{ employee.employee_code }}</p></div><a class="button-link" href="{% url 'employees:edit' employee.pk %}">Edit profile</a></div>
-  <dl class="detail-list"><dt>Email</dt><dd>{{ employee.email }}</dd><dt>Job title</dt><dd>{{ employee.job_title|default:"—" }}</dd><dt>Account</dt><dd>{% if employee.user_id %}Active account{% else %}Not activated{% endif %}</dd><dt>Created</dt><dd>{{ employee.created_at|date:"M j, Y" }}</dd></dl>
-  {% if not employee.user_id and employee.status == "ACTIVE" %}
-  <div class="subsection"><h2>Account invitation</h2>{% if latest_invitation %}<p class="muted">Latest link expires {{ latest_invitation.expires_at|date:"M j, Y H:i" }}{% if latest_invitation.accepted_at %} · Accepted{% elif latest_invitation.revoked_at %} · Revoked{% else %} · Sent{% endif %}</p>{% else %}<p>No invitation has been sent.</p>{% endif %}<form method="post" action="{% url 'employees:resend_invitation' employee.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Send a new activation link</button></form></div>
-  {% endif %}
-  <div class="subsection"><h2>Access</h2><p class="muted">{% if employee.status == "ACTIVE" %}Deactivating prevents sign-in and revokes unused invitations. Work history is retained.{% else %}Reactivating restores sign-in for the linked account.{% endif %}</p><form method="post" action="{% url 'employees:toggle_status' employee.pk %}">{% csrf_token %}<button class="{% if employee.status == 'ACTIVE' %}button-danger{% else %}button-secondary{% endif %}" type="submit">{% if employee.status == "ACTIVE" %}Deactivate employee{% else %}Reactivate employee{% endif %}</button></form></div>
-</section>
+<div class="employee-profile-page">
+  {% include "employees/_profile_header.html" %}
+
+  <section class="employee-profile-summary" aria-label="Employee work summary">
+    <article class="employee-summary-card">
+      <span class="employee-summary-icon employee-summary-icon--blue">{% include "components/icon.html" with icon_name="calendar" %}</span>
+      <div class="employee-summary-copy">
+        <span class="employee-summary-label">Next shift</span>
+        {% if next_shift %}
+          <strong>{{ next_shift.scheduled_start|timezone:organization.timezone|date:"D, M j · g:i A" }}</strong>
+          <span class="employee-summary-detail">{{ next_shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }} · {{ organization.timezone }}</span>
+        {% else %}
+          <strong>No upcoming shift</strong>
+          {% if employee.status == "ACTIVE" %}<a class="employee-summary-detail employee-summary-link" href="{% url 'schedules:create' %}?employee={{ employee.pk }}">Schedule a shift</a>{% else %}<span class="employee-summary-detail">No future shifts scheduled</span>{% endif %}
+        {% endif %}
+      </div>
+    </article>
+    <article class="employee-summary-card">
+      <span class="employee-summary-icon employee-summary-icon--green">{% include "components/icon.html" with icon_name="clock" %}</span>
+      <div class="employee-summary-copy">
+        <span class="employee-summary-label">This week</span>
+        <strong>{{ weekly_hours_label }}</strong>
+        <span class="employee-summary-detail">Recorded work hours</span>
+      </div>
+    </article>
+    <a class="employee-summary-card employee-summary-card--link" href="{% url 'employees:timesheets' employee.pk %}">
+      <span class="employee-summary-icon employee-summary-icon--violet">{% include "components/icon.html" with icon_name="file" %}</span>
+      <span class="employee-summary-copy">
+        <span class="employee-summary-label">Timesheets</span>
+        <strong>{{ timesheet_counts.approved }} approved</strong>
+        <span class="employee-summary-detail">{{ timesheet_counts.pending }} pending · {{ timesheet_counts.needs_review }} needs review</span>
+      </span>
+      <span class="employee-summary-arrow" aria-hidden="true">›</span>
+    </a>
+  </section>
+
+  <div class="employee-profile-overview-grid">
+    <section class="employee-profile-card" aria-labelledby="employee-information-title">
+      <header class="employee-profile-card-heading">
+        <span class="employee-card-icon">{% include "components/icon.html" with icon_name="user" %}</span>
+        <div><h2 id="employee-information-title">Employee information</h2><p>Basic details about this employee.</p></div>
+        <a class="button-secondary employee-card-edit" href="{% url 'employees:edit' employee.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit</span></a>
+      </header>
+      <dl class="employee-information-grid">
+        <div><dt>First name</dt><dd>{{ employee.first_name }}</dd></div>
+        <div><dt>Last name</dt><dd>{{ employee.last_name }}</dd></div>
+        <div><dt>Employee code</dt><dd>{{ employee.employee_code }}</dd></div>
+        <div><dt>Email</dt><dd><a href="mailto:{{ employee.email }}">{{ employee.email }}</a></dd></div>
+        <div><dt>Job title</dt><dd>{{ employee.job_title|default:"Not set" }}</dd></div>
+        <div><dt>Date added</dt><dd><time datetime="{{ employee.created_at|date:'Y-m-d' }}">{{ employee.created_at|date:"M j, Y" }}</time></dd></div>
+        <div><dt>Organization time zone</dt><dd>{{ organization.timezone }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="employee-profile-card employee-account-card" aria-labelledby="employee-account-title">
+      <header class="employee-profile-card-heading">
+        <span class="employee-card-icon employee-card-icon--security">{% include "components/icon.html" with icon_name="shield" %}</span>
+        <div><h2 id="employee-account-title">Account &amp; access</h2><p>Account status and sign-in details.</p></div>
+      </header>
+      <dl class="employee-access-list">
+        <div>
+          <dt>Account status</dt>
+          <dd class="employee-access-value{% if employee.user_id and employee.user.is_active %} is-enabled{% endif %}"><span class="employee-access-dot" aria-hidden="true"></span>{{ account_state }}</dd>
+          {% if employee.user_id and employee.user.is_active %}<p>Employee has completed account setup.</p>{% endif %}
+        </div>
+        <div>
+          <dt>Sign-in access</dt>
+          <dd>{{ sign_in_state }}</dd>
+          <p>{% if employee.user_id and employee.user.is_active %}Can sign in to Shiftly.{% elif employee.user_id %}Sign-in is disabled for this account.{% else %}An account is created when the employee activates an invitation.{% endif %}</p>
+        </div>
+        <div>
+          <dt>Invitation</dt>
+          <dd>{{ invitation_state }}</dd>
+          {% if latest_invitation and not employee.user_id %}<p>{% if latest_invitation.accepted_at %}Accepted {{ latest_invitation.accepted_at|timezone:organization.timezone|date:"M j, Y g:i A" }}{% else %}Last sent {{ latest_invitation.created_at|timezone:organization.timezone|date:"M j, Y g:i A" }} · expires {{ latest_invitation.expires_at|timezone:organization.timezone|date:"M j, Y g:i A" }}{% endif %}</p>{% endif %}
+          {% if can_send_invitation %}
+            <form class="employee-invitation-form" method="post" action="{% url 'employees:resend_invitation' employee.pk %}">
+              {% csrf_token %}
+              <button class="button-secondary" type="submit">{% if latest_invitation %}Send a new activation link{% else %}Send activation link{% endif %}</button>
+            </form>
+          {% endif %}
+        </div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="employee-access-controls{% if employee.status != 'ACTIVE' %} employee-access-controls--inactive{% endif %}" aria-labelledby="employee-access-controls-title">
+    <span class="employee-access-warning-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" %}</span>
+    <div class="employee-access-controls-copy">
+      <h2 id="employee-access-controls-title">Access controls</h2>
+      {% if employee.status == "ACTIVE" %}<p>Deactivating prevents sign-in and revokes unused invitations. Attendance, timesheets, and work history are retained.</p>{% else %}<p>This employee is inactive and cannot sign in. Their attendance, timesheets, and work history are retained.</p>{% endif %}
+    </div>
+    {% if employee.status == "ACTIVE" %}
+      <button class="button-danger employee-deactivate-trigger" type="button" data-open-deactivation-dialog>{% include "components/icon.html" with icon_name="user-x" icon_class="button-icon" %}<span>Deactivate employee</span></button>
+      <dialog class="employee-confirm-dialog" data-deactivation-dialog aria-labelledby="deactivation-dialog-title" aria-describedby="deactivation-dialog-description">
+        <div class="employee-confirm-dialog-content">
+          <span class="employee-confirm-dialog-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" %}</span>
+          <h2 id="deactivation-dialog-title">Deactivate {{ employee.full_name }}?</h2>
+          <p id="deactivation-dialog-description">They will lose sign-in access and unused activation links will be revoked. Their work history will be kept.</p>
+          <div class="employee-confirm-dialog-actions">
+            <button class="button-secondary" type="button" data-close-deactivation-dialog>Cancel</button>
+            <form method="post" action="{% url 'employees:toggle_status' employee.pk %}">
+              {% csrf_token %}
+              <button class="button-danger" type="submit">Deactivate employee</button>
+            </form>
+          </div>
+        </div>
+      </dialog>
+    {% else %}
+      <form method="post" action="{% url 'employees:toggle_status' employee.pk %}">
+        {% csrf_token %}
+        <button class="button-secondary" type="submit">Reactivate employee</button>
+      </form>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/employee-profile.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,858 @@
+.employee-profile-page {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-profile-back {
+  margin: 2px 0 0;
+}
+
+.employee-profile-back a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.profile-back-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.employee-profile-hero {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.employee-profile-avatar {
+  display: grid;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-primary-hover);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.employee-profile-identity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.employee-profile-identity h1 {
+  margin: 0 0 3px;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.employee-profile-role {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.employee-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.employee-profile-status {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.employee-profile-status::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.employee-profile-status--active {
+  color: var(--color-green-text);
+  background: var(--color-green-bg);
+}
+
+.employee-profile-status--inactive {
+  color: var(--color-neutral-text);
+  background: var(--color-neutral-bg);
+}
+
+.employee-profile-code {
+  padding-left: 14px;
+  color: var(--color-gray-600);
+  border-left: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+}
+
+.employee-profile-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 9px;
+}
+
+.employee-profile-actions .button-link,
+.employee-card-edit,
+.employee-profile-section-heading .button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.button-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.employee-profile-tabs {
+  display: flex;
+  overflow-x: auto;
+  min-height: 56px;
+  gap: 10px;
+  margin-top: -16px;
+  padding: 0 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  scrollbar-width: thin;
+}
+
+.employee-profile-tabs a {
+  position: relative;
+  display: inline-flex;
+  min-width: 125px;
+  min-height: 55px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 15px;
+  color: var(--color-gray-600);
+  text-decoration: none;
+}
+
+.profile-tab-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.employee-profile-tabs a[aria-current="page"] {
+  color: var(--color-primary-hover);
+  font-weight: 650;
+}
+
+.employee-profile-tabs a[aria-current="page"]::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: var(--color-primary);
+  border-radius: 3px 3px 0 0;
+  content: "";
+}
+
+.employee-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 8px;
+}
+
+.employee-summary-card {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 104px;
+  align-items: center;
+  gap: 15px;
+  padding: 16px 18px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.employee-summary-card--link {
+  padding-right: 38px;
+  text-decoration: none;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.employee-summary-card--link:hover {
+  border-color: var(--color-primary-200);
+  transform: translateY(-1px);
+}
+
+.employee-summary-icon,
+.employee-card-icon,
+.employee-access-warning-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.employee-summary-icon .icon {
+  width: 25px;
+  height: 25px;
+}
+
+.employee-summary-icon--blue {
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.employee-summary-icon--green {
+  color: var(--color-success);
+  background: var(--color-green-bg);
+}
+
+.employee-summary-icon--violet {
+  color: #7c3aed;
+  background: #f3e8ff;
+}
+
+.employee-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.employee-summary-label,
+.employee-summary-detail {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-summary-copy strong {
+  overflow-wrap: anywhere;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-summary-detail {
+  line-height: 1.4;
+}
+
+.employee-summary-link {
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+.employee-summary-link:hover {
+  text-decoration: underline;
+}
+
+.employee-summary-arrow {
+  position: absolute;
+  right: 16px;
+  color: var(--color-text-muted);
+  font-size: 26px;
+}
+
+.employee-profile-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.95fr);
+  align-items: stretch;
+  gap: 16px;
+  margin: 0 8px;
+}
+
+.employee-profile-card,
+.employee-records-card {
+  min-width: 0;
+  padding: 20px 21px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.employee-profile-card-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 20px;
+}
+
+.employee-profile-card-heading > div {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.employee-card-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.employee-card-icon .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.employee-card-icon--security {
+  color: var(--color-primary-hover);
+}
+
+.employee-profile-card-heading h2 {
+  margin: 0 0 3px;
+  font-size: var(--text-lg);
+  letter-spacing: -0.02em;
+}
+
+.employee-profile-card-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-card-edit {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 11px;
+  color: var(--color-primary-hover);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.employee-information-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px 20px;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.employee-information-grid div {
+  min-width: 0;
+}
+
+.employee-information-grid dt,
+.employee-access-list dt {
+  margin-bottom: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-information-grid dd,
+.employee-access-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 550;
+}
+
+.employee-information-grid dd a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.employee-information-grid dd a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+.employee-access-list {
+  display: grid;
+  margin: 0;
+}
+
+.employee-access-list > div {
+  padding: 0 2px 14px;
+}
+
+.employee-access-list > div + div {
+  padding-top: 13px;
+  border-top: 1px solid var(--color-border);
+}
+
+.employee-access-list > div:last-child {
+  padding-bottom: 0;
+}
+
+.employee-access-list dd {
+  font-size: var(--text-base);
+}
+
+.employee-access-list p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.employee-access-value {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.employee-access-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-neutral-dot);
+}
+
+.employee-access-value.is-enabled {
+  color: var(--color-success);
+}
+
+.employee-access-value.is-enabled .employee-access-dot {
+  background: var(--color-green-dot);
+}
+
+.employee-invitation-form {
+  margin-top: 11px;
+}
+
+.employee-invitation-form button {
+  min-height: 40px;
+  padding: 0 12px;
+  font-size: var(--text-sm);
+}
+
+.employee-access-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 8px;
+  padding: 16px 18px;
+  background: #fff7f7;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-lg);
+}
+
+.employee-access-controls--inactive {
+  background: var(--color-gray-50);
+  border-color: var(--color-border);
+}
+
+.employee-access-warning-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--color-danger);
+  background: var(--color-red-bg);
+}
+
+.employee-access-warning-icon .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.employee-access-controls-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.employee-access-controls h2 {
+  margin: 0 0 4px;
+  color: #991b1b;
+  font-size: var(--text-lg);
+}
+
+.employee-access-controls p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--color-gray-600);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.employee-access-controls > form,
+.employee-confirm-dialog-actions form {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.employee-access-controls .button-danger,
+.employee-deactivate-trigger {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.employee-confirm-dialog {
+  width: min(100% - 32px, 460px);
+  padding: 0;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+}
+
+.employee-confirm-dialog::backdrop {
+  background: rgb(15 23 42 / 48%);
+  backdrop-filter: blur(2px);
+}
+
+.employee-confirm-dialog-content {
+  padding: 25px;
+  text-align: center;
+}
+
+.employee-confirm-dialog-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 13px;
+  place-items: center;
+  color: var(--color-danger);
+  background: var(--color-red-bg);
+  border-radius: 50%;
+}
+
+.employee-confirm-dialog-icon .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.employee-confirm-dialog h2 {
+  margin: 0 0 8px;
+  font-size: var(--text-xl);
+}
+
+.employee-confirm-dialog p {
+  margin: 0 auto;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.employee-confirm-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.employee-profile-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 8px 0;
+}
+
+.employee-profile-section-heading h2 {
+  margin: 0 0 4px;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.025em;
+}
+
+.employee-profile-section-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-profile-section-heading .button-secondary {
+  min-height: 42px;
+  padding: 0 13px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.employee-records-card {
+  margin: 0 8px;
+  padding: 7px 18px;
+}
+
+.employee-profile-table th {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.employee-profile-table th,
+.employee-profile-table td {
+  padding: 14px 12px;
+}
+
+.employee-profile-table td {
+  vertical-align: middle;
+}
+
+.employee-profile-table td a {
+  text-decoration: none;
+}
+
+.employee-profile-table td a:hover {
+  text-decoration: underline;
+}
+
+.employee-profile-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 0 7px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-profile-pagination a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  text-decoration: none;
+}
+
+.employee-profile-empty {
+  display: grid;
+  justify-items: center;
+  padding: 50px 16px;
+  text-align: center;
+}
+
+.employee-profile-empty .employee-summary-icon {
+  width: 54px;
+  height: 54px;
+  margin-bottom: 9px;
+}
+
+.employee-profile-empty h3 {
+  margin: 5px 0;
+  font-size: var(--text-lg);
+}
+
+.employee-profile-empty p {
+  margin: 3px 0 14px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-profile-empty > a:not(.button-link) {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 980px) {
+  .employee-profile-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .employee-account-card {
+    order: 2;
+  }
+
+  .employee-profile-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-profile-summary > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-profile-page {
+    gap: 12px;
+  }
+
+  .employee-profile-hero {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 13px;
+    padding: 16px;
+  }
+
+  .employee-profile-avatar {
+    width: 62px;
+    height: 62px;
+    font-size: 23px;
+  }
+
+  .employee-profile-identity {
+    flex: 1 1 calc(100% - 78px);
+  }
+
+  .employee-profile-identity h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .employee-profile-role {
+    font-size: var(--text-base);
+  }
+
+  .employee-profile-actions {
+    width: 100%;
+  }
+
+  .employee-profile-actions .button-link {
+    width: 100%;
+  }
+
+  .employee-profile-tabs {
+    gap: 0;
+    padding: 0 5px;
+  }
+
+  .employee-profile-tabs a {
+    min-width: 112px;
+    padding: 0 11px;
+  }
+
+  .employee-profile-summary {
+    grid-template-columns: 1fr;
+    margin: 0;
+  }
+
+  .employee-profile-summary > :last-child {
+    grid-column: auto;
+  }
+
+  .employee-summary-card {
+    min-height: 88px;
+    padding: 13px 14px;
+  }
+
+  .employee-summary-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .employee-profile-overview-grid,
+  .employee-access-controls,
+  .employee-records-card {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .employee-profile-card {
+    padding: 16px 14px;
+  }
+
+  .employee-profile-card-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .employee-profile-card-heading > div {
+    flex: 1 1 calc(100% - 56px);
+  }
+
+  .employee-card-edit {
+    margin-left: 54px;
+  }
+
+  .employee-information-grid {
+    gap: 15px 12px;
+    padding: 0;
+  }
+
+  .employee-access-controls {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .employee-access-warning-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .employee-access-controls-copy {
+    flex: 1 1 calc(100% - 58px);
+  }
+
+  .employee-access-controls > form,
+  .employee-access-controls > .employee-deactivate-trigger {
+    width: 100%;
+    margin-left: 54px;
+  }
+
+  .employee-access-controls > form .button-danger,
+  .employee-access-controls > form .button-secondary,
+  .employee-access-controls > .employee-deactivate-trigger {
+    width: 100%;
+  }
+
+  .employee-profile-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    margin: 3px 0 0;
+  }
+
+  .employee-profile-section-heading > a {
+    width: 100%;
+  }
+
+  .employee-records-card {
+    padding: 7px 12px;
+  }
+
+  .employee-profile-table {
+    min-width: 680px;
+  }
+
+  .employee-profile-empty {
+    padding: 38px 12px;
+  }
+
+  .employee-confirm-dialog-content {
+    padding: 20px 16px;
+  }
+
+  .employee-confirm-dialog-actions {
+    flex-direction: column-reverse;
+  }
+
+  .employee-confirm-dialog-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 400px) {
+  .employee-information-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-profile-code {
+    padding-left: 0;
+    border-left: 0;
+  }
+}

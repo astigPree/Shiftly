@@ -1,0 +1,23 @@
+{% extends "layouts/employer.html" %}
+{% load tz %}
+{% block title %}{{ employee.full_name }} · Attendance | Shiftly{% endblock %}
+{% block app_content %}
+<div class="employee-profile-page">
+  {% include "employees/_profile_header.html" %}
+  <header class="employee-profile-section-heading"><div><h2>Attendance</h2><p>Attendance status by scheduled shift · {{ organization.timezone }}</p></div></header>
+  <section class="employee-records-card" aria-label="Employee attendance history">
+    {% if page.object_list %}
+      <div class="table-wrap"><table class="employee-profile-table"><thead><tr><th scope="col">Work date</th><th scope="col">Scheduled shift</th><th scope="col">Clock in</th><th scope="col">Clock out</th><th scope="col">Status</th></tr></thead><tbody>
+        {% for shift in page.object_list %}<tr>
+          <td><a href="{% url 'schedules:detail' shift.pk %}">{{ shift.work_date|date:"D, M j, Y" }}</a></td>
+          <td>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td>
+          <td>{% if shift.profile_attendance_session %}{{ shift.profile_attendance_session.clock_in_at|timezone:organization.timezone|date:"M j, g:i A" }}{% else %}—{% endif %}</td>
+          <td>{% if shift.profile_attendance_session.clock_out_at %}{{ shift.profile_attendance_session.clock_out_at|timezone:organization.timezone|date:"M j, g:i A" }}{% else %}—{% endif %}</td>
+          <td><span class="status-badge status-{{ shift.profile_attendance_state.code|lower }}">{{ shift.profile_attendance_state.label }}</span>{% if shift.profile_attendance_state.missing_clock_out %}<br><span class="warning-text">Missing clock-out</span>{% endif %}</td>
+        </tr>{% endfor %}
+      </tbody></table></div>
+      {% if page.paginator.num_pages > 1 %}<nav class="employee-profile-pagination" aria-label="Attendance pages">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+    {% else %}<div class="employee-profile-empty"><span class="employee-summary-icon employee-summary-icon--green">{% include "components/icon.html" with icon_name="clock" %}</span><h3>No attendance records yet</h3><p>Attendance status will appear after shifts are scheduled for this employee.</p><a href="{% url 'employees:schedules' employee.pk %}">View schedules</a></div>{% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,10 +1,12 @@
+from datetime import timedelta
 from smtplib import SMTPException
+from zoneinfo import ZoneInfo
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, Sum
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -13,6 +15,9 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 from audit.models import AuditEvent
 from audit.services import record_event
 from accounts.permissions import employer_required, organization_for_user
+from attendance.services import attendance_state
+from schedules.models import Shift
+from timesheets.models import Timesheet
 from .forms import EmployeeForm
 from .models import Employee, EmployeeInvitation
 from .services import issue_employee_invitation
@@ -162,11 +167,134 @@ def employee_create(request):
 @require_GET
 def employee_detail(request, pk):
     employee = get_object_or_404(_employee_queryset(request.user), pk=pk)
-    invitation = employee.invitations.order_by("-created_at").first()
+    context = _employee_profile_context(employee, "overview")
+    now = timezone.now()
+    local_today = timezone.localdate(now, timezone=ZoneInfo(employee.organization.timezone))
+    week_start = local_today - timedelta(days=local_today.weekday())
+    next_shift = (
+        Shift.objects.filter(
+            organization=employee.organization,
+            employee=employee,
+            status=Shift.Status.SCHEDULED,
+            scheduled_end__gt=now,
+        )
+        .order_by("scheduled_start", "pk")
+        .first()
+    )
+    weekly_minutes = Timesheet.objects.filter(
+        organization=employee.organization,
+        employee=employee,
+        shift__work_date__range=(week_start, week_start + timedelta(days=6)),
+    ).aggregate(total=Sum("worked_minutes"))["total"] or 0
+    weekly_hours, weekly_remainder = divmod(weekly_minutes, 60)
+    sheet_counts = Timesheet.objects.filter(
+        organization=employee.organization, employee=employee
+    ).aggregate(
+        approved=Count("pk", filter=Q(status=Timesheet.Status.APPROVED)),
+        pending=Count("pk", filter=Q(status=Timesheet.Status.PENDING)),
+        needs_review=Count("pk", filter=Q(status=Timesheet.Status.NEEDS_REVIEW)),
+    )
+    context.update({
+        "next_shift": next_shift,
+        "weekly_hours_label": f"{weekly_hours}h {weekly_remainder:02d}m" if weekly_hours else f"{weekly_remainder}m",
+        "timesheet_counts": sheet_counts,
+        "active_tab": "overview",
+    })
     return render(
         request,
         "employees/detail.html",
-        {"employee": employee, "latest_invitation": invitation, "organization": employee.organization},
+        context,
+    )
+
+
+def _employee_profile_context(employee, active_tab):
+    now = timezone.now()
+    local_today = timezone.localdate(now, timezone=ZoneInfo(employee.organization.timezone))
+    invitation = employee.invitations.order_by("-created_at").first()
+    if employee.user_id:
+        account_state = "Activated" if employee.user.is_active else "Access disabled"
+        sign_in_state = "Enabled" if employee.user.is_active else "Disabled"
+        invitation_state = "Account setup completed" if employee.user.is_active else "Account access is disabled"
+    elif invitation is None:
+        account_state = "Not invited"
+        sign_in_state = "Not available"
+        invitation_state = "No activation invitation has been sent."
+    elif invitation.accepted_at:
+        account_state = "Invitation accepted"
+        sign_in_state = "Account setup required"
+        invitation_state = "Invitation accepted"
+    elif invitation.revoked_at:
+        account_state = "Invitation revoked"
+        sign_in_state = "Not available"
+        invitation_state = "This activation link was revoked."
+    elif invitation.expires_at <= now:
+        account_state = "Invitation expired"
+        sign_in_state = "Not available"
+        invitation_state = "This activation link has expired."
+    else:
+        account_state = "Invitation sent"
+        sign_in_state = "Awaiting activation"
+        invitation_state = "Activation link sent"
+    return {
+        "employee": employee,
+        "organization": employee.organization,
+        "latest_invitation": invitation,
+        "account_state": account_state,
+        "sign_in_state": sign_in_state,
+        "invitation_state": invitation_state,
+        "can_send_invitation": not employee.user_id and employee.status == Employee.Status.ACTIVE,
+        "active_tab": active_tab,
+        "local_today": local_today,
+    }
+
+
+@employer_required
+@require_GET
+def employee_schedules(request, pk):
+    employee = get_object_or_404(_employee_queryset(request.user), pk=pk)
+    shifts = employee.shifts.filter(organization=employee.organization).select_related("organization")
+    page = Paginator(shifts, 20).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "employees/profile_schedules.html",
+        {**_employee_profile_context(employee, "schedules"), "page": page},
+    )
+
+
+@employer_required
+@require_GET
+def employee_attendance(request, pk):
+    employee = get_object_or_404(_employee_queryset(request.user), pk=pk)
+    shifts = (
+        employee.shifts.filter(organization=employee.organization)
+        .select_related("organization", "attendance_session")
+        .order_by("-work_date", "-scheduled_start", "-pk")
+    )
+    page = Paginator(shifts, 20).get_page(request.GET.get("page"))
+    now = timezone.now()
+    for shift in page.object_list:
+        shift.profile_attendance_state = attendance_state(shift, at=now)
+        shift.profile_attendance_session = getattr(shift, "attendance_session", None)
+    return render(
+        request,
+        "employees/profile_attendance.html",
+        {**_employee_profile_context(employee, "attendance"), "page": page},
+    )
+
+
+@employer_required
+@require_GET
+def employee_timesheets(request, pk):
+    employee = get_object_or_404(_employee_queryset(request.user), pk=pk)
+    timesheets = (
+        Timesheet.objects.filter(organization=employee.organization, employee=employee)
+        .select_related("shift")
+    )
+    page = Paginator(timesheets, 20).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "employees/profile_timesheets.html",
+        {**_employee_profile_context(employee, "timesheets"), "page": page},
     )
 
 

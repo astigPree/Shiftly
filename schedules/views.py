@@ -11,6 +11,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
 from attendance.services import attendance_state
+from employees.models import Employee
 from .forms import ShiftForm
 from .forms_filter import ShiftFilterForm
 from .models import Shift
@@ -51,7 +52,15 @@ def shift_list(request):
 @require_http_methods(["GET", "POST"])
 def shift_create(request):
     organization = organization_for_user(request.user)
-    form = ShiftForm(request.POST or None, organization=organization)
+    initial = {}
+    employee_id = request.GET.get("employee")
+    if employee_id and Employee.objects.filter(
+        organization=organization,
+        status=Employee.Status.ACTIVE,
+        pk=employee_id,
+    ).exists():
+        initial["employee"] = employee_id
+    form = ShiftForm(request.POST or None, organization=organization, initial=initial)
     if request.method == "POST" and form.is_valid():
         try:
             shift = create_shift(

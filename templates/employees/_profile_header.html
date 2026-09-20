@@ -1,0 +1,22 @@
+{% load static %}
+<p class="employee-profile-back"><a href="{% url 'employees:list' %}">{% include "components/icon.html" with icon_name="chevron-left" icon_class="profile-back-icon" %}<span>Back to employees</span></a></p>
+<section class="employee-profile-hero" aria-labelledby="employee-profile-name">
+  <div class="employee-profile-avatar" aria-hidden="true">{{ employee.first_name|first|upper }}{{ employee.last_name|first|upper }}</div>
+  <div class="employee-profile-identity">
+    <h1 id="employee-profile-name">{{ employee.full_name }}</h1>
+    <p class="employee-profile-role">{{ employee.job_title|default:"Employee" }}</p>
+    <div class="employee-profile-meta">
+      <span class="employee-profile-status employee-profile-status--{{ employee.status|lower }}">{{ employee.get_status_display }}</span>
+      <span class="employee-profile-code">Employee #{{ employee.employee_code }}</span>
+    </div>
+  </div>
+  <div class="employee-profile-actions">
+    <a class="button-link" href="{% url 'employees:edit' employee.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit profile</span></a>
+  </div>
+</section>
+<nav class="employee-profile-tabs" aria-label="Employee profile sections">
+  <a href="{% url 'employees:detail' employee.pk %}"{% if active_tab == "overview" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="home" icon_class="profile-tab-icon" %}<span>Overview</span></a>
+  <a href="{% url 'employees:schedules' employee.pk %}"{% if active_tab == "schedules" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="calendar" icon_class="profile-tab-icon" %}<span>Schedules</span></a>
+  <a href="{% url 'employees:attendance' employee.pk %}"{% if active_tab == "attendance" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="clock" icon_class="profile-tab-icon" %}<span>Attendance</span></a>
+  <a href="{% url 'employees:timesheets' employee.pk %}"{% if active_tab == "timesheets" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="file" icon_class="profile-tab-icon" %}<span>Timesheets</span></a>
+</nav>
