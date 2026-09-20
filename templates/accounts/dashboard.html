@@ -86,11 +86,13 @@
           {% for row in attendance_rows %}
             <tr>
               <td>
-                <span class="employee-initial" aria-hidden="true">{{ row.shift.employee.first_name|first|upper }}{{ row.shift.employee.last_name|first|upper }}</span>
-                <span class="employee-cell">
-                  <a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a>
-                  <small>{{ row.shift.employee.job_title|default:row.shift.employee.employee_code }}</small>
-                </span>
+                <div class="dashboard-employee-cell">
+                  <span class="employee-initial" aria-hidden="true">{{ row.shift.employee.first_name|first|upper }}{{ row.shift.employee.last_name|first|upper }}</span>
+                  <span class="employee-cell">
+                    <a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a>
+                    <small>{{ row.shift.employee.job_title|default:row.shift.employee.employee_code }}</small>
+                  </span>
+                </div>
               </td>
               <td>{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td>
               <td>

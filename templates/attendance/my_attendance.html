@@ -166,7 +166,7 @@
           <tbody>
             {% for timesheet in recent_timesheets %}
               <tr>
-                <td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a></td>
+                <td><time datetime="{{ timesheet.shift.work_date|date:'Y-m-d' }}">{{ timesheet.shift.work_date|date:"M j, Y" }}</time></td>
                 <td>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if timesheet.shift.is_overnight %} <span class="muted">(overnight)</span>{% endif %}</td>
                 <td>{{ timesheet.worked_duration_label }}</td>
                 <td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td>
@@ -179,7 +179,7 @@
       <ul class="mobile-timesheet-list" aria-label="Recent timesheets">
         {% for timesheet in recent_timesheets %}
           <li class="mobile-timesheet-card">
-            <div class="mobile-timesheet-heading"><a href="{% url 'timesheets:my_detail' timesheet.pk %}"><strong>{{ timesheet.shift.work_date|date:"M j, Y" }}</strong></a><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div>
+            <div class="mobile-timesheet-heading"><time datetime="{{ timesheet.shift.work_date|date:'Y-m-d' }}"><strong>{{ timesheet.shift.work_date|date:"M j, Y" }}</strong></time><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div>
             <dl><div><dt>Shift</dt><dd>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div><div><dt>Worked</dt><dd>{{ timesheet.worked_duration_label }}</dd></div></dl>
             <a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a>
           </li>

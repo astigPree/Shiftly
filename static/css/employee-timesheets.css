@@ -275,7 +275,6 @@
   background: #f59e0b;
 }
 
-.employee-timesheet-view,
 .employee-timesheet-mobile-card > a {
   display: inline-flex;
   min-height: 40px;
@@ -288,13 +287,11 @@
   white-space: nowrap;
 }
 
-.employee-timesheet-view:hover,
 .employee-timesheet-mobile-card > a:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.employee-timesheet-view span,
 .employee-timesheet-mobile-card > a span {
   font-size: 20px;
   line-height: 1;

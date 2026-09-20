@@ -43,7 +43,6 @@
       <header class="employee-profile-card-heading">
         <span class="employee-card-icon">{% include "components/icon.html" with icon_name="user" %}</span>
         <div><h2 id="employee-information-title">Employee information</h2><p>Basic details about this employee.</p></div>
-        <a class="button-secondary employee-card-edit" href="{% url 'employees:edit' employee.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit</span></a>
       </header>
       <dl class="employee-information-grid">
         <div><dt>First name</dt><dd>{{ employee.first_name }}</dd></div>

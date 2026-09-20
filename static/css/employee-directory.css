@@ -252,8 +252,7 @@
   text-decoration: none;
 }
 
-.employee-name:hover,
-.employee-edit-link:hover {
+.employee-name:hover {
   color: var(--color-primary-700);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -305,16 +304,6 @@
 .account-state--not-invited {
   color: var(--color-neutral-text);
   background: var(--color-neutral-bg);
-}
-
-.employee-edit-link {
-  display: inline-flex;
-  min-width: 44px;
-  min-height: 44px;
-  align-items: center;
-  color: var(--color-primary-700);
-  font-weight: 600;
-  text-underline-offset: 3px;
 }
 
 .employee-directory-footer {

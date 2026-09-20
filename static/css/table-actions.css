@@ -1,12 +1,12 @@
 /* One compact, outlined action style for links and controls in data tables. */
 .table-action-button {
   display: inline-flex;
-  min-width: 76px;
-  min-height: 44px;
+  min-width: 68px;
+  min-height: 40px;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 12px;
+  padding: 0 10px;
   color: var(--color-primary-700);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
@@ -39,8 +39,70 @@
   line-height: inherit;
 }
 
+.dashboard-table th,
+.dashboard-table td,
+.employee-directory-table th,
+.employee-directory-table td,
+.schedule-list-table th,
+.schedule-list-table td,
+.attendance-list-table th,
+.attendance-list-table td,
+.timesheet-records-table th,
+.timesheet-records-table td,
+.employee-timesheet-table th,
+.employee-timesheet-table td,
+.employee-home-timesheet-table th,
+.employee-home-timesheet-table td,
+.employee-profile-table th,
+.employee-profile-table td,
+.report-data-table th,
+.report-data-table td {
+  vertical-align: middle;
+}
+
+.dashboard-table th:last-child,
+.dashboard-table td:last-child,
+.employee-directory-table th:last-child,
+.employee-directory-table td:last-child,
+.schedule-list-table .schedule-actions-heading,
+.schedule-list-table .schedule-actions-cell,
+.attendance-list-table .attendance-actions-heading,
+.attendance-list-table .attendance-actions-cell,
+.timesheet-records-table .timesheet-actions-heading,
+.timesheet-records-table .timesheet-action-cell,
+.employee-timesheet-table th:last-child,
+.employee-timesheet-table td:last-child,
+.employee-home-timesheet-table th:last-child,
+.employee-home-timesheet-table td:last-child,
+.employee-profile-table .table-actions-heading,
+.employee-profile-table .table-actions-cell,
+.report-attendance-table th:last-child,
+.report-attendance-table td:last-child,
+.report-timesheet-table th:last-child,
+.report-timesheet-table td:last-child {
+  text-align: center;
+}
+
+.schedule-actions-heading,
+.schedule-actions-cell,
+.attendance-actions-heading,
+.attendance-actions-cell,
+.timesheet-actions-heading,
+.timesheet-action-cell {
+  width: 96px;
+  min-width: 96px;
+}
+
+.employee-directory-table th:last-child {
+  width: 11%;
+}
+
+.employee-directory-table th:nth-child(5) {
+  width: 18%;
+}
+
 .employee-home-timesheet-table td:nth-child(5) a.table-action-button {
-  min-height: 44px;
+  min-height: 40px;
 }
 
 .schedule-row-menu summary.table-action-menu-trigger {

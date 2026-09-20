@@ -491,18 +491,6 @@ a.report-employee-name:hover {
   color: var(--color-text-muted);
 }
 
-.report-record-link {
-  color: var(--color-primary-hover);
-  font-weight: 550;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.report-record-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .report-table-footer {
   display: flex;
   min-height: 58px;

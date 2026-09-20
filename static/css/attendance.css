@@ -298,6 +298,7 @@
 
 .attendance-list-table {
   width: 100%;
+  min-width: 790px;
   border-collapse: collapse;
   text-align: left;
 }
@@ -410,25 +411,6 @@
 .attendance-actions-cell {
   width: 88px;
   text-align: center;
-}
-
-.attendance-view-link {
-  display: inline-flex;
-  min-width: 78px;
-  min-height: 44px;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-primary-hover);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.attendance-view-link:hover {
-  background: var(--color-primary-50);
-  border-color: var(--color-primary-200);
 }
 
 .attendance-table-footer {

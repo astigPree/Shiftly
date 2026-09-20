@@ -83,7 +83,7 @@
           <tbody>
             {% for shift in page.object_list %}
               <tr>
-                <td><a class="schedule-date-link" href="{% url 'schedules:detail' shift.pk %}">{{ shift.work_date|date:"D, M j, Y" }}</a></td>
+                <td><time datetime="{{ shift.work_date|date:'Y-m-d' }}">{{ shift.work_date|date:"D, M j, Y" }}</time></td>
                 <td><span class="schedule-employee-name">{{ shift.employee.full_name }}</span><span class="schedule-employee-code">{{ shift.employee.employee_code }}</span></td>
                 <td><span class="schedule-time">{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</span>{% if shift.is_overnight %}<span class="schedule-overnight">(overnight)</span>{% endif %}</td>
                 <td>{{ shift.scheduled_break_minutes }} min</td>

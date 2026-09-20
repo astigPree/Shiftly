@@ -341,13 +341,6 @@ th[aria-sort] .schedule-sort-link span {
   text-align: center;
 }
 
-.schedule-date-link {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
-
 .schedule-employee-name,
 .schedule-employee-code {
   display: block;

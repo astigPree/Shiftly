@@ -84,7 +84,7 @@
             {% for row in page.object_list %}
               <tr>
                 <td>
-                  <a class="attendance-employee-name" href="{% url 'schedules:detail' row.shift.pk %}">{{ row.shift.employee.full_name }}</a>
+                  <a class="attendance-employee-name" href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a>
                   <span class="attendance-employee-role">{{ row.shift.employee.job_title|default:"Employee" }}</span>
                 </td>
                 <td>
@@ -98,7 +98,7 @@
                   </span>
                   {% for exception in row.exceptions %}<span class="attendance-exception">{{ exception }}</span>{% endfor %}
                 </td>
-                <td class="attendance-actions-cell"><a class="attendance-view-link table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a></td>
+                <td class="attendance-actions-cell"><a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a></td>
               </tr>
             {% endfor %}
           </tbody>

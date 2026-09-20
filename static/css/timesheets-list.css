@@ -298,13 +298,6 @@
   border-bottom: 0;
 }
 
-.timesheet-date-link {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
-
 .timesheet-employee-name,
 .timesheet-employee-meta {
   display: block;
@@ -364,27 +357,6 @@
 .timesheet-action-cell {
   width: 80px;
   text-align: center;
-}
-
-.timesheet-view-link {
-  display: inline-flex;
-  min-width: 60px;
-  min-height: 38px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  color: var(--color-primary-hover);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.timesheet-view-link:hover {
-  background: var(--color-primary-50);
-  border-color: var(--color-primary-200);
 }
 
 .timesheet-records-footer {

@@ -87,6 +87,10 @@
   margin-top: 0;
 }
 
+.employee-home-timesheet-table {
+  min-width: 680px;
+}
+
 @media (max-width: 760px) {
   .employee-content > .employee-home {
     width: 100%;

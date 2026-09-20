@@ -115,7 +115,6 @@
 }
 
 .employee-profile-actions .button-link,
-.employee-card-edit,
 .employee-profile-section-heading .button-secondary {
   display: inline-flex;
   align-items: center;
@@ -336,17 +335,6 @@
 .employee-profile-card-heading p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.employee-card-edit {
-  min-height: 40px;
-  flex: 0 0 auto;
-  padding: 0 11px;
-  color: var(--color-primary-hover);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
   font-size: var(--text-sm);
 }
 
@@ -605,6 +593,10 @@
   text-transform: uppercase;
 }
 
+.employee-profile-table {
+  min-width: 680px;
+}
+
 .employee-profile-table th,
 .employee-profile-table td {
   padding: 14px 12px;
@@ -772,10 +764,6 @@
 
   .employee-profile-card-heading > div {
     flex: 1 1 calc(100% - 56px);
-  }
-
-  .employee-card-edit {
-    margin-left: 54px;
   }
 
   .employee-information-grid {
