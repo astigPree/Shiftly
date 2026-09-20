@@ -1,0 +1,60 @@
+{% extends "layouts/employer.html" %}
+{% load tz %}
+{% block title %}Reports | Shiftly{% endblock %}
+{% block app_content %}
+<header class="dashboard-heading"><div><p class="eyebrow">{{ organization.timezone }}</p><h1>Reports</h1><p class="muted">Attendance, completed work hours, and timesheet decisions.</p></div></header>
+
+<section class="report-section" aria-labelledby="daily-report-heading">
+  <header class="report-section-heading"><div><h2 id="daily-report-heading">Daily attendance</h2><p class="muted">All shifts assigned to the selected organization-local work date.</p></div></header>
+  <form method="get" action="{% url 'reports:home' %}" class="filters report-filters">
+    <div class="field compact-field"><label for="id_daily_date">Work date</label>{{ daily_form.daily_date }}</div>
+    <div class="field compact-field"><label for="id_daily_employee">Employee</label>{{ daily_form.daily_employee }}</div>
+    <div class="field compact-field"><label for="id_daily_status">Attendance status</label>{{ daily_form.daily_status }}</div>
+    <button type="submit">Apply filters</button>
+  </form>
+  {% if daily_form.errors %}<div class="error-list" role="alert">Correct the daily report filters and try again.</div>{% endif %}
+  <div class="content-card report-table-card">
+    {% if daily_rows %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col">Record</th></tr></thead><tbody>
+      {% for row in daily_rows %}<tr><td><a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a><br><span class="muted">{{ row.shift.employee.employee_code }}</span></td><td>{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td><td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span>{% if row.late_clock_in %}<small class="warning-text">Late clock-in</small>{% endif %}{% if row.state.missing_clock_out %}<small class="warning-text">Missing clock-out</small>{% endif %}</td><td>{% if row.last_activity %}{{ row.last_activity|timezone:organization.timezone|date:"g:i A" }}{% else %}—{% endif %}</td><td><a href="{% url 'schedules:detail' row.shift.pk %}">View shift</a></td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="empty-state compact-empty"><h3>No attendance records match</h3><p>Try another date or clear the employee and status filters.</p></div>{% endif %}
+  </div>
+</section>
+
+<div class="reports-grid">
+  <section class="report-section" aria-labelledby="weekly-report-heading">
+    <header class="report-section-heading"><div><h2 id="weekly-report-heading">Weekly employee hours</h2><p class="muted">ISO week: {{ selected_week_start|date:"M j" }} – {{ selected_week_end|date:"M j, Y" }}</p></div></header>
+    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters"><div class="field compact-field"><label for="id_week_of">Week containing</label>{{ week_form.week_of }}</div><button type="submit">Show week</button></form>
+    {% if week_form.errors %}<div class="error-list" role="alert">Choose a valid date for the weekly report.</div>{% endif %}
+    <div class="content-card report-table-card">{% if weekly_employees %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Completed shifts</th></tr></thead><tbody>
+      {% for row in weekly_employees %}<tr><td>{{ row.employee.full_name }}<br><span class="muted">{{ row.employee.employee_code }} · {{ row.employee.get_status_display }}</span></td><td>{{ row.worked_label }}</td><td>{{ row.completed_shifts }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="empty-state compact-empty"><p>No employees have been added yet.</p></div>{% endif %}</div>
+  </section>
+
+  <section class="report-section" aria-labelledby="timesheet-status-heading">
+    <header class="report-section-heading"><div><h2 id="timesheet-status-heading">Timesheet status summary</h2><p class="muted">Inclusive local work-date range.</p></div></header>
+    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters timesheet-report-form">
+      <div class="field compact-field"><label for="id_start_date">From date</label>{{ timesheet_form.start_date }}</div>
+      <div class="field compact-field"><label for="id_end_date">To date</label>{{ timesheet_form.end_date }}</div>
+      <div class="field compact-field"><label for="id_employee">Employee</label>{{ timesheet_form.employee }}</div>
+      <div class="field compact-field"><label for="id_status">Timesheet status</label>{{ timesheet_form.status }}</div>
+      <button type="submit">Apply filters</button>
+      <button class="button-secondary" type="submit" formaction="{% url 'reports:timesheet_csv' %}">Export CSV</button>
+    </form>
+    {% if timesheet_form.errors %}<div class="error-list" role="alert">Correct the timesheet report filters and try again.</div>{% endif %}
+    <div class="content-card report-table-card"><div class="table-wrap"><table><thead><tr><th scope="col">Status</th><th scope="col">Records</th><th scope="col">Worked time</th></tr></thead><tbody>{% for row in timesheet_status_summary %}<tr><td><span class="status-badge status-{{ row.code|lower }}">{{ row.label }}</span></td><td>{{ row.count }}</td><td>{{ row.worked_minutes }} min</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="content-card report-table-card report-records-card"><h3>Timesheets in this range</h3>
+      {% if timesheet_page.object_list %}<div class="table-wrap"><table><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead><tbody>{% for timesheet in timesheet_page.object_list %}<tr><td>{{ timesheet.shift.work_date|date:"M j, Y" }}</td><td>{{ timesheet.employee.full_name }}</td><td>{{ timesheet.worked_minutes }} min</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td><td><a href="{% url 'timesheets:detail' timesheet.pk %}">Review</a></td></tr>{% endfor %}</tbody></table></div>
+      {% else %}<div class="empty-state compact-empty"><p>No timesheets match this date range and filter.</p></div>{% endif %}
+      {% if timesheet_page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Timesheet report pages">{% if timesheet_page.has_previous %}<a href="?start_date={{ timesheet_form.start_date.value|urlencode }}&end_date={{ timesheet_form.end_date.value|urlencode }}&employee={{ timesheet_form.employee.value|default:'' }}&status={{ timesheet_form.status.value|urlencode }}&page={{ timesheet_page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ timesheet_page.number }} of {{ timesheet_page.paginator.num_pages }}</span>{% if timesheet_page.has_next %}<a href="?start_date={{ timesheet_form.start_date.value|urlencode }}&end_date={{ timesheet_form.end_date.value|urlencode }}&employee={{ timesheet_form.employee.value|default:'' }}&status={{ timesheet_form.status.value|urlencode }}&page={{ timesheet_page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+    </div>
+  </section>
+</div>
+
+<section class="report-section audit-report-section" aria-labelledby="activity-heading">
+  <header class="report-section-heading"><div><h2 id="activity-heading">Recent activity</h2><p class="muted">Administrative changes and timesheet decisions in this organization.</p></div></header>
+  <div class="content-card activity-list-card">
+    {% if recent_activity %}<ol class="activity-list">{% for event in recent_activity %}<li><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|timezone:organization.timezone|date:"M j, Y · g:i A" }}</time><div><strong>{{ event.get_action_display }}</strong><p>{{ event.summary }}</p><small>By {{ event.actor.get_full_name|default:event.actor.email }} · {{ event.target_type|title }} #{{ event.target_id }}</small></div></li>{% endfor %}</ol>
+    {% else %}<div class="empty-state compact-empty"><p>No activity has been recorded yet.</p></div>{% endif %}
+  </div>
+</section>
+{% endblock %}

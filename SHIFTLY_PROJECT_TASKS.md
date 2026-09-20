@@ -165,17 +165,15 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [x] Ensure employees cannot view other employees' records, even by changing a URL or submitted identifier.
 - [ ] Add tests for employee pages, action visibility, weekly totals, and ownership restrictions.
 
-## Phase 9 — Reports, CSV export, and audit history
-
-- [ ] Implement an organization-scoped daily attendance report with date and relevant status/employee filters.
-- [ ] Implement weekly employee work-hour summaries and timesheet status summaries.
-- [ ] Apply the organization timezone consistently to report boundaries, displayed timestamps, and date filters.
-- [ ] Implement CSV export using Python's standard csv module with documented headers, safe encoding, and the same filters/authorization as the report.
-- [ ] Prevent CSV formula injection for untrusted text values and ensure export output does not expose other organizations' data.
-- [ ] Implement AuditEvent with organization, actor, action, target type/ID, metadata, and timestamp.
-- [ ] Record the agreed sensitive MVP actions, including employee/schedule changes, attendance exceptions or corrections if supported, and timesheet approval/rejection.
-- [ ] Keep audit records append-only through the application and avoid recording passwords, tokens, or unnecessary personal data.
-- [ ] Provide employer-visible history where needed to explain timesheet decisions and recorded administrative changes.
+- [x] Implement an organization-scoped daily attendance report with date and relevant status/employee filters.
+- [x] Implement weekly employee work-hour summaries and timesheet status summaries.
+- [x] Apply the organization timezone consistently to report boundaries, displayed timestamps, and date filters.
+- [x] Implement CSV export using Python's standard csv module with documented headers, safe encoding, and the same filters/authorization as the report.
+- [x] Prevent CSV formula injection for untrusted text values and ensure export output does not expose other organizations' data.
+- [x] Implement AuditEvent with organization, actor, action, target type/ID, metadata, and timestamp.
+- [x] Record the agreed sensitive MVP actions, including employee/schedule changes, attendance exceptions or corrections if supported, and timesheet approval/rejection.
+- [x] Keep audit records append-only through the application and avoid recording passwords, tokens, or unnecessary personal data.
+- [x] Provide employer-visible history where needed to explain timesheet decisions and recorded administrative changes.
 - [ ] Add tests for report totals, date boundaries, CSV content/scope, and audit creation.
 
 ## Phase 10 — Shared design, accessibility, security, and quality

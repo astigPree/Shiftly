@@ -4,6 +4,8 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.permissions import organization_for_user
+from audit.models import AuditEvent
+from audit.services import record_event
 from schedules.models import Shift
 from attendance.models import AttendanceSession
 from .calculations import TimesheetCalculationError, calculate_timesheet
@@ -97,5 +99,19 @@ def review_timesheet(*, timesheet, reviewer, action, comment=""):
         action=action,
         comment=comment,
         reviewed_at=timezone.now(),
+    )
+    audit_action = (
+        AuditEvent.Action.TIMESHEET_APPROVED
+        if action == TimesheetApproval.Action.APPROVED
+        else AuditEvent.Action.TIMESHEET_REJECTED
+    )
+    record_event(
+        organization=organization,
+        actor=reviewer,
+        action=audit_action,
+        target_type="timesheet",
+        target_id=timesheet.pk,
+        summary=f"{timesheet.get_status_display()} timesheet for {timesheet.employee.employee_code}.",
+        metadata={"status": timesheet.status},
     )
     return timesheet, approval

@@ -13,7 +13,7 @@
       <a class="nav-link{% if request.resolver_match.namespace == 'schedules' %} active{% endif %}" href="{% url 'schedules:list' %}"><span class="nav-icon" aria-hidden="true">▦</span>Schedules</a>
       <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" href="{% url 'attendance:list' %}"><span class="nav-icon" aria-hidden="true">◷</span>Attendance</a>
       <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" href="{% url 'timesheets:list' %}"><span class="nav-icon" aria-hidden="true">▤</span>Timesheets</a>
-      <span class="nav-link nav-disabled" aria-disabled="true" title="Reports are part of the next phase"><span class="nav-icon" aria-hidden="true">▥</span>Reports</span>
+      <a class="nav-link{% if request.resolver_match.namespace == 'reports' %} active{% endif %}" href="{% url 'reports:home' %}"><span class="nav-icon" aria-hidden="true">▥</span>Reports</a>
       <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'settings' %} active{% endif %}" href="{% url 'accounts:settings' %}"><span class="nav-icon" aria-hidden="true">⚙</span>Settings</a>
     </nav>
     <div class="sidebar-note"><span aria-hidden="true">◷</span><p>A more productive team starts with better attendance.</p></div>

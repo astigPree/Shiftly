@@ -6,6 +6,8 @@ from django.utils import timezone
 
 from attendance.models import BreakSession
 from attendance.services import attendance_state, last_activity
+from audit.models import AuditEvent
+from audit.services import record_event
 from employees.models import Employee
 from organizations.models import Organization
 from schedules.models import Shift
@@ -63,12 +65,29 @@ def employer_dashboard_data(organization, now=None):
 @transaction.atomic
 def save_workspace_settings(*, organization, user, organization_name, timezone_name, first_name, last_name):
     organization = Organization.objects.select_for_update().get(pk=organization.pk)
+    previous_name = organization.name
+    previous_timezone = organization.timezone
     timezone_locked = organization.shifts.exists()
     if timezone_locked and timezone_name != organization.timezone:
         raise ValidationError({"timezone": "The organization time zone is locked after its first shift."})
     organization.name = organization_name
     organization.timezone = timezone_name if not timezone_locked else organization.timezone
     organization.save(update_fields=["name", "timezone", "updated_at"])
+    changed_fields = []
+    if previous_name != organization.name:
+        changed_fields.append("name")
+    if previous_timezone != organization.timezone:
+        changed_fields.append("timezone")
+    if changed_fields:
+        record_event(
+            organization=organization,
+            actor=user,
+            action=AuditEvent.Action.ORGANIZATION_UPDATED,
+            target_type="organization",
+            target_id=organization.pk,
+            summary="Updated organization settings.",
+            metadata={"changed_fields": changed_fields},
+        )
     user.first_name = first_name
     user.last_name = last_name
     user.save(update_fields=["first_name", "last_name"])

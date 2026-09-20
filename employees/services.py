@@ -12,6 +12,8 @@ from django.utils import timezone
 
 from accounts.permissions import organization_for_user
 from accounts.models import User
+from audit.models import AuditEvent
+from audit.services import record_event
 from .models import Employee, EmployeeInvitation
 
 
@@ -117,4 +119,13 @@ def update_employee_profile(*, employee, user, first_name, last_name):
     user.first_name = employee.first_name
     user.last_name = employee.last_name
     user.save(update_fields=["first_name", "last_name"])
+    record_event(
+        organization=employee.organization,
+        actor=user,
+        action=AuditEvent.Action.EMPLOYEE_UPDATED,
+        target_type="employee",
+        target_id=employee.pk,
+        summary="Updated own employee profile.",
+        metadata={"changed_fields": ["first_name", "last_name"]},
+    )
     return employee

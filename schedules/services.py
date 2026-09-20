@@ -2,6 +2,8 @@ from django.apps import apps
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 
+from audit.models import AuditEvent
+from audit.services import record_event
 from organizations.models import Organization
 from .models import Shift
 
@@ -40,7 +42,7 @@ def _validate_conflicts(shift, *, exclude_pk=None):
 
 
 @transaction.atomic
-def create_shift(*, organization, employee, work_date, scheduled_start, scheduled_end, scheduled_break_minutes):
+def create_shift(*, organization, employee, work_date, scheduled_start, scheduled_end, scheduled_break_minutes, actor):
     organization = Organization.objects.select_for_update().get(pk=organization.pk)
     employee = type(employee).objects.select_for_update().get(pk=employee.pk)
     _validate_assignment(organization, employee)
@@ -58,17 +60,39 @@ def create_shift(*, organization, employee, work_date, scheduled_start, schedule
         shift.save(force_insert=True)
     except IntegrityError as error:
         raise ValidationError("The employee already has a conflicting shift. Refresh and try again.") from error
+    record_event(
+        organization=organization,
+        actor=actor,
+        action=AuditEvent.Action.SHIFT_CREATED,
+        target_type="shift",
+        target_id=shift.pk,
+        summary=f"Scheduled shift for employee {employee.employee_code}.",
+        metadata={
+            "employee_id": employee.pk,
+            "work_date": shift.work_date.isoformat(),
+            "scheduled_start": shift.scheduled_start.isoformat(),
+            "scheduled_end": shift.scheduled_end.isoformat(),
+            "scheduled_break_minutes": shift.scheduled_break_minutes,
+        },
+    )
     return shift
 
 
 @transaction.atomic
-def update_shift(shift, *, organization, employee, work_date, scheduled_start, scheduled_end, scheduled_break_minutes):
+def update_shift(shift, *, organization, employee, work_date, scheduled_start, scheduled_end, scheduled_break_minutes, actor):
     shift = Shift.objects.select_for_update().get(pk=shift.pk, organization=organization)
     if shift.status != Shift.Status.SCHEDULED:
         raise ValidationError("Cancelled shifts cannot be edited.")
     if _attendance_has_started(shift):
         raise ValidationError("A shift cannot be edited after attendance has started.")
 
+    before = {
+        "employee_id": shift.employee_id,
+        "work_date": shift.work_date,
+        "scheduled_start": shift.scheduled_start,
+        "scheduled_end": shift.scheduled_end,
+        "scheduled_break_minutes": shift.scheduled_break_minutes,
+    }
     employee = type(employee).objects.select_for_update().get(pk=employee.pk)
     _validate_assignment(organization, employee)
     shift.employee = employee
@@ -85,11 +109,34 @@ def update_shift(shift, *, organization, employee, work_date, scheduled_start, s
         ])
     except IntegrityError as error:
         raise ValidationError("The employee already has a conflicting shift. Refresh and try again.") from error
+    after = {
+        "employee_id": shift.employee_id,
+        "work_date": shift.work_date,
+        "scheduled_start": shift.scheduled_start,
+        "scheduled_end": shift.scheduled_end,
+        "scheduled_break_minutes": shift.scheduled_break_minutes,
+    }
+    changed_fields = [field for field, old_value in before.items() if old_value != after[field]]
+    if changed_fields:
+        record_event(
+            organization=organization,
+            actor=actor,
+            action=AuditEvent.Action.SHIFT_UPDATED,
+            target_type="shift",
+            target_id=shift.pk,
+            summary=f"Updated shift for employee {employee.employee_code}.",
+            metadata={
+                "changed_fields": changed_fields,
+                "work_date": shift.work_date.isoformat(),
+                "scheduled_start": shift.scheduled_start.isoformat(),
+                "scheduled_end": shift.scheduled_end.isoformat(),
+            },
+        )
     return shift
 
 
 @transaction.atomic
-def cancel_shift(shift, *, organization):
+def cancel_shift(shift, *, organization, actor):
     shift = Shift.objects.select_for_update().get(pk=shift.pk, organization=organization)
     if shift.status == Shift.Status.CANCELLED:
         return shift
@@ -97,4 +144,13 @@ def cancel_shift(shift, *, organization):
         raise ValidationError("A shift cannot be cancelled after attendance has started.")
     shift.status = Shift.Status.CANCELLED
     shift.save(update_fields=["status", "updated_at"])
+    record_event(
+        organization=organization,
+        actor=actor,
+        action=AuditEvent.Action.SHIFT_CANCELLED,
+        target_type="shift",
+        target_id=shift.pk,
+        summary=f"Cancelled shift for employee {shift.employee.employee_code}.",
+        metadata={"work_date": shift.work_date.isoformat()},
+    )
     return shift

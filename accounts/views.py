@@ -10,6 +10,8 @@ from django.views.decorators.http import require_http_methods
 
 from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
 from accounts.models import User
+from audit.models import AuditEvent
+from audit.services import record_event
 from employees.forms import EmployeeProfileForm
 from employees.models import EmployeeInvitation
 from employees.services import accept_employee_invitation, update_employee_profile
@@ -40,10 +42,19 @@ def employer_signup(request):
                     last_name=form.cleaned_data["last_name"].strip(),
                     role=User.Role.EMPLOYER,
                 )
-                Organization.objects.create(
+                organization = Organization.objects.create(
                     owner=user,
                     name=form.cleaned_data["organization_name"],
                     timezone=form.cleaned_data["timezone"],
+                )
+                record_event(
+                    organization=organization,
+                    actor=user,
+                    action=AuditEvent.Action.ORGANIZATION_CREATED,
+                    target_type="organization",
+                    target_id=organization.pk,
+                    summary="Created the organization workspace.",
+                    metadata={"timezone": organization.timezone},
                 )
         except IntegrityError:
             form.add_error("email", "An account with this email address already exists.")

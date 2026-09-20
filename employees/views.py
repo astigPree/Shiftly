@@ -10,6 +10,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from audit.models import AuditEvent
+from audit.services import record_event
 from accounts.permissions import employer_required, organization_for_user
 from .forms import EmployeeForm
 from .models import Employee, EmployeeInvitation
@@ -67,6 +69,15 @@ def employee_create(request):
                 employee.status = Employee.Status.ACTIVE
                 employee.save()
                 issue_employee_invitation(employee, request.user, request)
+                record_event(
+                    organization=organization,
+                    actor=request.user,
+                    action=AuditEvent.Action.EMPLOYEE_CREATED,
+                    target_type="employee",
+                    target_id=employee.pk,
+                    summary=f"Created employee record {employee.employee_code}.",
+                    metadata={"employee_code": employee.employee_code},
+                )
         except ValidationError as error:
             form.add_error(None, error)
         except (SMTPException, OSError, IntegrityError):
@@ -95,6 +106,10 @@ def employee_edit(request, pk):
     form = EmployeeForm(request.POST or None, instance=employee)
     if request.method == "POST" and form.is_valid():
         email_changed = form.cleaned_data["email"].casefold() != employee.email.casefold()
+        previous_values = {
+            field: getattr(employee, field)
+            for field in ("employee_code", "first_name", "last_name", "email", "job_title")
+        }
         try:
             with transaction.atomic():
                 employee = form.save(commit=False)
@@ -117,6 +132,20 @@ def employee_edit(request, pk):
                     ).update(revoked_at=timezone.now())
                     if not employee.user_id and employee.status == Employee.Status.ACTIVE:
                         issue_employee_invitation(employee, request.user, request)
+                changed_fields = [
+                    field for field, old_value in previous_values.items()
+                    if old_value != getattr(employee, field)
+                ]
+                if changed_fields:
+                    record_event(
+                        organization=organization,
+                        actor=request.user,
+                        action=AuditEvent.Action.EMPLOYEE_UPDATED,
+                        target_type="employee",
+                        target_id=employee.pk,
+                        summary=f"Updated employee record {employee.employee_code}.",
+                        metadata={"changed_fields": changed_fields},
+                    )
         except ValidationError as error:
             form.add_error(None, error)
         except (SMTPException, OSError, IntegrityError):
@@ -140,8 +169,10 @@ def employee_toggle_status(request, pk):
         )
         if employee.status == Employee.Status.ACTIVE:
             employee.status = Employee.Status.INACTIVE
+            audit_action = AuditEvent.Action.EMPLOYEE_DEACTIVATED
         else:
             employee.status = Employee.Status.ACTIVE
+            audit_action = AuditEvent.Action.EMPLOYEE_ACTIVATED
         employee.save(update_fields=["status", "updated_at"])
         if employee.user_id:
             user = get_user_model().objects.select_for_update().get(pk=employee.user_id)
@@ -153,6 +184,15 @@ def employee_toggle_status(request, pk):
                 accepted_at__isnull=True,
                 revoked_at__isnull=True,
             ).update(revoked_at=timezone.now())
+        record_event(
+            organization=employee.organization,
+            actor=request.user,
+            action=audit_action,
+            target_type="employee",
+            target_id=employee.pk,
+            summary=f"{employee.get_status_display()} employee {employee.employee_code}.",
+            metadata={"status": employee.status},
+        )
     messages.success(request, f"{employee.full_name} is now {employee.get_status_display().lower()}.")
     return redirect("employees:detail", pk=employee.pk)
 

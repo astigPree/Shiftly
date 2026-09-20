@@ -59,6 +59,7 @@ def shift_create(request):
                 scheduled_start=form.cleaned_data["scheduled_start"],
                 scheduled_end=form.cleaned_data["scheduled_end"],
                 scheduled_break_minutes=form.cleaned_data["scheduled_break_minutes"],
+                actor=request.user,
             )
         except ValidationError as error:
             form.add_error(None, error)
@@ -102,6 +103,7 @@ def shift_edit(request, pk):
                 scheduled_start=form.cleaned_data["scheduled_start"],
                 scheduled_end=form.cleaned_data["scheduled_end"],
                 scheduled_break_minutes=form.cleaned_data["scheduled_break_minutes"],
+                actor=request.user,
             )
         except ValidationError as error:
             form.add_error(None, error)
@@ -127,7 +129,7 @@ def shift_cancel(request, pk):
     organization = organization_for_user(request.user)
     shift = get_object_or_404(_scoped_shifts(request.user), pk=pk)
     try:
-        cancel_shift(shift, organization=organization)
+        cancel_shift(shift, organization=organization, actor=request.user)
     except ValidationError as error:
         messages.error(request, " ".join(error.messages))
     else:
