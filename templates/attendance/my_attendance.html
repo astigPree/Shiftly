@@ -83,10 +83,10 @@
           {% if not session.clock_out_at %}
             <div class="action-row employee-actions">
               {% if session.status == "ON_BREAK" %}
-                <form method="post" action="{% url 'attendance:end_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">End break</button></form>
+                <form method="post" action="{% url 'attendance:end_break' session.pk %}" data-attendance-confirm data-confirm-title="End your break?" data-confirm-description="Your break will end and your work time will resume." data-confirm-action="End break">{% csrf_token %}<button class="attendance-action-primary" type="submit">End break</button></form>
               {% else %}
-                <form method="post" action="{% url 'attendance:start_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">Start break</button></form>
-                <form method="post" action="{% url 'attendance:clock_out' session.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Clock out</button></form>
+                <form method="post" action="{% url 'attendance:start_break' session.pk %}" data-attendance-confirm data-confirm-title="Start a break?" data-confirm-description="Your break will begin now, and work time will pause until you end it." data-confirm-action="Start break">{% csrf_token %}<button class="attendance-action-primary" type="submit">Start break</button></form>
+                <form method="post" action="{% url 'attendance:clock_out' session.pk %}" data-attendance-confirm data-confirm-title="Clock out of this shift?" data-confirm-description="This will end your active work session and submit the completed shift for timesheet review." data-confirm-action="Clock out">{% csrf_token %}<button class="button-secondary" type="submit">Clock out</button></form>
               {% endif %}
             </div>
           {% elif card.timesheet %}
@@ -97,7 +97,7 @@
           <div class="employee-ready-state">
             <p>Your clock-in window is open.</p>
             <div class="employee-clock-in-control" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}">
-              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">Clock in</button></form>
+              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}" data-attendance-confirm data-confirm-title="Clock in to this shift?" data-confirm-description="This will start your attendance session now." data-confirm-action="Clock in">{% csrf_token %}<button class="attendance-action-primary" type="submit">Clock in</button></form>
               <p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">Clock in when you're ready to start your shift.</p>
             </div>
           </div>
@@ -105,7 +105,7 @@
           <div class="employee-ready-state">
             <p>Your shift is coming up.</p>
             <div class="employee-clock-in-control" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}">
-              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit" disabled>Clock in</button></form>
+              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}" data-attendance-confirm data-confirm-title="Clock in to this shift?" data-confirm-description="This will start your attendance session now." data-confirm-action="Clock in">{% csrf_token %}<button class="attendance-action-primary" type="submit" disabled>Clock in</button></form>
               <p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">Clock-in opens at {{ card.clock_in_opens_at|timezone:organization.timezone|date:"g:i A" }}.</p>
             </div>
             <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>

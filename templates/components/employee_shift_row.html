@@ -26,7 +26,7 @@
       <a class="employee-shift-secondary-action" href="{% url 'attendance:my_attendance' %}">Go to Home</a>
     {% elif card.show_clock_in %}
       <div class="employee-clock-in-control employee-clock-in-control--schedule" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}">
-        <form method="post" action="{% url 'attendance:clock_in' shift.pk %}">
+        <form method="post" action="{% url 'attendance:clock_in' shift.pk %}" data-attendance-confirm data-confirm-title="Clock in to this shift?" data-confirm-description="This will start your attendance session now." data-confirm-action="Clock in">
           {% csrf_token %}
           <button class="attendance-action-primary" type="submit"{% if not card.can_clock_in %} disabled{% endif %}>Clock in</button>
         </form>

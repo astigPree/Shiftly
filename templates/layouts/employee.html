@@ -23,6 +23,18 @@
     {% include "components/messages.html" %}
     {% block app_content %}{% endblock %}
   </main>
+  <dialog class="attendance-confirm-dialog" data-attendance-confirm-dialog aria-labelledby="attendance-confirm-title" aria-describedby="attendance-confirm-description">
+    <div class="attendance-confirm-dialog__content">
+      <span class="attendance-confirm-dialog__icon" aria-hidden="true">{% include "components/icon.html" with icon_name="clock" %}</span>
+      <p class="attendance-confirm-dialog__eyebrow">Attendance action</p>
+      <h2 id="attendance-confirm-title" data-attendance-confirm-title>Confirm this action?</h2>
+      <p id="attendance-confirm-description" data-attendance-confirm-description></p>
+      <div class="attendance-confirm-dialog__actions">
+        <button class="button-secondary" type="button" data-attendance-confirm-cancel>Cancel</button>
+        <button class="button-primary" type="button" data-attendance-confirm-submit>Confirm</button>
+      </div>
+    </div>
+  </dialog>
 </div>
 </div>
 {% endblock %}
