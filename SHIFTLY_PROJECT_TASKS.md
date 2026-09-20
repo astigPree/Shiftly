@@ -66,7 +66,7 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [x] Pin supported Python, Django, PostgreSQL adapter, and production server versions in .python-version and requirements files; record support rationale in SHIFTLY_TECH_STACK.md.
 - [x] Create the Django project and configuration package with manage.py, URL routing, WSGI/ASGI entry points, and production-safe settings.
 - [x] Create the modular Django apps for accounts, organizations, employees, schedules, attendance, timesheets, reports, and audit.
-- [x] Configure PostgreSQL for development and production from the start; do not base the application on SQLite.
+- [x] Use SQLite for local development and PostgreSQL for production; keep application models and migrations compatible with both.
 - [x] Configure environment-based settings for secrets, debug mode, hosts, database, email, and trusted origins; keep secrets out of version control.
 - [x] Set timezone-aware datetime handling and establish UTC storage plus organization-timezone display.
 - [x] Add app template, static asset, and shared component directories using Django templates, vanilla CSS, and vanilla JavaScript.

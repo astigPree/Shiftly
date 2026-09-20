@@ -1,4 +1,3 @@
-# Shared application runtime dependencies.
+# Shared application dependencies; local development uses Python's built-in SQLite support.
 Django==4.2.30
-psycopg[binary]==3.2.13
 tzdata==2026.4

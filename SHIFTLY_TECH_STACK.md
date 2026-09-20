@@ -33,7 +33,8 @@ Vanilla JavaScript
 ## Database
 
 ```text
-PostgreSQL
+SQLite (local development)
+PostgreSQL (production)
 ```
 
 ## Production
@@ -60,10 +61,10 @@ Selected on 2026-09-20 to match the existing development environment:
 
 - Python 3.9.13 in .python-version.
 - Django 4.2.30 in requirements/base.txt, the last Django release series compatible with Python 3.9. Django 4.2 security support ended in April 2026, and Python 3.9 security support ended in October 2025. This stack is for local development only and must not be used for production.
-- Psycopg 3.2.13 with its binary extra in requirements/base.txt for PostgreSQL connections; this release supports Python 3.9. tzdata 2026.4 supplies IANA timezone data on Windows.
+- Psycopg 3.2.13 with its binary extra in requirements/production.txt for production PostgreSQL connections; this release supports Python 3.9. tzdata 2026.4 in requirements/base.txt supplies IANA timezone data on Windows.
 - Gunicorn 23.0.0 in requirements/production.txt is retained for compatibility with Python 3.9, but the Python and Django end-of-support status makes this production manifest unsuitable for deployment.
 
-For local development, install with pip install -r requirements.txt; this root manifest includes the shared dependencies from requirements/base.txt and excludes the production server. Production environments install pip install -r requirements/production.txt. Update exact pins deliberately after checking upstream support and security releases.
+For local development, install with pip install -r requirements.txt; SQLite is provided by Python and the local database is stored in the ignored db.sqlite3 file. Production environments install pip install -r requirements/production.txt to include the PostgreSQL adapter and WSGI server. Update exact pins deliberately after checking upstream support and security releases.
 
 Sources: [Django 4.2 Python compatibility and support dates](https://docs.djangoproject.com/en/4.2/faq/install/), [Python 3.9.13 release](https://www.python.org/downloads/release/python-3913/), [Psycopg 3.2.13](https://pypi.org/project/psycopg/3.2.13/), and [Gunicorn 23.0.0](https://pypi.org/project/gunicorn/23.0.0/).
 
@@ -324,9 +325,9 @@ Never trust IDs coming from the browser without organization validation.
 
 # 8. Database
 
-Use PostgreSQL from the beginning.
+Use SQLite for local development to keep setup simple.
 
-Do not use SQLite for production.
+Use PostgreSQL in production. Do not use SQLite for production.
 
 Core entities:
 
@@ -1002,7 +1003,7 @@ production domain
 
 Do not commit secrets.
 
-Use `.env` locally if desired.
+Local development uses SQLite and does not require DATABASE_URL. Production must set DATABASE_URL to a PostgreSQL connection URL.
 
 Production secrets should be configured at the server/environment level.
 
@@ -1159,7 +1160,8 @@ The official Shiftly MVP stack is:
 ```text
 Python
 Django
-PostgreSQL
+SQLite (local development)
+PostgreSQL (production)
 Django Templates
 HTML5
 Vanilla CSS

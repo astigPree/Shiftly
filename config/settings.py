@@ -90,40 +90,47 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    if DEBUG:
-        DATABASE_URL = "postgresql://localhost/shiftly"
-    else:
+if DEBUG:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+else:
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if not DATABASE_URL:
         raise ImproperlyConfigured(
             "DATABASE_URL must be set to a PostgreSQL connection URL."
         )
 
-database_url = urlparse(DATABASE_URL)
-if database_url.scheme not in {"postgres", "postgresql"}:
-    raise ImproperlyConfigured("DATABASE_URL must use the postgres or postgresql scheme.")
+    database_url = urlparse(DATABASE_URL)
+    if database_url.scheme not in {"postgres", "postgresql"}:
+        raise ImproperlyConfigured(
+            "DATABASE_URL must use the postgres or postgresql scheme."
+        )
 
-database_name = unquote(database_url.path.lstrip("/"))
-if not database_name:
-    raise ImproperlyConfigured("DATABASE_URL must include a database name.")
+    database_name = unquote(database_url.path.lstrip("/"))
+    if not database_name:
+        raise ImproperlyConfigured("DATABASE_URL must include a database name.")
 
-database_options = {
-    key: values[-1]
-    for key, values in parse_qs(database_url.query).items()
-}
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": database_name,
-        "USER": unquote(database_url.username or ""),
-        "PASSWORD": unquote(database_url.password or ""),
-        "HOST": database_url.hostname or "",
-        "PORT": str(database_url.port or ""),
-        "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
-        "CONN_HEALTH_CHECKS": True,
-        "OPTIONS": database_options,
+    database_options = {
+        key: values[-1]
+        for key, values in parse_qs(database_url.query).items()
     }
-}
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": database_name,
+            "USER": unquote(database_url.username or ""),
+            "PASSWORD": unquote(database_url.password or ""),
+            "HOST": database_url.hostname or "",
+            "PORT": str(database_url.port or ""),
+            "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
+            "CONN_HEALTH_CHECKS": True,
+            "OPTIONS": database_options,
+        }
+    }
 
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "accounts:login"
