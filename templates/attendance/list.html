@@ -2,12 +2,141 @@
 {% load tz %}
 {% block title %}Attendance | Shiftly{% endblock %}
 {% block app_content %}
-<header class="page-header"><div><h1>Attendance</h1><p class="muted">Daily shift attendance · {{ organization.timezone }}</p></div><a class="refresh-link" href="?date={{ selected_date|date:'Y-m-d' }}&status={{ status_filter|urlencode }}">Refresh</a></header>
-<section class="content-card wide-card">
-  <form method="get" class="filters"><div class="field compact-field"><label for="id_date">Work date</label><input id="id_date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}"></div><div class="field compact-field"><label for="id_status">Status</label><select id="id_status" name="status"><option value="">All statuses</option>{% for code,label in status_choices %}<option value="{{ code }}"{% if status_filter == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div><button type="submit">Apply filters</button></form>
-  {% if page.object_list %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th></tr></thead><tbody>
-  {% for row in page.object_list %}<tr><td><a href="{% url 'schedules:detail' row.shift.pk %}">{{ row.shift.employee.full_name }}</a><br><span class="muted">{{ row.shift.employee.job_title }}</span></td><td>{{ row.shift.work_date|date:"M j" }} · {{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td><td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span>{% if row.state.missing_clock_out %}<br><span class="warning-text">Missing clock-out</span>{% endif %}{% if row.late_clock_in %}<br><span class="muted">Late clock-in</span>{% endif %}</td><td>{% if row.last_activity %}{{ row.last_activity|timezone:organization.timezone|date:"g:i A" }}{% if row.session.clock_out_at %} · Clocked out{% elif row.session.status == "ON_BREAK" %} · On break{% else %} · Clocked in{% endif %}{% else %}—{% endif %}</td></tr>{% endfor %}
-  </tbody></table></div>{% else %}<div class="empty-state"><h2>No shifts for this date</h2><p>Choose another organization-local work date or schedule a shift.</p><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></div>{% endif %}
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Attendance pages">{% if page.has_previous %}<a href="?date={{ selected_date|date:'Y-m-d' }}&status={{ status_filter }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?date={{ selected_date|date:'Y-m-d' }}&status={{ status_filter }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
-</section>
+<div class="attendance-page">
+  <header class="attendance-page-header">
+    <div>
+      <h1>Attendance</h1>
+      {% if selected_date == local_today %}
+        <p>Monitor today's team attendance and exceptions.</p>
+      {% else %}
+        <p>Monitor team attendance and exceptions for {{ selected_date|date:"M j, Y" }}.</p>
+      {% endif %}
+    </div>
+    <div class="attendance-page-tools">
+      <span class="attendance-updated">Updated {{ updated_at|timezone:organization.timezone|date:"g:i A" }} · {{ organization.timezone }}</span>
+      <a class="attendance-refresh" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status={{ status_filter|urlencode }}&amp;q={{ search_query|urlencode }}" aria-label="Refresh attendance">
+        {% include "components/icon.html" with icon_name="refresh" icon_class="attendance-refresh-icon" %}<span>Refresh</span>
+      </a>
+    </div>
+  </header>
+
+  <section class="attendance-filter-panel" aria-label="Attendance filters">
+    <form method="get" class="attendance-filter-form" role="search">
+      <div class="attendance-filter-field">
+        <label for="attendance-date">Work date</label>
+        <input id="attendance-date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+      </div>
+      <div class="attendance-filter-field">
+        <label for="attendance-status">Status</label>
+        <select id="attendance-status" name="status">
+          <option value="">All statuses</option>
+          {% for code, label in status_choices %}<option value="{{ code }}"{% if status_filter == code %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="attendance-filter-field attendance-search-field">
+        <label class="visually-hidden" for="attendance-search">Search employee</label>
+        <span class="attendance-search-icon">{% include "components/icon.html" with icon_name="search" %}</span>
+        <input id="attendance-search" type="search" name="q" value="{{ search_query }}" placeholder="Search employee" autocomplete="off">
+      </div>
+      <div class="attendance-filter-actions">
+        <button type="submit">Apply filters</button>
+        <a href="{% url 'attendance:list' %}" class="attendance-clear">Clear</a>
+      </div>
+    </form>
+  </section>
+
+  <section class="attendance-summary-grid" aria-label="Attendance summary for {{ selected_date|date:'M j, Y' }}">
+    <a class="attendance-summary-card attendance-summary-card--green{% if status_filter == 'WORKING' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=WORKING&amp;q={{ search_query|urlencode }}"{% if status_filter == "WORKING" %} aria-current="page"{% endif %}>
+      <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="user-check" %}</span>
+      <span class="attendance-summary-copy"><span>On shift</span><strong>{{ summary.on_shift }}</strong><small>Working or on break</small></span>
+      <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="attendance-summary-card attendance-summary-card--amber{% if status_filter == 'LATE' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=LATE&amp;q={{ search_query|urlencode }}"{% if status_filter == "LATE" %} aria-current="page"{% endif %}>
+      <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="clock" %}</span>
+      <span class="attendance-summary-copy"><span>Late</span><strong>{{ summary.late }}</strong><small>After scheduled start</small></span>
+      <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="attendance-summary-card attendance-summary-card--red{% if status_filter == 'ABSENT' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=ABSENT&amp;q={{ search_query|urlencode }}"{% if status_filter == "ABSENT" %} aria-current="page"{% endif %}>
+      <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="user-x" %}</span>
+      <span class="attendance-summary-copy"><span>Absent</span><strong>{{ summary.absent }}</strong><small>No attendance recorded</small></span>
+      <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="attendance-summary-card attendance-summary-card--blue{% if status_filter == 'OPEN_CLOCKOUT' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=OPEN_CLOCKOUT&amp;q={{ search_query|urlencode }}"{% if status_filter == "OPEN_CLOCKOUT" %} aria-current="page"{% endif %}>
+      <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="file" %}</span>
+      <span class="attendance-summary-copy"><span>Open clock-outs</span><strong>{{ summary.open_clockouts }}</strong><small>Incomplete sessions</small></span>
+      <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+  </section>
+
+  <section class="attendance-table-panel" aria-labelledby="attendance-table-title">
+    <header class="attendance-table-heading">
+      <div>
+        <h2 id="attendance-table-title">{% if selected_date == local_today %}Today's Attendance{% else %}Attendance for {{ selected_date|date:"M j, Y" }}{% endif %}</h2>
+        <p>Daily shift attendance · {{ organization.timezone }}</p>
+      </div>
+    </header>
+
+    {% if page.object_list %}
+      <div class="attendance-table-wrap">
+        <table class="attendance-list-table">
+          <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col" class="attendance-actions-heading">Actions</th></tr></thead>
+          <tbody>
+            {% for row in page.object_list %}
+              <tr>
+                <td>
+                  <a class="attendance-employee-name" href="{% url 'schedules:detail' row.shift.pk %}">{{ row.shift.employee.full_name }}</a>
+                  <span class="attendance-employee-role">{{ row.shift.employee.job_title|default:"Employee" }}</span>
+                </td>
+                <td>
+                  <span class="attendance-shift-time">{{ row.shift.work_date|date:"M j" }} · {{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</span>
+                  {% if row.shift.is_overnight %}<span class="attendance-overnight">Overnight</span>{% endif %}
+                </td>
+                <td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span></td>
+                <td>
+                  <span class="attendance-activity{% if row.state.code == 'LATE' or row.state.code == 'ABSENT' %} attendance-activity--exception{% endif %}">
+                    {% if row.last_activity_at %}{{ row.last_activity_label }} {{ row.last_activity_at|timezone:organization.timezone|date:"g:i A" }}{% else %}{{ row.activity_text }}{% endif %}
+                  </span>
+                  {% for exception in row.exceptions %}<span class="attendance-exception">{{ exception }}</span>{% endfor %}
+                </td>
+                <td class="attendance-actions-cell"><a class="attendance-view-link" href="{% url 'schedules:detail' row.shift.pk %}">View</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <footer class="attendance-table-footer">
+        <p>Showing {{ showing_start }}–{{ showing_end }} of {{ page.paginator.count }} shifts</p>
+        {% if page.paginator.num_pages > 1 %}
+          <nav class="attendance-pagination" aria-label="Attendance pages">
+            {% if page.has_previous %}<a href="?date={{ selected_date|date:'Y-m-d' }}&amp;status={{ status_filter|urlencode }}&amp;q={{ search_query|urlencode }}&amp;page={{ page.previous_page_number }}">Previous</a>{% else %}<span class="is-disabled">Previous</span>{% endif %}
+            <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+            {% if page.has_next %}<a href="?date={{ selected_date|date:'Y-m-d' }}&amp;status={{ status_filter|urlencode }}&amp;q={{ search_query|urlencode }}&amp;page={{ page.next_page_number }}">Next</a>{% else %}<span class="is-disabled">Next</span>{% endif %}
+          </nav>
+        {% endif %}
+      </footer>
+    {% elif total_date_shifts %}
+      <div class="attendance-empty-state">
+        <span class="attendance-empty-icon">{% include "components/icon.html" with icon_name="search" %}</span>
+        <h3>No attendance records match your filters</h3>
+        <p>Try a different status or employee name, or clear the filters.</p>
+        <a class="button-link" href="{% url 'attendance:list' %}">Clear filters</a>
+      </div>
+    {% else %}
+      <div class="attendance-empty-state">
+        <span class="attendance-empty-icon">{% include "components/icon.html" with icon_name="calendar" %}</span>
+        <h3>No shifts scheduled for {{ selected_date|date:"M j, Y" }}</h3>
+        <p>There is no attendance to monitor because no shifts are scheduled for this date.</p>
+        <a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if follow_up_count %}
+    <a class="attendance-follow-up" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=NEEDS_FOLLOWUP">
+      <span class="attendance-follow-up-icon">{% include "components/icon.html" with icon_name="alert" %}</span>
+      <span>{% if follow_up_count == 1 %}1 shift requires follow-up{% else %}{{ follow_up_count }} shifts require follow-up{% endif %} for {{ selected_date|date:"M j, Y" }}</span>
+      <span class="attendance-follow-up-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+  {% endif %}
+</div>
 {% endblock %}

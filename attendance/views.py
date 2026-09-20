@@ -13,6 +13,7 @@ from accounts.permissions import employee_required, employer_required, organizat
 from employees.models import Employee
 from schedules.models import Shift
 from timesheets.models import Timesheet
+from .dashboard import get_employer_attendance_dashboard
 from .models import AttendanceSession, BreakSession
 from .services import attendance_state, clock_in, clock_out, end_break, last_activity, start_break
 
@@ -45,49 +46,39 @@ def attendance_list(request):
     except ValueError:
         selected_date = local_today
     status_filter = request.GET.get("status", "").upper()
-    allowed_statuses = ["SCHEDULED", "LATE", "ABSENT", "WORKING", "ON_BREAK", "COMPLETED", "CANCELLED"]
+    allowed_statuses = [
+        "SCHEDULED", "LATE", "ABSENT", "WORKING", "ON_BREAK", "COMPLETED",
+        "CANCELLED", "OPEN_CLOCKOUT", "NEEDS_FOLLOWUP",
+    ]
     if status_filter not in allowed_statuses:
         status_filter = ""
-    shifts = _with_attendance(
-        Shift.objects.filter(organization=organization, work_date=selected_date)
-        .select_related("employee", "organization")
-        .order_by("scheduled_start", "employee__last_name")
+    search_query = request.GET.get("q", "").strip()[:100]
+    dashboard = get_employer_attendance_dashboard(
+        organization=organization,
+        work_date=selected_date,
+        status_filter=status_filter,
+        search_query=search_query,
     )
-    now = timezone.now()
-    rows = []
-    for shift in shifts:
-        state = attendance_state(shift, at=now)
-        session = getattr(shift, "attendance_session", None)
-        late_clock_in = bool(session and session.clock_in_at > shift.scheduled_start)
-        if status_filter == "LATE":
-            if state["code"] != "LATE" and not late_clock_in:
-                continue
-        elif status_filter == "WORKING":
-            if state["code"] not in ("WORKING", "ON_BREAK"):
-                continue
-        elif status_filter and status_filter != state["code"]:
-            continue
-        rows.append(
-            {
-                "shift": shift,
-                "session": session,
-                "state": state,
-                "last_activity": last_activity(session),
-                "late_clock_in": late_clock_in,
-            }
-        )
-    page = Paginator(rows, 30).get_page(request.GET.get("page"))
+    page = Paginator(dashboard["rows"], 30).get_page(request.GET.get("page"))
     return render(
         request,
         "attendance/list.html",
         {
             "page": page,
+            "summary": dashboard["summary"],
+            "updated_at": dashboard["updated_at"],
+            "total_date_shifts": dashboard["total_date_shifts"],
+            "follow_up_count": dashboard["follow_up_count"],
             "selected_date": selected_date,
             "status_filter": status_filter,
+            "search_query": search_query,
+            "showing_start": page.start_index() if page.object_list else 0,
+            "showing_end": page.end_index() if page.object_list else 0,
             "status_choices": [
                 ("SCHEDULED", "Scheduled"), ("LATE", "Late"), ("ABSENT", "Absent"),
                 ("WORKING", "Working"), ("ON_BREAK", "On break"), ("COMPLETED", "Completed"),
-                ("CANCELLED", "Cancelled"),
+                ("CANCELLED", "Cancelled"), ("OPEN_CLOCKOUT", "Open clock-outs"),
+                ("NEEDS_FOLLOWUP", "Needs follow-up"),
             ],
             "organization": organization,
             "local_today": local_today,
