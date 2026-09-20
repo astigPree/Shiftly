@@ -1,17 +1,76 @@
 {% extends "layouts/employee.html" %}
-{% load tz %}
 {% block title %}My schedule | Shiftly{% endblock %}
 {% block app_content %}
-<header class="employee-dashboard-heading"><div><p class="eyebrow">{{ organization.name }}</p><h1>My schedule</h1><p class="muted">Today's and upcoming shifts · {{ organization.timezone }}</p></div><div class="weekly-hours-compact"><span>This week</span><strong>{{ weekly_hours_label }}</strong></div></header>
-<section class="content-card schedule-list-card" aria-labelledby="schedule-list-heading">
-  <h2 id="schedule-list-heading" class="visually-hidden">Upcoming shifts</h2>
-  {% if cards %}<div class="employee-schedule-list">{% for card in cards %}{% with shift=card.shift state=card.state %}
-    <article class="employee-schedule-row{% if state.code == 'CANCELLED' %} is-cancelled{% endif %}">
-      <div class="schedule-date"><strong>{{ shift.work_date|date:"D" }}</strong><span>{{ shift.work_date|date:"M j" }}</span></div>
-      <div class="schedule-time"><h3>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <small>(overnight)</small>{% endif %}</h3><p class="muted">{{ shift.scheduled_break_minutes }} min scheduled break</p>{% if state.missing_clock_out %}<p class="warning-text">Missing clock-out</p>{% endif %}{% if card.show_clock_in %}<div class="employee-clock-in-control employee-clock-in-control--schedule" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}"><form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit"{% if not card.can_clock_in %} disabled{% endif %}>Clock in</button></form><p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">{% if card.can_clock_in %}Clock in is available now.{% else %}Available at {{ card.clock_in_opens_at|timezone:organization.timezone|date:"g:i A" }}.{% endif %}</p></div>{% endif %}</div>
-      <span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span>
-    </article>
-  {% endwith %}{% endfor %}</div>
-  {% else %}<div class="empty-state"><h2>No upcoming shifts</h2><p>Your employer has not scheduled any shifts in the next two weeks.</p></div>{% endif %}
-</section>
+<div class="employee-schedule-page">
+  <header class="employee-schedule-heading">
+    <div>
+      <p class="employee-schedule-eyebrow">{{ organization.name }}</p>
+      <h1>My schedule</h1>
+      <p class="employee-schedule-subtitle">View today's and upcoming shifts.</p>
+      <p class="employee-schedule-timezone">All shift times use the organization timezone: <strong>{{ organization.timezone }}</strong></p>
+    </div>
+    <aside class="employee-week-summary" aria-label="Completed work time this week">
+      <div class="employee-week-summary-top">
+        <div><span>This week</span><strong>{{ week_start|date:"M j" }} – {{ week_end|date:"M j" }}</strong></div>
+        {% include "components/icon.html" with icon_name="calendar" icon_class="employee-week-summary-icon" %}
+      </div>
+      <strong class="employee-week-hours">{{ weekly_hours_label }}</strong>
+      <span class="employee-week-caption">Completed work time</span>
+    </aside>
+  </header>
+
+  {% if attention_cards %}
+    <section class="employee-schedule-section employee-schedule-attention" aria-labelledby="schedule-attention-heading">
+      <div class="employee-schedule-section-heading">
+        <div><h2 id="schedule-attention-heading">Attendance in progress</h2><p>Finish an open attendance session from Home.</p></div>
+      </div>
+      <div class="employee-shift-list">
+        {% for card in attention_cards %}{% include "components/employee_shift_row.html" with card=card organization=organization now=now %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="employee-schedule-section" aria-labelledby="schedule-today-heading">
+    <div class="employee-schedule-section-heading">
+      <div><h2 id="schedule-today-heading">Today</h2><p>{{ local_today|date:"l, F j, Y" }}</p></div>
+    </div>
+    {% if today_cards %}
+      <div class="employee-shift-list">
+        {% for card in today_cards %}{% include "components/employee_shift_row.html" with card=card organization=organization now=now is_today=True %}{% endfor %}
+      </div>
+    {% else %}
+      <div class="employee-schedule-empty">
+        {% include "components/icon.html" with icon_name="calendar" icon_class="employee-schedule-empty-icon" %}
+        <div><h3>No shift scheduled today</h3><p>There are no shifts assigned to you for today.</p></div>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="employee-schedule-section" aria-labelledby="schedule-upcoming-heading">
+    <div class="employee-schedule-section-heading">
+      <div><h2 id="schedule-upcoming-heading">Upcoming shifts</h2><p>Your scheduled shifts for the next two weeks.</p></div>
+    </div>
+    {% if upcoming_cards %}
+      <div class="employee-shift-list">
+        {% for card in upcoming_cards %}{% include "components/employee_shift_row.html" with card=card organization=organization now=now %}{% endfor %}
+      </div>
+    {% else %}
+      <div class="employee-schedule-empty employee-schedule-empty--compact">
+        {% include "components/icon.html" with icon_name="calendar" icon_class="employee-schedule-empty-icon" %}
+        <div><h3>No upcoming shifts</h3><p>Your employer has not scheduled another shift in the next two weeks.</p></div>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if cancelled_cards %}
+    <section class="employee-schedule-section" aria-labelledby="schedule-cancelled-heading">
+      <div class="employee-schedule-section-heading">
+        <div><h2 id="schedule-cancelled-heading">Cancelled shifts</h2><p>These shifts do not require attendance.</p></div>
+      </div>
+      <div class="employee-shift-list employee-shift-list--cancelled">
+        {% for card in cancelled_cards %}{% include "components/employee_shift_row.html" with card=card organization=organization now=now %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+</div>
 {% endblock %}

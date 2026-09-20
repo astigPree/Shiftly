@@ -35,6 +35,11 @@ def _minutes_label(minutes):
     return f"{hours} hr {minutes:02d} min" if hours else f"{minutes} min"
 
 
+def _employee_duration_label(minutes):
+    hours, minutes = divmod(max(0, minutes), 60)
+    return f"{hours}h {minutes:02d}m"
+
+
 @employer_required
 @require_GET
 def attendance_list(request):
@@ -148,6 +153,7 @@ def my_attendance(request):
                 "active_break": active_break,
                 "worked_duration_label": _duration_label(worked_seconds),
                 "break_duration_label": _duration_label(break_seconds),
+                "scheduled_duration_label": _employee_duration_label(shift.scheduled_minutes),
             }
         )
     has_open_session = any(card["session"] and not card["session"].clock_out_at for card in cards)
@@ -166,16 +172,31 @@ def my_attendance(request):
         ),
         None,
     )
-    focus_card = active_card or clockable_card or today_card or upcoming_card
+    scheduled_today_card = (
+        today_card
+        if today_card and today_card["shift"].status == Shift.Status.SCHEDULED
+        else None
+    )
+    focus_card = active_card or clockable_card or scheduled_today_card or upcoming_card
+    show_cancelled_notice = bool(
+        today_card
+        and today_card["shift"].status == Shift.Status.CANCELLED
+    )
+    show_upcoming_summary = bool(
+        upcoming_card
+        and (focus_card is None or focus_card["shift"].pk != upcoming_card["shift"].pk)
+    )
     weekly_minutes = Timesheet.objects.filter(
         organization=organization,
         employee=employee,
         shift__work_date__range=(week_start, week_start + timedelta(days=6)),
     ).aggregate(total=Sum("worked_minutes"))["total"] or 0
-    recent_timesheets = (
+    recent_timesheets = list(
         Timesheet.objects.filter(organization=organization, employee=employee)
         .select_related("shift")[:5]
     )
+    for timesheet in recent_timesheets:
+        timesheet.worked_duration_label = _employee_duration_label(timesheet.worked_minutes)
     return render(
         request,
         "attendance/my_attendance.html",
@@ -184,11 +205,15 @@ def my_attendance(request):
             "today_card": today_card,
             "focus_card": focus_card,
             "upcoming_card": upcoming_card,
+            "show_cancelled_notice": show_cancelled_notice,
+            "show_upcoming_summary": show_upcoming_summary,
             "weekly_minutes": weekly_minutes,
-            "weekly_hours_label": _minutes_label(weekly_minutes),
+            "weekly_hours_label": _employee_duration_label(weekly_minutes),
             "week_start": week_start,
+            "week_end": week_start + timedelta(days=6),
             "recent_timesheets": recent_timesheets,
             "organization": organization,
+            "employer_contact_email": organization.owner.email,
             "now": now,
             "local_today": today,
         },

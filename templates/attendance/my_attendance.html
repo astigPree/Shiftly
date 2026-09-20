@@ -2,44 +2,197 @@
 {% load tz %}
 {% block title %}Home | Shiftly{% endblock %}
 {% block app_content %}
-<header class="employee-dashboard-heading">
-  <div><p class="eyebrow">{{ local_today|date:"l, F j, Y" }}</p><h1>Welcome, {{ request.user.first_name|default:"there" }}</h1><p class="muted">Your workday at {{ organization.name }}.</p></div>
-  <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
-</header>
+<div class="employee-home">
+  <header class="employee-dashboard-heading">
+    <div>
+      <p class="eyebrow">{{ local_today|date:"l, F j, Y" }}</p>
+      <h1>Welcome, {{ request.user.first_name|default:"there" }}</h1>
+      <p class="muted">Here's an overview of your workday at {{ organization.name }}.</p>
+    </div>
+  </header>
 
-<div class="employee-dashboard-grid">
-  <section class="content-card employee-current-card" aria-labelledby="current-shift-heading">
-    {% if focus_card %}{% with card=focus_card shift=focus_card.shift session=focus_card.session state=focus_card.state %}
-      <div class="page-header"><div><p class="eyebrow">{% if session and not session.clock_out_at %}Current shift{% elif shift.work_date == local_today %}Today's shift{% elif shift.work_date > local_today %}Upcoming shift{% else %}Past shift{% endif %} · {{ shift.work_date|date:"M j" }}</p><h2 id="current-shift-heading">{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <span class="muted">(overnight)</span>{% endif %}</h2></div><span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span></div>
-      {% if state.missing_clock_out %}<p class="warning-panel" role="status">This shift has passed its scheduled end. Your session remains open until you clock out.</p>{% endif %}
-      {% if session %}
-        <div class="live-time-grid">
-          <div class="live-time-card{% if card.work_timer_running %} is-active{% else %} is-secondary{% endif %}"><span>Work time</span><strong class="live-timer" data-base-seconds="{{ card.worked_seconds }}"{% if card.work_timer_running %} data-started-at="{{ now|date:'c' }}"{% endif %} aria-live="off">{{ card.worked_duration_label }}</strong>{% if session.status == "ON_BREAK" and not session.clock_out_at %}<small>Paused while you are on break</small>{% elif session.clock_out_at %}<small>Completed work time</small>{% endif %}</div>
-          <div class="live-time-card{% if card.break_timer_running %} is-active{% else %} is-secondary{% endif %}"><span>Break time</span><strong class="live-timer" data-base-seconds="{{ card.break_seconds }}"{% if card.break_timer_running %} data-started-at="{{ now|date:'c' }}"{% endif %} aria-live="off">{{ card.break_duration_label }}</strong>{% if card.break_timer_running %}<small>Current break in progress</small>{% else %}<small>Total recorded break time</small>{% endif %}</div>
+  {% if show_cancelled_notice %}
+    <section class="employee-cancelled-notice" role="status" aria-label="Today's cancelled shift">
+      <span class="employee-state-icon employee-state-icon--cancelled" aria-hidden="true">{% include "components/icon.html" with icon_name="calendar" %}</span>
+      <div>
+        <p class="eyebrow">Today's shift <span class="status-badge status-cancelled">Cancelled</span></p>
+        <h2>{{ today_card.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ today_card.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if today_card.shift.is_overnight %} <span>(overnight)</span>{% endif %}</h2>
+        <p>This shift was cancelled. No attendance action is required.</p>
+      </div>
+      <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+    </section>
+  {% endif %}
+
+  {% if focus_card %}
+    {% with card=focus_card shift=focus_card.shift session=focus_card.session state=focus_card.state %}
+      <section class="employee-attendance-card employee-attendance-card--{{ state.code|lower }}" aria-labelledby="attendance-focus-heading">
+        <div class="employee-attendance-card__heading">
+          <div>
+            <p class="eyebrow">
+              {% if session and not session.clock_out_at %}
+                {% if session.status == "ON_BREAK" %}Currently on break{% else %}Currently working{% endif %}
+              {% elif shift.work_date == local_today %}Today's shift
+              {% elif shift.work_date > local_today %}Next shift
+              {% else %}Recent shift{% endif %}
+              {% if shift.work_date != local_today %}<span class="employee-focus-date">· {{ shift.work_date|date:"D, M j, Y" }}</span>{% endif %}
+            </p>
+            <h2 id="attendance-focus-heading">
+              {% if state.code == "CANCELLED" %}Your shift was cancelled
+              {% else %}{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <span class="employee-overnight">(overnight)</span>{% endif %}{% endif %}
+            </h2>
+            {% if state.code != "CANCELLED" %}<p class="employee-shift-duration">{{ card.scheduled_duration_label }} scheduled</p>{% endif %}
+          </div>
+          <span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span>
         </div>
-        <dl class="employee-event-list"><div><dt>Clocked in</dt><dd>{{ session.clock_in_at|timezone:organization.timezone|date:"g:i:s A" }}</dd></div>{% if session.clock_out_at %}<div><dt>Clocked out</dt><dd>{{ session.clock_out_at|timezone:organization.timezone|date:"g:i:s A" }}</dd></div>{% endif %}</dl>
-        {% if card.breaks %}<details class="break-details"><summary>Break activity ({{ card.breaks|length }})</summary><ul class="break-list">{% for break in card.breaks %}<li>{{ break.started_at|timezone:organization.timezone|date:"g:i:s A" }}{% if break.ended_at %} – {{ break.ended_at|timezone:organization.timezone|date:"g:i:s A" }}{% else %} – in progress{% endif %}</li>{% endfor %}</ul></details>{% endif %}
-        {% if not session.clock_out_at %}<div class="action-row employee-actions">
-          {% if session.status == "ON_BREAK" %}<form method="post" action="{% url 'attendance:end_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">End break</button></form>
-          {% else %}<form method="post" action="{% url 'attendance:start_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">Start break</button></form><form method="post" action="{% url 'attendance:clock_out' session.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Clock out</button></form>{% endif %}
-        </div>{% elif card.timesheet %}<p class="completed-timesheet-link">Your completed shift is ready. <a href="{% url 'timesheets:my_detail' card.timesheet.pk %}">View timesheet</a></p>{% endif %}
-      {% elif card.show_clock_in %}<div class="employee-clock-in-control" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}"><form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit"{% if not card.can_clock_in %} disabled{% endif %}>Clock in</button></form><p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">{% if card.can_clock_in %}Your clock-in window is open.{% else %}Clock-in opens at {{ card.clock_in_opens_at|timezone:organization.timezone|date:"g:i A" }}.{% endif %}</p></div>
-      {% elif state.code == "ABSENT" %}<p class="muted">The clock-in window has closed. Contact your employer if you think this is incorrect.</p>
-      {% elif state.code == "CANCELLED" %}<p class="muted">This shift was cancelled.</p>
-      {% else %}<p class="muted">Clock-in opens 30 minutes before the scheduled start and closes at the scheduled end.</p>{% endif %}
+
+        {% if state.code == "CANCELLED" %}
+          <div class="employee-focus-message">
+            <p>This shift was cancelled. No attendance action is required.</p>
+            <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+          </div>
+
+        {% elif session %}
+          <div class="employee-live-attendance">
+            <div class="employee-primary-timer{% if session.status == 'ON_BREAK' %} employee-primary-timer--break{% endif %}">
+              <span>{% if session.status == "ON_BREAK" and not session.clock_out_at %}Break duration{% else %}Time worked{% endif %}</span>
+              {% if session.status == "ON_BREAK" and not session.clock_out_at %}
+                <strong class="live-timer" data-base-seconds="{{ card.break_seconds }}"{% if card.break_timer_running %} data-started-at="{{ now|date:'c' }}"{% endif %} aria-live="off">{{ card.break_duration_label }}</strong>
+              {% else %}
+                <strong class="live-timer" data-base-seconds="{{ card.worked_seconds }}"{% if card.work_timer_running %} data-started-at="{{ now|date:'c' }}"{% endif %} aria-live="off">{{ card.worked_duration_label }}</strong>
+              {% endif %}
+            </div>
+            <dl class="employee-shift-facts">
+              <div><dt>Clocked in</dt><dd>{{ session.clock_in_at|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              {% if session.clock_out_at %}
+                <div><dt>Clocked out</dt><dd>{{ session.clock_out_at|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              {% else %}
+                <div><dt>Shift ends</dt><dd>{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              {% endif %}
+              {% if session.status == "ON_BREAK" and not session.clock_out_at %}
+                <div><dt>Work completed so far</dt><dd>{{ card.worked_duration_label }}</dd></div>
+              {% else %}
+                <div><dt>Break time</dt><dd>{{ card.break_duration_label }}</dd></div>
+              {% endif %}
+            </dl>
+          </div>
+
+          {% if state.missing_clock_out %}<p class="employee-attendance-warning" role="status">Your scheduled shift has ended. Your session stays open until you clock out.</p>{% endif %}
+          {% if card.breaks %}
+            <details class="break-details"><summary>Break activity ({{ card.breaks|length }})</summary><ul class="break-list">{% for break in card.breaks %}<li>{{ break.started_at|timezone:organization.timezone|date:"g:i A" }}{% if break.ended_at %} – {{ break.ended_at|timezone:organization.timezone|date:"g:i A" }}{% else %} – in progress{% endif %}</li>{% endfor %}</ul></details>
+          {% endif %}
+          {% if not session.clock_out_at %}
+            <div class="action-row employee-actions">
+              {% if session.status == "ON_BREAK" %}
+                <form method="post" action="{% url 'attendance:end_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">End break</button></form>
+              {% else %}
+                <form method="post" action="{% url 'attendance:start_break' session.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">Start break</button></form>
+                <form method="post" action="{% url 'attendance:clock_out' session.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Clock out</button></form>
+              {% endif %}
+            </div>
+          {% elif card.timesheet %}
+            <p class="completed-timesheet-link">Your shift is complete. <a href="{% url 'timesheets:my_detail' card.timesheet.pk %}">View timesheet</a></p>
+          {% endif %}
+
+        {% elif card.show_clock_in and card.can_clock_in %}
+          <div class="employee-ready-state">
+            <p>Your clock-in window is open.</p>
+            <div class="employee-clock-in-control" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}">
+              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit">Clock in</button></form>
+              <p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">Clock in when you're ready to start your shift.</p>
+            </div>
+          </div>
+        {% elif card.show_clock_in %}
+          <div class="employee-ready-state">
+            <p>Your shift is coming up.</p>
+            <div class="employee-clock-in-control" data-clock-in-opens-at="{{ card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}">
+              <form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit" disabled>Clock in</button></form>
+              <p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">Clock-in opens at {{ card.clock_in_opens_at|timezone:organization.timezone|date:"g:i A" }}.</p>
+            </div>
+            <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+          </div>
+        {% elif state.code == "ABSENT" %}
+          <p class="employee-focus-copy">The clock-in window has closed. Contact your employer if you think this is incorrect.</p>
+          <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+        {% else %}
+          <p class="employee-focus-copy">Your shift details and attendance actions are shown here.</p>
+          <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+        {% endif %}
+      </section>
     {% endwith %}
-    {% else %}<div class="empty-state compact-empty"><h2 id="current-shift-heading">No shift today</h2><p>Your current shift and attendance actions will appear here when scheduled.</p></div>{% endif %}
+  {% elif not show_cancelled_notice %}
+    <section class="employee-no-shift-card" aria-labelledby="attendance-focus-heading">
+      <span class="employee-state-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="calendar" %}</span>
+      <div><p class="eyebrow">Today's schedule</p><h2 id="attendance-focus-heading">No shift today</h2><p>You don't have a scheduled shift today.</p></div>
+      <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+    </section>
+  {% endif %}
+
+  <div class="employee-summary-grid{% if not show_upcoming_summary %} employee-summary-grid--single{% endif %}">
+    <section class="employee-summary-card employee-weekly-card" aria-labelledby="weekly-hours-heading">
+      <span class="employee-state-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="chart" %}</span>
+      <div class="employee-summary-copy">
+        <p class="eyebrow">This week</p>
+        <p class="employee-summary-range">{{ week_start|date:"M j" }} – {{ week_end|date:"M j, Y" }}</p>
+        <h2 id="weekly-hours-heading">{{ weekly_hours_label }}</h2>
+        <p class="muted">Completed shift work time</p>
+      </div>
+      <a href="{% url 'timesheets:my_list' %}">View timesheets <span aria-hidden="true">→</span></a>
+    </section>
+
+    {% if show_upcoming_summary %}
+      <section class="employee-summary-card employee-next-shift-card" aria-labelledby="next-shift-heading">
+        <span class="employee-state-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="calendar" %}</span>
+        <div class="employee-summary-copy">
+          <p class="eyebrow">Next shift</p>
+          <h2 id="next-shift-heading">{{ upcoming_card.shift.work_date|date:"l, M j, Y" }}</h2>
+          <p class="employee-next-shift-time">{{ upcoming_card.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ upcoming_card.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if upcoming_card.shift.is_overnight %} <span>(overnight)</span>{% endif %}</p>
+          <p class="muted">{{ upcoming_card.scheduled_duration_label }} scheduled</p>
+        </div>
+        <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
+      </section>
+    {% endif %}
+  </div>
+
+  <section class="content-card recent-timesheets employee-recent-timesheets" aria-labelledby="recent-timesheets-heading">
+    <header class="page-header">
+      <div><h2 id="recent-timesheets-heading">Recent timesheets</h2><p class="muted">Your completed shift records and employer decisions.</p></div>
+      <a href="{% url 'timesheets:my_list' %}">View all <span aria-hidden="true">→</span></a>
+    </header>
+    {% if recent_timesheets %}
+      <div class="table-wrap desktop-timesheet-table">
+        <table class="employee-home-timesheet-table">
+          <thead><tr><th scope="col">Work date</th><th scope="col">Shift</th><th scope="col">Worked</th><th scope="col">Status</th><th scope="col">Details</th></tr></thead>
+          <tbody>
+            {% for timesheet in recent_timesheets %}
+              <tr>
+                <td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a></td>
+                <td>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if timesheet.shift.is_overnight %} <span class="muted">(overnight)</span>{% endif %}</td>
+                <td>{{ timesheet.worked_duration_label }}</td>
+                <td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td>
+                <td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">View</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <ul class="mobile-timesheet-list" aria-label="Recent timesheets">
+        {% for timesheet in recent_timesheets %}
+          <li class="mobile-timesheet-card">
+            <div class="mobile-timesheet-heading"><a href="{% url 'timesheets:my_detail' timesheet.pk %}"><strong>{{ timesheet.shift.work_date|date:"M j, Y" }}</strong></a><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div>
+            <dl><div><dt>Shift</dt><dd>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div><div><dt>Worked</dt><dd>{{ timesheet.worked_duration_label }}</dd></div></dl>
+            <a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty-state compact-empty"><h3>No timesheets yet</h3><p>After you clock out, your completed shift record will appear here.</p></div>
+    {% endif %}
   </section>
 
-  <aside class="employee-side-cards">
-    <section class="content-card weekly-hours-card"><p class="eyebrow">This week · starts {{ week_start|date:"M j" }}</p><h2>{{ weekly_hours_label }}</h2><p class="muted">Completed shift work time, Monday through Sunday.</p><a href="{% url 'timesheets:my_list' %}">View timesheets</a></section>
-    {% if upcoming_card and focus_card.shift.pk != upcoming_card.shift.pk %}<section class="content-card upcoming-card"><p class="eyebrow">Upcoming shift</p><h2>{{ upcoming_card.shift.work_date|date:"D, M j" }}</h2><p>{{ upcoming_card.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ upcoming_card.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</p><span class="status-badge status-{{ upcoming_card.state.code|lower }}">{{ upcoming_card.state.label }}</span>{% if upcoming_card.show_clock_in %}<div class="employee-clock-in-control" data-clock-in-opens-at="{{ upcoming_card.clock_in_opens_at|date:'c' }}" data-clock-in-closes-at="{{ upcoming_card.clock_in_closes_at|date:'c' }}" data-server-now="{{ now|date:'c' }}"><form method="post" action="{% url 'attendance:clock_in' upcoming_card.shift.pk %}">{% csrf_token %}<button class="attendance-action-primary" type="submit"{% if not upcoming_card.can_clock_in %} disabled{% endif %}>Clock in</button></form><p class="employee-clock-in-hint" data-clock-in-hint aria-live="polite">{% if upcoming_card.can_clock_in %}Clock in is available now.{% else %}Available at {{ upcoming_card.clock_in_opens_at|timezone:organization.timezone|date:"g:i A" }}.{% endif %}</p></div>{% endif %}<a href="{% url 'schedules:my_schedule' %}">Open schedule</a></section>{% endif %}
+  <aside class="employee-help-card" aria-label="Employee support">
+    <span class="employee-state-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="info" %}</span>
+    <div><h2>Need help?</h2><p>If you have questions about your schedule, timesheets, or attendance, contact your employer.</p></div>
+    <a class="button-link button-link-secondary" href="mailto:{{ employer_contact_email }}">Contact employer</a>
   </aside>
 </div>
-
-<section class="content-card recent-timesheets" aria-labelledby="recent-timesheets-heading">
-  <header class="page-header"><div><h2 id="recent-timesheets-heading">Recent timesheets</h2><p class="muted">Your completed shift records and employer decisions.</p></div><a href="{% url 'timesheets:my_list' %}">View all</a></header>
-  {% if recent_timesheets %}<div class="table-wrap desktop-timesheet-table"><table><thead><tr><th scope="col">Work date</th><th scope="col">Worked</th><th scope="col">Status</th><th scope="col">Details</th></tr></thead><tbody>{% for timesheet in recent_timesheets %}<tr><td>{{ timesheet.shift.work_date|date:"M j, Y" }}</td><td>{{ timesheet.worked_minutes }} min</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td><td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a></td></tr>{% endfor %}</tbody></table></div>
-    <ul class="mobile-timesheet-list" aria-label="Recent timesheets">{% for timesheet in recent_timesheets %}<li class="mobile-timesheet-card"><div class="mobile-timesheet-heading"><strong>{{ timesheet.shift.work_date|date:"M j, Y" }}</strong><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div><dl><div><dt>Worked</dt><dd>{{ timesheet.worked_minutes }} min</dd></div></dl><a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a></li>{% endfor %}</ul>{% else %}<div class="empty-state compact-empty"><h3>No timesheets yet</h3><p>After you clock out, the completed shift record will appear here.</p></div>{% endif %}
-</section>
 {% endblock %}

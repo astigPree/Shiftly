@@ -331,6 +331,516 @@
   white-space: nowrap;
   clip-path: inset(50%);
 }
+
+/* Employee home: keep attention on the current shift and its next action. */
+.employee-home {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+.employee-home .employee-dashboard-heading {
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.employee-home .employee-dashboard-heading h1 {
+  font-size: clamp(28px, 3vw, 36px);
+}
+.employee-home .employee-dashboard-heading .eyebrow {
+  margin-bottom: 6px;
+}
+.employee-home .employee-dashboard-heading .muted {
+  margin-top: 4px;
+}
+.employee-cancelled-notice {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 16px 20px;
+  color: var(--color-text);
+  background: #fff7f7;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-lg);
+}
+.employee-cancelled-notice .eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 5px;
+}
+.employee-cancelled-notice .status-badge {
+  min-height: 24px;
+  padding: 2px 8px;
+}
+.employee-cancelled-notice .status-cancelled {
+  color: var(--color-danger);
+  background: var(--color-error-bg);
+}
+.employee-cancelled-notice .status-cancelled::before {
+  background: var(--color-danger);
+}
+.employee-cancelled-notice h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+.employee-cancelled-notice h2 span {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.employee-cancelled-notice p:last-child {
+  margin: 5px 0 0;
+  color: var(--color-text-muted);
+}
+.employee-state-icon {
+  display: inline-grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-primary-600);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+.employee-state-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.employee-state-icon--cancelled {
+  color: var(--color-danger);
+  background: var(--color-error-bg);
+}
+.employee-attendance-card,
+.employee-no-shift-card {
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.employee-attendance-card--working,
+.employee-attendance-card--on_break {
+  border-color: var(--color-primary-200);
+}
+.employee-attendance-card--cancelled {
+  background: #fffafa;
+  border-color: var(--color-error-border);
+}
+.employee-attendance-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.employee-attendance-card__heading .eyebrow {
+  margin: 0 0 7px;
+}
+.employee-attendance-card__heading h2 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+.employee-attendance-card__heading h2 .employee-overnight {
+  color: var(--color-text-muted);
+  font-size: 0.72em;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.employee-focus-date {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.employee-shift-duration {
+  margin: 7px 0 0;
+  color: var(--color-text-muted);
+}
+.employee-focus-message,
+.employee-ready-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+.employee-focus-message p,
+.employee-ready-state p,
+.employee-focus-copy {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.employee-live-attendance {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
+  align-items: stretch;
+  gap: 22px;
+  margin-top: 22px;
+}
+.employee-primary-timer {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  min-height: 136px;
+  padding: 18px 22px;
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-100);
+  border-radius: var(--radius-md);
+}
+.employee-primary-timer--break {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+.employee-primary-timer > span {
+  color: var(--color-text-muted);
+}
+.employee-primary-timer strong {
+  color: var(--color-text);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(32px, 5vw, 48px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+.employee-shift-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  gap: 14px 18px;
+  margin: 0;
+  padding: 10px 0;
+}
+.employee-shift-facts div {
+  display: grid;
+  gap: 4px;
+}
+.employee-shift-facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+.employee-shift-facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.employee-attendance-warning {
+  margin: 16px 0 0;
+  padding: 11px 13px;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-radius: var(--radius-md);
+}
+.employee-home .employee-actions {
+  padding-top: 18px;
+  border-top: 1px solid var(--color-border);
+}
+.employee-home .employee-actions button,
+.employee-home .employee-clock-in-control button {
+  min-height: 48px;
+}
+.employee-home .employee-clock-in-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+}
+.employee-home .employee-clock-in-control form {
+  margin: 0;
+}
+.employee-home .employee-clock-in-control button {
+  min-width: 150px;
+}
+.employee-home .employee-clock-in-hint {
+  flex-basis: 100%;
+}
+.employee-no-shift-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.employee-no-shift-card h2 {
+  margin: 0 0 4px;
+  font-size: var(--text-xl);
+}
+.employee-no-shift-card p:last-child {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.employee-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.employee-summary-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.employee-summary-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 15px;
+  min-height: 138px;
+  padding: 18px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.employee-weekly-card {
+  background: #f7fbff;
+  border-color: var(--color-primary-200);
+}
+.employee-next-shift-card {
+  background: #f5fbf7;
+  border-color: var(--color-success-border);
+}
+.employee-next-shift-card .employee-state-icon {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.employee-summary-copy .eyebrow {
+  margin: 0 0 4px;
+}
+.employee-summary-copy h2 {
+  margin: 4px 0;
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+}
+.employee-weekly-card h2 {
+  font-size: var(--text-3xl);
+}
+.employee-summary-range,
+.employee-next-shift-time {
+  margin: 0;
+  color: var(--color-gray-600);
+  font-size: var(--text-sm);
+}
+.employee-next-shift-time {
+  color: var(--color-text);
+  font-size: var(--text-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.employee-summary-copy .muted {
+  margin: 4px 0 0;
+  font-size: var(--text-sm);
+}
+.employee-summary-card > a:not(.button-link) {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.employee-recent-timesheets {
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 18px 20px 10px;
+}
+.employee-recent-timesheets .page-header {
+  align-items: center;
+  margin-bottom: 8px;
+}
+.employee-recent-timesheets .page-header > div > p {
+  margin: 4px 0 0;
+}
+.employee-recent-timesheets .page-header > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.employee-home-timesheet-table {
+  width: 100%;
+}
+.employee-home-timesheet-table th,
+.employee-home-timesheet-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+.employee-home-timesheet-table th {
+  white-space: nowrap;
+}
+.employee-home-timesheet-table td:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.employee-home-timesheet-table td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.employee-home-timesheet-table td:nth-child(5) a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+}
+.employee-home .mobile-timesheet-list {
+  display: none;
+}
+.employee-help-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 15px;
+  margin-top: 14px;
+  padding: 16px 20px;
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-200);
+  border-radius: var(--radius-lg);
+}
+.employee-help-card h2 {
+  margin: 0 0 4px;
+  font-size: var(--text-base);
+}
+.employee-help-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+@media (max-width: 900px) {
+  .employee-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 760px) {
+  .employee-home {
+    width: 100%;
+  }
+  .employee-live-attendance {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .employee-primary-timer {
+    min-height: 112px;
+  }
+  .employee-shift-facts {
+    padding: 0;
+  }
+}
+@media (max-width: 600px) {
+  .employee-home .employee-dashboard-heading {
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+  .employee-cancelled-notice {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .employee-cancelled-notice > a {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .employee-cancelled-notice .employee-state-icon,
+  .employee-no-shift-card .employee-state-icon,
+  .employee-summary-card .employee-state-icon {
+    width: 42px;
+    height: 42px;
+  }
+  .employee-cancelled-notice .employee-state-icon svg,
+  .employee-no-shift-card .employee-state-icon svg,
+  .employee-summary-card .employee-state-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+  .employee-attendance-card,
+  .employee-no-shift-card {
+    padding: 17px;
+  }
+  .employee-attendance-card__heading {
+    gap: 10px;
+  }
+  .employee-attendance-card__heading h2 {
+    font-size: var(--text-xl);
+  }
+  .employee-attendance-card__heading > .status-badge {
+    flex: 0 0 auto;
+  }
+  .employee-focus-message,
+  .employee-ready-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .employee-no-shift-card {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+  .employee-no-shift-card > a {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .employee-summary-grid {
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .employee-summary-card {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    min-height: auto;
+    padding: 14px;
+  }
+  .employee-summary-card > a,
+  .employee-summary-card > a:not(.button-link) {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .employee-help-card {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .employee-help-card .employee-state-icon {
+    width: 42px;
+    height: 42px;
+  }
+  .employee-help-card .employee-state-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+  .employee-help-card > a {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .employee-summary-copy h2,
+  .employee-weekly-card h2 {
+    font-size: var(--text-2xl);
+  }
+  .employee-recent-timesheets {
+    margin-top: 10px;
+    padding: 14px;
+  }
+  .employee-recent-timesheets .page-header {
+    align-items: flex-start;
+  }
+  .employee-recent-timesheets .page-header h2 {
+    font-size: var(--text-xl);
+  }
+  .employee-home .desktop-timesheet-table {
+    display: none;
+  }
+  .employee-home .mobile-timesheet-list {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .employee-home .mobile-timesheet-card {
+    gap: 9px;
+    padding: 12px;
+  }
+  .employee-home .mobile-timesheet-card dl {
+    gap: 6px;
+  }
+  .employee-home .mobile-timesheet-card dd {
+    text-align: right;
+  }
+}
 @media (max-width: 600px) {
   .employee-topbar {
     min-height: 60px;

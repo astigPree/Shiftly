@@ -25,6 +25,15 @@ def _shift_duration_label(minutes):
     return f"{hours}h {remainder:02d}m" if hours else f"{remainder}m"
 
 
+def _break_allowance_label(minutes):
+    hours, remainder = divmod(max(0, minutes), 60)
+    if hours and remainder:
+        return f"{hours}h {remainder}m"
+    if hours:
+        return f"{hours}h"
+    return f"{remainder}m"
+
+
 def _scoped_shifts(user):
     organization = organization_for_user(user)
     return Shift.objects.none() if organization is None else Shift.objects.filter(organization=organization).select_related("employee")
@@ -343,28 +352,53 @@ def my_schedule(request):
         .select_related("organization", "employee", "attendance_session")
         .order_by("work_date", "scheduled_start")
     )
-    cards = [
-        {
-            "shift": shift,
-            "session": getattr(shift, "attendance_session", None),
-            "state": attendance_state(shift, at=now),
-            "show_clock_in": (
-                getattr(shift, "attendance_session", None) is None
-                and shift.status == Shift.Status.SCHEDULED
-                and not has_open_session
-                and now < shift.scheduled_end
-            ),
-            "can_clock_in": (
-                getattr(shift, "attendance_session", None) is None
-                and shift.status == Shift.Status.SCHEDULED
-                and not has_open_session
-                and now >= shift.scheduled_start - timedelta(minutes=30)
-                and now < shift.scheduled_end
-            ),
-            "clock_in_opens_at": shift.scheduled_start - timedelta(minutes=30),
-            "clock_in_closes_at": shift.scheduled_end,
-        }
-        for shift in shifts
+    cards = []
+    for shift in shifts:
+        session = getattr(shift, "attendance_session", None)
+        state = attendance_state(shift, at=now)
+        clock_in_opens_at = shift.scheduled_start - timedelta(minutes=30)
+        show_clock_in = (
+            session is None
+            and shift.status == Shift.Status.SCHEDULED
+            and now < shift.scheduled_end
+        )
+        blocked_by_open_session = show_clock_in and has_open_session
+        can_clock_in = (
+            show_clock_in
+            and not has_open_session
+            and now >= clock_in_opens_at
+        )
+        cards.append(
+            {
+                "shift": shift,
+                "session": session,
+                "state": state,
+                "show_clock_in": show_clock_in,
+                "can_clock_in": can_clock_in,
+                "blocked_by_open_session": blocked_by_open_session,
+                "needs_attention": bool(session and session.clock_out_at is None),
+                "clock_in_opens_at": clock_in_opens_at,
+                "clock_in_closes_at": shift.scheduled_end,
+                "scheduled_duration_label": _shift_duration_label(shift.scheduled_minutes),
+                "break_allowance_label": _break_allowance_label(shift.scheduled_break_minutes),
+            }
+        )
+
+    today_cards = [card for card in cards if card["shift"].work_date == local_today]
+    attention_cards = [
+        card for card in cards
+        if card["shift"].work_date != local_today and card["needs_attention"]
+    ]
+    upcoming_cards = [
+        card for card in cards
+        if card["shift"].work_date > local_today
+        and card["shift"].status == Shift.Status.SCHEDULED
+        and not card["needs_attention"]
+    ]
+    cancelled_cards = [
+        card for card in cards
+        if card["shift"].work_date > local_today
+        and card["shift"].status == Shift.Status.CANCELLED
     ]
     weekly_minutes = Timesheet.objects.filter(
         organization=organization,
@@ -376,12 +410,16 @@ def my_schedule(request):
         request,
         "schedules/my_schedule.html",
         {
-            "cards": cards,
             "organization": organization,
             "now": now,
             "local_today": local_today,
             "week_start": week_start,
             "weekly_minutes": weekly_minutes,
-            "weekly_hours_label": f"{weekly_hours} hr {weekly_remainder:02d} min" if weekly_hours else f"{weekly_remainder} min",
+            "weekly_hours_label": f"{weekly_hours}h {weekly_remainder:02d}m",
+            "week_end": week_start + timedelta(days=6),
+            "today_cards": today_cards,
+            "attention_cards": attention_cards,
+            "upcoming_cards": upcoming_cards,
+            "cancelled_cards": cancelled_cards,
         },
     )
