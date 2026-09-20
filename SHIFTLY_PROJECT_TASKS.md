@@ -195,6 +195,14 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [ ] Perform a manual browser review of employer and employee workflows at desktop, tablet, and mobile widths.
 - [ ] Review the finished screens against the Project Design Skill: clarity, status communication, empty/loading/error states, and restrained operational layout.
 
+### Explicit night shift scenario — cross-midnight timekeeping only
+
+- [ ] Verify an employer can schedule a shift from 10:00 PM on its local work date to 3:00 AM on the next local date, and that the UI identifies it as overnight.
+- [ ] Verify one employee attendance session can clock in at 10:00 PM, record a break from 11:50 PM to 12:10 AM, and clock out at 3:00 AM across local midnight.
+- [ ] Verify clock-out creates one timesheet attached to the shift's original local work date, with 280 worked minutes after the 20-minute break; the next date must not get a duplicate shift or timesheet.
+- [ ] Verify schedule, attendance, employee weekly hours, employer reports, and timesheet details display the overnight shift in the organization timezone and attribute it to the original work date.
+- [ ] Keep this scenario limited to timestamps, attendance state, and worked duration. Do not add night-differential rates, wages, or payroll processing.
+
 ## Phase 11 — Production deployment and MVP release
 
 - [ ] Select and provision an Ubuntu LTS production host, PostgreSQL database, production domain, and HTTPS certificate.
@@ -216,6 +224,7 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [ ] Employer signup creates a usable organization with its configured timezone.
 - [ ] An employer can create, edit, deactivate, search, and view employees within their organization.
 - [ ] An employer can create, assign, edit, cancel, and inspect dated shifts, including overnight shifts.
+- [ ] The 10:00 PM–3:00 AM night shift completes across local midnight as one attendance session and one timesheet on the original work date, with its recorded break deducted from elapsed work time.
 - [ ] An employee can view only their own schedule and attendance history.
 - [ ] Clock and break actions enforce valid transitions and persist server timestamps exactly once.
 - [ ] Attendance and timesheet calculations follow the written business rules and cannot be altered by browser code.
