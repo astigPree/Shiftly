@@ -32,6 +32,7 @@
               {% if session and not session.clock_out_at %}
                 {% if session.status == "ON_BREAK" %}Currently on break{% else %}Currently working{% endif %}
               {% elif shift.work_date == local_today %}Today's shift
+              {% elif shift.scheduled_start <= now and now < shift.scheduled_end %}Overnight shift in progress
               {% elif shift.work_date > local_today %}Next shift
               {% else %}Recent shift{% endif %}
               {% if shift.work_date != local_today %}<span class="employee-focus-date">· {{ shift.work_date|date:"D, M j, Y" }}</span>{% endif %}

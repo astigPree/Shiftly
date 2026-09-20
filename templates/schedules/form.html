@@ -1,4 +1,5 @@
 {% extends "layouts/employer.html" %}
+{% load static %}
 {% block title %}{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %} | Shiftly{% endblock %}
 {% block app_content %}
 <section class="form-page" aria-labelledby="shift-form-title">
@@ -14,7 +15,7 @@
   <section class="form-card form-card--wide" aria-label="Shift details">
     {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
     {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post" novalidate>
+    <form method="post" novalidate data-shift-form data-organization-timezone="{{ organization.timezone }}">
       {% csrf_token %}
       <div class="form-grid">
         {% for field in form %}
@@ -25,9 +26,16 @@
           {% endif %}
         {% endfor %}
       </div>
-      <div class="form-callout" role="note">
+      <div class="form-callout shift-time-preview" data-shift-time-preview role="status" aria-live="polite" aria-atomic="true">
         {% include "components/icon.html" with icon_name="clock" %}
-        <span>Times use {{ organization.timezone }}. An end time earlier than the start means the shift ends the next local day. Daylight-saving times that are ambiguous or do not exist cannot be used.</span>
+        <div>
+          <strong data-shift-preview-title>Shift time preview</strong>
+          <span data-shift-preview-detail>Enter the date and times to see when this shift starts and ends. An earlier end time means it ends the next local day.</span>
+        </div>
+      </div>
+      <div class="form-callout" role="note">
+        {% include "components/icon.html" with icon_name="info" %}
+        <span>Times use {{ organization.timezone }}. During daylight-saving changes, ambiguous or non-existent local times cannot be used.</span>
       </div>
       <div class="form-actions">
         <a class="form-cancel-link" href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">Cancel</a>
@@ -37,3 +45,4 @@
   </section>
 </section>
 {% endblock %}
+{% block scripts %}{{ block.super }}<script src="{% static 'js/shift-form-preview.js' %}" defer></script>{% endblock %}

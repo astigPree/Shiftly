@@ -30,6 +30,17 @@
     </section>
   {% endif %}
 
+  {% if overnight_cards %}
+    <section class="employee-schedule-section employee-schedule-attention" aria-labelledby="schedule-overnight-heading">
+      <div class="employee-schedule-section-heading">
+        <div><h2 id="schedule-overnight-heading">Overnight shift in progress</h2><p>This shift started on the previous work date and continues into today.</p></div>
+      </div>
+      <div class="employee-shift-list">
+        {% for card in overnight_cards %}{% include "components/employee_shift_row.html" with card=card organization=organization now=now %}{% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
   <section class="employee-schedule-section" aria-labelledby="schedule-today-heading">
     <div class="employee-schedule-section-heading">
       <div><h2 id="schedule-today-heading">Today</h2><p>{{ local_today|date:"l, F j, Y" }}</p></div>

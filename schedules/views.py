@@ -347,6 +347,11 @@ def my_schedule(request):
         Shift.objects.filter(organization=organization, employee=employee)
         .filter(
             Q(work_date__range=(local_today, local_today + timedelta(days=14)))
+            | Q(
+                status=Shift.Status.SCHEDULED,
+                scheduled_start__lte=now,
+                scheduled_end__gt=now,
+            )
             | Q(attendance_session__isnull=False, attendance_session__clock_out_at__isnull=True)
         )
         .select_related("organization", "employee", "attendance_session")
@@ -385,6 +390,13 @@ def my_schedule(request):
         )
 
     today_cards = [card for card in cards if card["shift"].work_date == local_today]
+    overnight_cards = [
+        card for card in cards
+        if card["shift"].work_date < local_today
+        and card["shift"].status == Shift.Status.SCHEDULED
+        and card["session"] is None
+        and card["shift"].scheduled_start <= now < card["shift"].scheduled_end
+    ]
     attention_cards = [
         card for card in cards
         if card["shift"].work_date != local_today and card["needs_attention"]
@@ -418,6 +430,7 @@ def my_schedule(request):
             "weekly_hours_label": f"{weekly_hours}h {weekly_remainder:02d}m",
             "week_end": week_start + timedelta(days=6),
             "today_cards": today_cards,
+            "overnight_cards": overnight_cards,
             "attention_cards": attention_cards,
             "upcoming_cards": upcoming_cards,
             "cancelled_cards": cancelled_cards,

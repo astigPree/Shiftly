@@ -17,13 +17,17 @@ class ShiftForm(forms.Form):
         help_text="Choose an active employee in this organization.",
     )
     work_date = forms.DateField(
-        label="Work date", widget=forms.DateInput(attrs={"type": "date"})
+        label="Work date",
+        help_text="The local calendar date the shift starts on.",
+        widget=forms.DateInput(attrs={"type": "date"}),
     )
     start_time = forms.TimeField(
         label="Start time", widget=forms.TimeInput(attrs={"type": "time"})
     )
     end_time = forms.TimeField(
-        label="End time", widget=forms.TimeInput(attrs={"type": "time"})
+        label="End time",
+        help_text="If this is earlier than the start time, the shift ends the next day. Example: 10:00 PM to 3:00 AM.",
+        widget=forms.TimeInput(attrs={"type": "time"}),
     )
     scheduled_break_minutes = forms.IntegerField(
         min_value=0,

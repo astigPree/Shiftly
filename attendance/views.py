@@ -103,6 +103,11 @@ def my_attendance(request):
         Shift.objects.filter(employee=employee, organization=organization)
         .filter(
             Q(work_date__range=(today, today + timedelta(days=7)))
+            | Q(
+                status=Shift.Status.SCHEDULED,
+                scheduled_start__lte=now,
+                scheduled_end__gt=now,
+            )
             | Q(attendance_session__isnull=False, attendance_session__clock_out_at__isnull=True)
         )
         .select_related("organization", "employee")

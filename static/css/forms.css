@@ -204,6 +204,40 @@
   flex: 0 0 auto;
 }
 
+.shift-time-preview {
+  align-items: flex-start;
+}
+
+.shift-time-preview > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.shift-time-preview strong {
+  color: var(--color-gray-900);
+  font-size: var(--text-sm);
+}
+
+.shift-time-preview span {
+  color: var(--color-text-muted);
+}
+
+.shift-time-preview--overnight {
+  border-color: var(--color-primary-200);
+}
+
+.shift-time-preview--invalid {
+  color: var(--color-danger);
+  background: var(--color-error-bg);
+  border-color: var(--color-error-border);
+}
+
+.shift-time-preview--invalid strong,
+.shift-time-preview--invalid span {
+  color: var(--color-danger);
+}
+
 .form-readonly-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
