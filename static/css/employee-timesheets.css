@@ -1,0 +1,680 @@
+.employee-timesheets-page {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 1100px);
+  margin: 0 auto;
+}
+
+.employee-timesheets-heading h1 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 36px);
+  letter-spacing: -0.035em;
+}
+
+.employee-timesheets-heading p {
+  margin: 6px 0 0;
+  color: var(--color-text-muted);
+}
+
+.employee-timesheet-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.employee-timesheet-summary-card {
+  display: grid;
+  min-width: 0;
+  min-height: 108px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 15px 17px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.employee-timesheet-summary-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 15px;
+}
+
+.employee-timesheet-summary-icon .icon {
+  width: 24px;
+  height: 24px;
+}
+
+.employee-timesheet-summary-icon--hours {
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.employee-timesheet-summary-icon--records {
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+.employee-timesheet-summary-icon--pending {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+
+.employee-timesheet-summary-card > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.employee-timesheet-summary-label {
+  color: var(--color-gray-600);
+  font-size: var(--text-sm);
+}
+
+.employee-timesheet-summary-card strong {
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-timesheet-summary-card small {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-timesheet-filter,
+.employee-timesheet-history,
+.employee-timesheet-status-guide {
+  min-width: 0;
+  margin: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.employee-timesheet-filter {
+  padding: 15px 17px;
+}
+
+.employee-timesheet-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) minmax(155px, 1.15fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.employee-timesheet-filter-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.employee-timesheet-filter-field label {
+  color: var(--color-gray-700);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.employee-timesheet-filter-field input,
+.employee-timesheet-filter-field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.employee-timesheet-filter-field input:focus,
+.employee-timesheet-filter-field select:focus {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 14%);
+  outline: none;
+}
+
+.employee-timesheet-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.employee-timesheet-filter-actions button,
+.employee-timesheet-filter-actions a {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.employee-timesheet-filter-actions .button-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.employee-timesheet-filter-actions a {
+  color: var(--color-primary-hover);
+  border: 1px solid transparent;
+}
+
+.employee-timesheet-filter-actions a:hover {
+  background: var(--color-primary-50);
+}
+
+.employee-timesheet-filter .error-list {
+  margin-bottom: 0;
+}
+
+.employee-timesheet-history {
+  overflow: hidden;
+}
+
+.employee-timesheet-history-heading {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 17px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.employee-timesheet-history-heading h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.employee-timesheet-history-heading p,
+.employee-timesheet-history-footer > p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-timesheet-table-wrap {
+  overflow-x: auto;
+}
+
+.employee-timesheet-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.employee-timesheet-table th,
+.employee-timesheet-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.employee-timesheet-table th {
+  color: var(--color-gray-600);
+  background: var(--color-gray-50);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.employee-timesheet-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.employee-timesheet-table td:first-child time {
+  color: var(--color-text);
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.employee-timesheet-table td:nth-child(2) {
+  color: var(--color-gray-700);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.employee-timesheet-worked {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.employee-timesheet-overnight {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.employee-timesheet-status {
+  white-space: nowrap;
+}
+
+.employee-timesheet-table .status-needs_review {
+  color: #a16207;
+  background: #fef3c7;
+}
+
+.employee-timesheet-table .status-needs_review::before {
+  background: #f59e0b;
+}
+
+.employee-timesheet-view,
+.employee-timesheet-mobile-card > a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-primary-hover);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.employee-timesheet-view:hover,
+.employee-timesheet-mobile-card > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.employee-timesheet-view span,
+.employee-timesheet-mobile-card > a span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.employee-timesheet-mobile-list {
+  display: none;
+}
+
+.employee-timesheet-history-footer {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 17px;
+  border-top: 1px solid var(--color-border);
+}
+
+.employee-timesheet-pagination {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.employee-timesheet-page-number,
+.employee-timesheet-page-direction {
+  display: inline-flex;
+  min-width: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  color: var(--color-gray-700);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.employee-timesheet-page-number:hover,
+.employee-timesheet-page-direction:not(.is-disabled):hover {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-200);
+}
+
+.employee-timesheet-page-number.is-current {
+  color: var(--color-white);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.employee-timesheet-page-direction.is-disabled {
+  color: var(--color-gray-400);
+}
+
+.employee-timesheet-page-ellipsis {
+  padding: 0 3px;
+  color: var(--color-text-muted);
+}
+
+.employee-timesheet-empty {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  min-height: 220px;
+  align-content: center;
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.employee-timesheet-empty-icon {
+  width: 43px;
+  height: 43px;
+  margin-bottom: 3px;
+  padding: 10px;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+
+.employee-timesheet-empty h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.employee-timesheet-empty p {
+  margin: 0 0 3px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.employee-timesheet-empty > a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 5px;
+  color: var(--color-primary-hover);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.employee-timesheet-empty > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.employee-timesheet-status-guide {
+  display: grid;
+  grid-template-columns: 1.1fr repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 0;
+  padding: 13px 15px;
+}
+
+.employee-timesheet-status-guide-intro,
+.employee-timesheet-status-meaning {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+}
+
+.employee-timesheet-status-guide-intro {
+  padding-left: 0;
+}
+
+.employee-timesheet-guide-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+
+.employee-timesheet-guide-icon .icon {
+  width: 19px;
+  height: 19px;
+}
+
+.employee-timesheet-status-guide-intro h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.employee-timesheet-status-guide-intro p {
+  margin: 3px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.employee-timesheet-status-meaning {
+  min-height: 40px;
+  border-left: 1px solid var(--color-border);
+}
+
+.employee-timesheet-status-meaning > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.employee-timesheet-status-meaning strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.employee-timesheet-status-meaning > div > span {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.employee-timesheet-status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.employee-timesheet-status-dot.is-pending {
+  background: var(--color-amber-dot);
+}
+
+.employee-timesheet-status-dot.is-approved {
+  background: var(--color-green-dot);
+}
+
+.employee-timesheet-status-dot.is-rejected {
+  background: var(--color-red-dot);
+}
+
+.employee-timesheet-status-dot.is-needs-review {
+  background: #f97316;
+}
+
+@media (max-width: 900px) {
+  .employee-timesheet-filter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .employee-timesheet-filter-actions {
+    justify-content: flex-end;
+  }
+
+  .employee-timesheet-status-guide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 8px;
+  }
+
+  .employee-timesheet-status-guide-intro {
+    grid-column: 1 / -1;
+    padding: 2px 8px 9px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .employee-timesheet-status-meaning:nth-child(2n) {
+    border-left: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .employee-timesheet-summary {
+    gap: 9px;
+  }
+
+  .employee-timesheet-summary-card {
+    min-height: 88px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .employee-timesheet-summary-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .employee-timesheet-summary-icon .icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .employee-timesheet-summary-card strong {
+    font-size: var(--text-xl);
+  }
+
+  .employee-timesheet-summary-card small {
+    font-size: var(--text-xs);
+  }
+
+  .employee-timesheet-table-wrap {
+    display: none;
+  }
+
+  .employee-timesheet-mobile-list {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 12px;
+    list-style: none;
+  }
+
+  .employee-timesheet-mobile-card {
+    display: grid;
+    gap: 9px;
+    padding: 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .employee-timesheet-mobile-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+  }
+
+  .employee-timesheet-mobile-heading time {
+    font-weight: 600;
+  }
+
+  .employee-timesheet-mobile-card dl {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .employee-timesheet-mobile-card dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: var(--text-sm);
+  }
+
+  .employee-timesheet-mobile-card dt {
+    color: var(--color-text-muted);
+  }
+
+  .employee-timesheet-mobile-card dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .employee-timesheet-mobile-card > a {
+    min-height: 42px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .employee-timesheet-history-footer {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 11px 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .employee-timesheets-page {
+    gap: 12px;
+  }
+
+  .employee-timesheets-heading h1 {
+    font-size: 28px;
+  }
+
+  .employee-timesheet-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .employee-timesheet-summary-card {
+    min-height: 76px;
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .employee-timesheet-filter {
+    padding: 13px;
+  }
+
+  .employee-timesheet-filter-fields {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .employee-timesheet-filter-actions > * {
+    flex: 1;
+  }
+
+  .employee-timesheet-history-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 13px;
+  }
+
+  .employee-timesheet-status-guide {
+    grid-template-columns: 1fr;
+    padding: 11px 13px;
+  }
+
+  .employee-timesheet-status-guide-intro {
+    grid-column: auto;
+  }
+
+  .employee-timesheet-status-meaning,
+  .employee-timesheet-status-meaning:nth-child(2n) {
+    padding: 8px;
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
+  }
+
+  .employee-timesheet-empty {
+    min-height: 190px;
+  }
+}

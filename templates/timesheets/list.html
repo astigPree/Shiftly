@@ -1,5 +1,5 @@
 {% extends layout_template %}
-{% load form_tags %}
+{% load form_tags tz %}
 {% block title %}{% if employee_view %}My timesheets{% else %}Timesheets{% endif %} | Shiftly{% endblock %}
 {% block app_content %}
 {% if can_review %}
@@ -88,12 +88,118 @@
   </section>
 </div>
 {% else %}
-<header class="page-header"><div><h1>My timesheets</h1><p class="muted">Your completed shift records and review status</p></div></header>
-<section class="content-card wide-card">
-  {% if page.object_list %}<div class="table-wrap"><table class="timesheet-table"><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Scheduled</th><th scope="col">Worked</th><th scope="col">Status</th></tr></thead><tbody>
-    {% for timesheet in page.object_list %}<tr><td><a href="{% url 'timesheets:my_detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a></td><td>{{ timesheet.employee.full_name }}<br><span class="muted">{{ timesheet.employee.employee_code }}</span></td><td>{{ timesheet.scheduled_minutes }} min</td><td>{{ timesheet.worked_minutes }} min</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% else %}<div class="empty-state compact-empty"><h2>No timesheets yet</h2><p>Your completed shifts will appear here after clock-out.</p></div>{% endif %}
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Timesheet pages">{% if page.has_previous %}<a href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
-</section>
+<div class="employee-timesheets-page">
+  <header class="employee-timesheets-heading">
+    <div>
+      <h1>My timesheets</h1>
+      <p>Review your completed shifts and employer decisions.</p>
+    </div>
+  </header>
+
+  {% if has_any_timesheets %}
+    <section class="employee-timesheet-summary" aria-label="Timesheet summary">
+      <article class="employee-timesheet-summary-card">
+        <span class="employee-timesheet-summary-icon employee-timesheet-summary-icon--hours">{% include "components/icon.html" with icon_name="clock" %}</span>
+        <div><span class="employee-timesheet-summary-label">This month</span><strong>{{ monthly_worked_label }}</strong><small>Worked time</small></div>
+      </article>
+      <article class="employee-timesheet-summary-card">
+        <span class="employee-timesheet-summary-icon employee-timesheet-summary-icon--records">{% include "components/icon.html" with icon_name="file" %}</span>
+        <div><span class="employee-timesheet-summary-label">Records</span><strong>{{ record_count }}</strong><small>Completed shifts</small></div>
+      </article>
+      <article class="employee-timesheet-summary-card">
+        <span class="employee-timesheet-summary-icon employee-timesheet-summary-icon--pending">{% include "components/icon.html" with icon_name="clock" %}</span>
+        <div><span class="employee-timesheet-summary-label">Pending review</span><strong>{{ pending_count }}</strong><small>Awaiting employer decision</small></div>
+      </article>
+    </section>
+  {% endif %}
+
+  <form method="get" action="{% url 'timesheets:my_list' %}" class="employee-timesheet-filter" aria-label="Filter your timesheets">
+    <div class="employee-timesheet-filter-fields">
+      <div class="employee-timesheet-filter-field"><label for="id_start_date">From date</label>{{ filter_form.start_date|accessible_field }}</div>
+      <div class="employee-timesheet-filter-field"><label for="id_end_date">To date</label>{{ filter_form.end_date|accessible_field }}</div>
+      <div class="employee-timesheet-filter-field"><label for="id_status">Status</label>{{ filter_form.status|accessible_field }}</div>
+      <div class="employee-timesheet-filter-actions">
+        <button type="submit">{% include "components/icon.html" with icon_name="search" icon_class="button-icon" %}<span>Apply filters</span></button>
+        <a href="{% url 'timesheets:my_list' %}">Clear</a>
+      </div>
+    </div>
+    {% if filter_form.errors %}<div class="error-list" role="alert">Correct the filters to apply them.{% for field in filter_form %}{% if field.errors %} {{ field.errors|striptags }}{% endif %}{% endfor %}</div>{% endif %}
+  </form>
+
+  <section class="employee-timesheet-history" aria-labelledby="employee-timesheet-history-heading">
+    <header class="employee-timesheet-history-heading">
+      <h2 id="employee-timesheet-history-heading">Timesheet history</h2>
+      <p>{% if page.paginator.count %}Showing {{ showing_start }}–{{ showing_end }} of {{ page.paginator.count }} timesheet{{ page.paginator.count|pluralize }}{% else %}Showing 0 timesheets{% endif %}</p>
+    </header>
+    {% if page.object_list %}
+      <div class="employee-timesheet-table-wrap">
+        <table class="employee-timesheet-table">
+          <thead><tr><th scope="col">Work date</th><th scope="col">Scheduled</th><th scope="col">Worked</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            {% for timesheet in page.object_list %}
+              <tr>
+                <td><time datetime="{{ timesheet.shift.work_date|date:'Y-m-d' }}">{{ timesheet.shift.work_date|date:"M j, Y" }}</time></td>
+                <td>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if timesheet.shift.is_overnight %} <span class="employee-timesheet-overnight">(overnight)</span>{% endif %}</td>
+                <td class="employee-timesheet-worked">{{ timesheet.worked_display }}</td>
+                <td><span class="status-badge status-{{ timesheet.status|lower }} employee-timesheet-status">{{ timesheet.get_status_display }}</span></td>
+                <td><a class="employee-timesheet-view" href="{% url 'timesheets:my_detail' timesheet.pk %}">View details <span aria-hidden="true">›</span></a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <ul class="employee-timesheet-mobile-list" aria-label="Timesheet history">
+        {% for timesheet in page.object_list %}
+          <li class="employee-timesheet-mobile-card">
+            <div class="employee-timesheet-mobile-heading">
+              <time datetime="{{ timesheet.shift.work_date|date:'Y-m-d' }}">{{ timesheet.shift.work_date|date:"M j, Y" }}</time>
+              <span class="status-badge status-{{ timesheet.status|lower }} employee-timesheet-status">{{ timesheet.get_status_display }}</span>
+            </div>
+            <dl>
+              <div><dt>Scheduled</dt><dd>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              <div><dt>Worked</dt><dd>{{ timesheet.worked_display }}</dd></div>
+            </dl>
+            <a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet details <span aria-hidden="true">›</span></a>
+          </li>
+        {% endfor %}
+      </ul>
+      <footer class="employee-timesheet-history-footer">
+        <p>Showing {{ showing_start }}–{{ showing_end }} of {{ page.paginator.count }} timesheet{{ page.paginator.count|pluralize }}</p>
+        {% if page.paginator.num_pages > 1 %}
+          <nav class="employee-timesheet-pagination" aria-label="Timesheet pages">
+            {% if page.has_previous %}<a class="employee-timesheet-page-direction" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.previous_page_number }}" aria-label="Previous page">‹</a>{% else %}<span class="employee-timesheet-page-direction is-disabled" aria-disabled="true" aria-label="Previous page">‹</span>{% endif %}
+            {% for page_number in pagination_items %}{% if page_number == page.paginator.ELLIPSIS %}<span class="employee-timesheet-page-ellipsis" aria-hidden="true">…</span>{% else %}<a class="employee-timesheet-page-number{% if page.number == page_number %} is-current{% endif %}" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page_number }}"{% if page.number == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endif %}{% endfor %}
+            {% if page.has_next %}<a class="employee-timesheet-page-direction" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.next_page_number }}" aria-label="Next page">›</a>{% else %}<span class="employee-timesheet-page-direction is-disabled" aria-disabled="true" aria-label="Next page">›</span>{% endif %}
+          </nav>
+        {% endif %}
+      </footer>
+    {% elif has_filters %}
+      <div class="employee-timesheet-empty" role="status">
+        {% include "components/icon.html" with icon_name="file" icon_class="employee-timesheet-empty-icon" %}
+        <h3>No timesheets match these filters</h3>
+        <p>Try a different date range or status.</p>
+        <a href="{% url 'timesheets:my_list' %}">Clear filters</a>
+      </div>
+    {% else %}
+      <div class="employee-timesheet-empty" role="status">
+        {% include "components/icon.html" with icon_name="file" icon_class="employee-timesheet-empty-icon" %}
+        <h3>No timesheets yet</h3>
+        <p>Completed shifts will appear here after you clock out.</p>
+        <a href="{% url 'schedules:my_schedule' %}">View schedule <span aria-hidden="true">→</span></a>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="employee-timesheet-status-guide" aria-labelledby="employee-timesheet-status-guide-heading">
+    <div class="employee-timesheet-status-guide-intro">
+      <span class="employee-timesheet-guide-icon">{% include "components/icon.html" with icon_name="info" %}</span>
+      <div><h2 id="employee-timesheet-status-guide-heading">Status guide</h2><p>What each status means</p></div>
+    </div>
+    <div class="employee-timesheet-status-meaning"><span class="employee-timesheet-status-dot is-pending"></span><div><strong>Pending</strong><span>Waiting for employer review</span></div></div>
+    <div class="employee-timesheet-status-meaning"><span class="employee-timesheet-status-dot is-approved"></span><div><strong>Approved</strong><span>Accepted by your employer</span></div></div>
+    <div class="employee-timesheet-status-meaning"><span class="employee-timesheet-status-dot is-rejected"></span><div><strong>Rejected</strong><span>Review your employer's note</span></div></div>
+    <div class="employee-timesheet-status-meaning"><span class="employee-timesheet-status-dot is-needs-review"></span><div><strong>Needs review</strong><span>Record needs manual checking</span></div></div>
+  </section>
+</div>
 {% endif %}
 {% endblock %}

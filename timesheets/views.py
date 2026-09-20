@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
-from .forms import RejectTimesheetForm, TimesheetFilterForm
+from .forms import EmployeeTimesheetFilterForm, RejectTimesheetForm, TimesheetFilterForm
 from .models import Timesheet, TimesheetApproval
 from .services import review_timesheet
 
@@ -181,14 +181,66 @@ def timesheet_detail(request, pk):
 @require_GET
 def my_timesheets(request):
     employee = request.user.employee_profile
-    page = Paginator(
-        _with_details(Timesheet.objects.filter(employee=employee, organization=employee.organization)),
-        30,
-    ).get_page(request.GET.get("page"))
+    organization = employee.organization
+    employee_timesheets = Timesheet.objects.filter(
+        employee=employee,
+        organization=organization,
+    )
+    local_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
+    month_start = local_today.replace(day=1)
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+    month_summary = employee_timesheets.filter(
+        shift__work_date__gte=month_start,
+        shift__work_date__lt=next_month,
+    ).aggregate(worked_minutes=Sum("worked_minutes"))
+    record_summary = employee_timesheets.aggregate(
+        record_count=Count("pk"),
+        pending_count=Count("pk", filter=Q(status=Timesheet.Status.PENDING)),
+    )
+
+    filter_form = EmployeeTimesheetFilterForm(request.GET or None)
+    filters_valid = not filter_form.is_bound or filter_form.is_valid()
+    data = filter_form.cleaned_data if filter_form.is_bound and filters_valid else {}
+    timesheets = employee_timesheets.select_related("employee", "organization", "shift")
+    if data.get("start_date"):
+        timesheets = timesheets.filter(shift__work_date__gte=data["start_date"])
+    if data.get("end_date"):
+        timesheets = timesheets.filter(shift__work_date__lte=data["end_date"])
+    if data.get("status"):
+        timesheets = timesheets.filter(status=data["status"])
+
+    page = Paginator(timesheets, 30).get_page(request.GET.get("page"))
+    for timesheet in page.object_list:
+        timesheet.scheduled_display = _duration_label(timesheet.scheduled_minutes)
+        timesheet.worked_display = _duration_label(timesheet.worked_minutes)
+
+    page_query = request.GET.copy()
+    page_query.pop("page", None)
+    page_querystring = page_query.urlencode()
+    has_filters = filters_valid and any(data.get(key) for key in ("start_date", "end_date", "status"))
     return render(
         request,
         "timesheets/list.html",
-        {"page": page, "can_review": False, "employee_view": True, "organization": employee.organization, "layout_template": "layouts/employee.html"},
+        {
+            "page": page,
+            "can_review": False,
+            "employee_view": True,
+            "organization": organization,
+            "layout_template": "layouts/employee.html",
+            "filter_form": filter_form,
+            "has_filters": has_filters,
+            "has_any_timesheets": record_summary["record_count"] > 0,
+            "monthly_worked_label": _duration_label(month_summary["worked_minutes"]),
+            "record_count": record_summary["record_count"],
+            "pending_count": record_summary["pending_count"],
+            "showing_start": page.start_index() if page.paginator.count else 0,
+            "showing_end": page.end_index() if page.paginator.count else 0,
+            "page_querystring": page_querystring,
+            "pagination_items": page.paginator.get_elided_page_range(page.number),
+        },
     )
 
 

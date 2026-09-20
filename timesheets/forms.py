@@ -28,6 +28,28 @@ class TimesheetFilterForm(forms.Form):
         return cleaned
 
 
+class EmployeeTimesheetFilterForm(forms.Form):
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}),
+    )
+    status = forms.ChoiceField(
+        required=False,
+        choices=[("", "All statuses"), *Timesheet.Status.choices],
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("start_date"), cleaned.get("end_date")
+        if start and end and end < start:
+            self.add_error("end_date", "End date must be on or after start date.")
+        return cleaned
+
+
 class RejectTimesheetForm(forms.Form):
     comment = forms.CharField(
         widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Explain why this timesheet is rejected"}),
