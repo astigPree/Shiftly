@@ -19,11 +19,19 @@
   margin: 0 0 14px;
 }
 .report-table-card {
-  margin-top: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 12px 0 0;
   padding: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+.activity-list-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 .report-table-card h3 {
   margin: 0;
@@ -33,6 +41,7 @@
 .reports-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
   gap: 22px;
 }
 .reports-grid .report-section {
