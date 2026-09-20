@@ -1,27 +1,106 @@
 {% extends "layouts/employer.html" %}
+{% load static %}
 {% block title %}Settings | Shiftly{% endblock %}
 {% block app_content %}
-<section class="form-page" aria-labelledby="settings-title">
-  <header class="form-page-heading">
-    <span class="form-heading-icon">{% include "components/icon.html" with icon_name="settings" %}</span>
-    <div><h1 id="settings-title">Organization settings</h1><p class="muted">Manage your workspace details and account profile.</p></div>
+<section class="settings-page" aria-labelledby="settings-title"
+         data-settings-page
+         data-active-section="{{ active_settings_section }}"
+         data-scroll-to-active="{{ settings_form_invalid|yesno:'true,false' }}">
+  <header class="settings-heading">
+    <span class="form-heading-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="settings" %}</span>
+    <div>
+      <h1 id="settings-title">Settings</h1>
+      <p class="muted">Manage your organization and account preferences.</p>
+    </div>
   </header>
-  <section class="form-card form-card--wide" aria-label="Organization and profile settings">
-    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post" novalidate>
-      {% csrf_token %}
-      <div class="form-grid">
-        <h2 class="form-section-heading">Organization</h2>
-        {% for field in form %}{% if field.name == "organization_name" or field.name == "timezone" %}{% include "components/form_field.html" with field=field %}{% endif %}{% endfor %}
-        <h2 class="form-section-heading">Your profile</h2>
-        {% for field in form %}{% if field.name == "first_name" or field.name == "last_name" %}{% include "components/form_field.html" with field=field %}{% endif %}{% endfor %}
-        <div class="form-readonly-item form-field--full"><span>Login email</span><strong>{{ request.user.email }}</strong><small>Email changes are not available in MVP.</small></div>
+
+  <nav class="settings-tabs" aria-label="Settings sections">
+    <a class="settings-tab{% if active_settings_section == 'organization' %} is-active{% endif %}"
+       href="#organization-settings" data-settings-tab="organization"
+       {% if active_settings_section == "organization" %}aria-current="location"{% endif %}>
+      {% include "components/icon.html" with icon_name="settings" %}<span>Organization</span>
+    </a>
+    <a class="settings-tab{% if active_settings_section == 'profile' %} is-active{% endif %}"
+       href="#profile-settings" data-settings-tab="profile"
+       {% if active_settings_section == "profile" %}aria-current="location"{% endif %}>
+      {% include "components/icon.html" with icon_name="user" %}<span>Profile</span>
+    </a>
+  </nav>
+
+  <section class="settings-panel" id="organization-settings" aria-labelledby="organization-settings-title">
+    <header class="settings-panel-heading">
+      <span class="settings-panel-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="building" %}</span>
+      <div>
+        <h2 id="organization-settings-title">Organization details</h2>
+        <p>Manage your workspace information and operational settings.</p>
       </div>
-      <div class="form-actions">
-        <a class="form-cancel-link" href="{% url 'accounts:home' %}">Cancel</a>
-        <button type="submit">Save settings</button>
+    </header>
+
+    {% if organization_form.non_field_errors %}<div class="error-list" role="alert">{{ organization_form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate data-toast-loading-message="Saving organization settings…">
+      {% csrf_token %}
+      <input type="hidden" name="settings_section" value="organization">
+      <div class="settings-fields">
+        {% include "components/form_field.html" with field=organization_form.organization_name %}
+        {% if timezone_locked %}
+          <div class="settings-static-field">
+            <span class="settings-field-label">Organization time zone</span>
+            <div class="settings-readonly-control">
+              <strong>{{ organization.timezone }}</strong>
+              <span class="settings-lock-badge">{% include "components/icon.html" with icon_name="lock" %}Locked</span>
+            </div>
+          </div>
+        {% else %}
+          {% include "components/form_field.html" with field=organization_form.timezone %}
+        {% endif %}
+      </div>
+
+      {% if timezone_locked %}
+        <div class="settings-callout" role="note">
+          {% include "components/icon.html" with icon_name="info" %}
+          <p>Time zone changes are locked after shifts exist so historical dates and attendance records stay consistent.</p>
+        </div>
+      {% endif %}
+
+      <div class="settings-actions">
+        <button type="submit">Save organization</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="settings-panel" id="profile-settings" aria-labelledby="profile-settings-title">
+    <header class="settings-panel-heading">
+      <span class="settings-panel-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="user" %}</span>
+      <div>
+        <h2 id="profile-settings-title">Personal information</h2>
+        <p>Your account details used to sign in to Shiftly.</p>
+      </div>
+    </header>
+
+    {% if profile_form.non_field_errors %}<div class="error-list" role="alert">{{ profile_form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate data-toast-loading-message="Saving your profile…">
+      {% csrf_token %}
+      <input type="hidden" name="settings_section" value="profile">
+      <div class="settings-fields">
+        {% include "components/form_field.html" with field=profile_form.first_name %}
+        {% include "components/form_field.html" with field=profile_form.last_name %}
+        <div class="settings-email-field settings-field-full">
+          <span class="settings-field-label">Login email</span>
+          <p class="settings-field-description">This email is used to sign in to Shiftly.</p>
+          <div class="settings-readonly-control settings-email-control">
+            {% include "components/icon.html" with icon_name="mail" %}
+            <strong>{{ request.user.email }}</strong>
+            <span class="settings-lock-badge">{% include "components/icon.html" with icon_name="lock" %}Not editable</span>
+          </div>
+          <small class="form-help">Email changes are not available yet. Contact support if you need to update your email.</small>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit">Save profile</button>
       </div>
     </form>
   </section>
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/settings-nav.js' %}" defer></script>{% endblock %}

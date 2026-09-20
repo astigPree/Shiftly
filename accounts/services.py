@@ -94,7 +94,7 @@ def employer_dashboard_data(organization, now=None):
 
 
 @transaction.atomic
-def save_workspace_settings(*, organization, user, organization_name, timezone_name, first_name, last_name):
+def save_organization_settings(*, organization, user, organization_name, timezone_name):
     organization = Organization.objects.select_for_update().get(pk=organization.pk)
     previous_name = organization.name
     previous_timezone = organization.timezone
@@ -119,7 +119,23 @@ def save_workspace_settings(*, organization, user, organization_name, timezone_n
             summary="Updated organization settings.",
             metadata={"changed_fields": changed_fields},
         )
+    return organization
+
+
+@transaction.atomic
+def save_employer_profile(*, user, first_name, last_name):
     user.first_name = first_name
     user.last_name = last_name
     user.save(update_fields=["first_name", "last_name"])
+
+
+@transaction.atomic
+def save_workspace_settings(*, organization, user, organization_name, timezone_name, first_name, last_name):
+    organization = save_organization_settings(
+        organization=organization,
+        user=user,
+        organization_name=organization_name,
+        timezone_name=timezone_name,
+    )
+    save_employer_profile(user=user, first_name=first_name, last_name=last_name)
     return organization

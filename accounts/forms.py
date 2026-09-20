@@ -134,29 +134,39 @@ class OrganizationSettingsForm(forms.Form):
     timezone = forms.ChoiceField(
         choices=[(name, name) for name in sorted(available_timezones())],
         label="Organization time zone",
-        help_text="Used for shift dates, attendance, and reporting.",
+        help_text="Used for schedules, attendance, and timesheets.",
     )
-    first_name = forms.CharField(max_length=150, label="Your first name")
-    last_name = forms.CharField(max_length=150, label="Your last name")
 
-    def __init__(self, *args, organization, user, timezone_locked, **kwargs):
+    def __init__(self, *args, organization, timezone_locked, **kwargs):
         self.organization = organization
-        self.user = user
         self.timezone_locked = timezone_locked
         super().__init__(*args, **kwargs)
         self.fields["organization_name"].initial = organization.name
         self.fields["timezone"].initial = organization.timezone
-        self.fields["first_name"].initial = user.first_name
-        self.fields["last_name"].initial = user.last_name
         if timezone_locked:
             self.fields["timezone"].disabled = True
-            self.fields["timezone"].help_text = "This is locked because the organization already has a shift."
+            self.fields["timezone"].help_text = "Time zone changes are locked after shifts exist to preserve historical records."
 
     def clean_organization_name(self):
         value = self.cleaned_data["organization_name"].strip()
         if not value:
             raise ValidationError("Enter an organization name.")
         return value
+
+    def clean_timezone(self):
+        value = self.cleaned_data["timezone"]
+        validate_iana_timezone(value)
+        return value
+
+
+class EmployerProfileSettingsForm(forms.Form):
+    first_name = forms.CharField(max_length=150, label="First name")
+    last_name = forms.CharField(max_length=150, label="Last name")
+
+    def __init__(self, *args, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["first_name"].initial = user.first_name
+        self.fields["last_name"].initial = user.last_name
 
     def clean_first_name(self):
         value = self.cleaned_data["first_name"].strip()
@@ -168,9 +178,4 @@ class OrganizationSettingsForm(forms.Form):
         value = self.cleaned_data["last_name"].strip()
         if not value:
             raise ValidationError("Enter your last name.")
-        return value
-
-    def clean_timezone(self):
-        value = self.cleaned_data["timezone"]
-        validate_iana_timezone(value)
         return value

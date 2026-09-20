@@ -7,10 +7,16 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
+from accounts.forms import (
+    EmployerProfileSettingsForm,
+    EmployerSignupForm,
+    EmployeeInvitationAcceptanceForm,
+    OrganizationSettingsForm,
+)
 from accounts.models import User
 from audit.models import AuditEvent
 from audit.services import record_event
@@ -22,7 +28,11 @@ from employees.services import (
 )
 from organizations.models import Organization
 from .permissions import employee_required, employer_required, organization_for_user
-from .services import employer_dashboard_data, save_workspace_settings
+from .services import (
+    employer_dashboard_data,
+    save_employer_profile,
+    save_organization_settings,
+)
 
 
 class ShiftlyLoginView(LoginView):
@@ -146,33 +156,70 @@ def home(request):
 def workspace_settings(request):
     organization = organization_for_user(request.user)
     timezone_locked = organization.shifts.exists()
-    form = OrganizationSettingsForm(
-        request.POST or None,
+    active_section = request.GET.get("section", "organization")
+    if active_section not in {"organization", "profile"}:
+        active_section = "organization"
+
+    if request.method == "POST":
+        active_section = request.POST.get("settings_section", "organization")
+    organization_form = OrganizationSettingsForm(
+        request.POST if request.method == "POST" and active_section == "organization" else None,
         organization=organization,
-        user=request.user,
         timezone_locked=timezone_locked,
     )
-    if request.method == "POST" and form.is_valid():
-        try:
-            organization = save_workspace_settings(
-                organization=organization,
-                user=request.user,
-                organization_name=form.cleaned_data["organization_name"],
-                timezone_name=form.cleaned_data["timezone"],
-                first_name=form.cleaned_data["first_name"],
-                last_name=form.cleaned_data["last_name"],
-            )
-        except ValidationError as error:
-            for field, errors in error.error_dict.items():
-                for field_error in errors:
-                    form.add_error(field, field_error)
+    profile_form = EmployerProfileSettingsForm(
+        request.POST if request.method == "POST" and active_section == "profile" else None,
+        user=request.user,
+    )
+
+    settings_form_invalid = False
+    if request.method == "POST":
+        if active_section == "organization":
+            if organization_form.is_valid():
+                try:
+                    organization = save_organization_settings(
+                        organization=organization,
+                        user=request.user,
+                        organization_name=organization_form.cleaned_data["organization_name"],
+                        timezone_name=organization_form.cleaned_data["timezone"],
+                    )
+                except ValidationError as error:
+                    for field, errors in error.error_dict.items():
+                        for field_error in errors:
+                            organization_form.add_error(field, field_error)
+                else:
+                    messages.success(request, "Organization settings saved.")
+                    return redirect(
+                        f"{reverse('accounts:settings')}?section=organization#organization-settings"
+                    )
+            settings_form_invalid = True
+        elif active_section == "profile":
+            if profile_form.is_valid():
+                save_employer_profile(
+                    user=request.user,
+                    first_name=profile_form.cleaned_data["first_name"],
+                    last_name=profile_form.cleaned_data["last_name"],
+                )
+                messages.success(request, "Your profile has been updated.")
+                return redirect(
+                    f"{reverse('accounts:settings')}?section=profile#profile-settings"
+                )
+            settings_form_invalid = True
         else:
-            messages.success(request, "Organization settings saved.")
-            return redirect("accounts:settings")
+            messages.error(request, "Choose a valid settings section and try again.")
+            active_section = "organization"
+
     return render(
         request,
         "accounts/settings.html",
-        {"form": form, "organization": organization, "timezone_locked": timezone_locked},
+        {
+            "organization_form": organization_form,
+            "profile_form": profile_form,
+            "organization": organization,
+            "timezone_locked": timezone_locked,
+            "active_settings_section": active_section,
+            "settings_form_invalid": settings_form_invalid,
+        },
     )
 
 
