@@ -7,16 +7,15 @@
   <aside class="app-sidebar" aria-label="Employer navigation">
     <a class="shell-brand" href="{% url 'accounts:home' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
     <div class="organization-switcher"><span class="org-avatar" aria-hidden="true">{{ organization.name|first|upper }}</span><span class="org-label"><strong>{{ organization.name }}</strong><small>Organization</small></span></div>
-    <nav class="primary-nav">
-      <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'home' %} active{% endif %}" href="{% url 'accounts:home' %}"><span class="nav-icon" aria-hidden="true">⌂</span>Overview</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'employees' %} active{% endif %}" href="{% url 'employees:list' %}"><span class="nav-icon" aria-hidden="true">♙</span>Employees</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'schedules' %} active{% endif %}" href="{% url 'schedules:list' %}"><span class="nav-icon" aria-hidden="true">▦</span>Schedules</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" href="{% url 'attendance:list' %}"><span class="nav-icon" aria-hidden="true">◷</span>Attendance</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" href="{% url 'timesheets:list' %}"><span class="nav-icon" aria-hidden="true">▤</span>Timesheets</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'reports' %} active{% endif %}" href="{% url 'reports:home' %}"><span class="nav-icon" aria-hidden="true">▥</span>Reports</a>
-      <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'settings' %} active{% endif %}" href="{% url 'accounts:settings' %}"><span class="nav-icon" aria-hidden="true">⚙</span>Settings</a>
+    <nav class="primary-nav" aria-label="Employer navigation">
+      <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'home' %} active{% endif %}" aria-label="Overview" href="{% url 'accounts:home' %}">{% include "components/icon.html" with icon_name="home" icon_class="nav-icon" %}<span class="nav-label">Overview</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'employees' %} active{% endif %}" aria-label="Employees" href="{% url 'employees:list' %}">{% include "components/icon.html" with icon_name="users" icon_class="nav-icon" %}<span class="nav-label">Employees</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'schedules' %} active{% endif %}" aria-label="Schedules" href="{% url 'schedules:list' %}">{% include "components/icon.html" with icon_name="calendar" icon_class="nav-icon" %}<span class="nav-label">Schedules</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" aria-label="Attendance" href="{% url 'attendance:list' %}">{% include "components/icon.html" with icon_name="clock" icon_class="nav-icon" %}<span class="nav-label">Attendance</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" aria-label="Timesheets" href="{% url 'timesheets:list' %}">{% include "components/icon.html" with icon_name="file" icon_class="nav-icon" %}<span class="nav-label">Timesheets</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'reports' %} active{% endif %}" aria-label="Reports" href="{% url 'reports:home' %}">{% include "components/icon.html" with icon_name="chart" icon_class="nav-icon" %}<span class="nav-label">Reports</span></a>
+      <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'settings' %} active{% endif %}" aria-label="Settings" href="{% url 'accounts:settings' %}">{% include "components/icon.html" with icon_name="settings" icon_class="nav-icon" %}<span class="nav-label">Settings</span></a>
     </nav>
-    <div class="sidebar-note"><span aria-hidden="true">◷</span><p>A more productive team starts with better attendance.</p></div>
     <footer class="sidebar-footer">Shiftly · People. Time. Progress.</footer>
   </aside>
   <div class="app-workspace">

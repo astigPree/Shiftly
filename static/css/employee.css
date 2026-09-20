@@ -1,0 +1,388 @@
+.employee-shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+.employee-topbar {
+  display: flex;
+  min-height: var(--topbar-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 28px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.employee-topbar .shell-brand {
+  padding: 0;
+}
+.employee-org {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+.employee-nav {
+  display: flex;
+  overflow-x: auto;
+  gap: 6px;
+  padding: 10px 28px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+.employee-nav .nav-link {
+  flex: 0 0 auto;
+}
+.employee-content {
+  padding-top: 28px;
+}
+.employee-dashboard-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+.employee-dashboard-heading h1 {
+  margin: 5px 0;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.03em;
+}
+.employee-dashboard-heading .muted {
+  margin: 4px 0;
+}
+.employee-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(230px, 0.8fr);
+  align-items: start;
+  gap: 18px;
+}
+.employee-current-card,
+.weekly-hours-card,
+.upcoming-card,
+.recent-timesheets,
+.schedule-list-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.employee-current-card {
+  padding: 22px;
+}
+.employee-current-card h2 {
+  margin: 5px 0;
+  font-size: var(--text-2xl);
+}
+.employee-side-cards {
+  display: grid;
+  gap: 16px;
+}
+.weekly-hours-card,
+.upcoming-card {
+  padding: 20px;
+}
+.weekly-hours-card h2 {
+  margin: 8px 0;
+  font-size: var(--text-3xl);
+  font-variant-numeric: tabular-nums;
+}
+.weekly-hours-card p,
+.upcoming-card p {
+  margin: 5px 0 14px;
+}
+.upcoming-card h2 {
+  margin: 7px 0;
+  font-size: var(--text-xl);
+}
+.upcoming-card > a,
+.weekly-hours-card > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 14px;
+}
+.live-time-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.live-time-card {
+  display: grid;
+  gap: 7px;
+  padding: 15px;
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.live-time-card.is-active {
+  background: var(--color-surface);
+  border-color: var(--color-primary-200);
+  box-shadow: var(--shadow-card);
+}
+.live-time-card.is-secondary {
+  background: var(--color-gray-50);
+}
+.live-time-card > span,
+.live-time-card small {
+  color: var(--color-text-muted);
+}
+.live-time-card strong {
+  color: var(--color-text);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(23px, 4vw, 32px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.employee-event-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 30px;
+  margin: 18px 0;
+}
+.employee-event-list div {
+  display: flex;
+  gap: 8px;
+}
+.employee-event-list dt {
+  color: var(--color-text-muted);
+}
+.employee-event-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+.break-details {
+  margin: 16px 0;
+  color: var(--color-gray-600);
+}
+.break-details summary {
+  cursor: pointer;
+}
+.employee-actions {
+  margin-top: 20px;
+}
+.employee-actions form {
+  margin: 0;
+}
+.employee-actions button {
+  min-height: 48px;
+}
+.employee-actions .attendance-action-primary {
+  min-width: 160px;
+}
+.completed-timesheet-link {
+  padding: 12px;
+  background: var(--color-blue-bg);
+  border-radius: var(--radius-md);
+}
+.recent-timesheets {
+  margin-top: 20px;
+  padding: 18px 20px;
+}
+.recent-timesheets .page-header {
+  align-items: center;
+  margin-bottom: 10px;
+}
+.recent-timesheets h2 {
+  margin: 0;
+}
+.recent-timesheets .page-header > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+.mobile-timesheet-list {
+  display: none;
+}
+.compact-empty {
+  padding: 24px 10px;
+}
+.weekly-hours-compact {
+  display: grid;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.weekly-hours-compact span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+.weekly-hours-compact strong {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.schedule-list-card {
+  padding: 6px 20px;
+}
+.employee-schedule-row {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 15px;
+  padding: 18px 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+.employee-schedule-row:last-child {
+  border-bottom: 0;
+}
+.schedule-date {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 9px 4px;
+  color: var(--color-blue-text);
+  background: var(--color-primary-50);
+  border-radius: var(--radius-md);
+}
+.schedule-date strong {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+}
+.schedule-date span {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.schedule-time h3 {
+  margin: 0;
+  font-size: var(--text-base);
+}
+.schedule-time h3 small {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.schedule-time p {
+  margin: 5px 0 0;
+  font-size: var(--text-sm);
+}
+.employee-schedule-row.is-cancelled .schedule-time {
+  opacity: 0.8;
+}
+.mobile-timesheet-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.mobile-timesheet-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mobile-timesheet-card dl {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin: 0;
+}
+.mobile-timesheet-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mobile-timesheet-card dt {
+  color: var(--color-text-muted);
+}
+.mobile-timesheet-card dd {
+  margin: 0;
+  font-weight: 600;
+}
+.mobile-timesheet-card > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+@media (max-width: 600px) {
+  .employee-topbar {
+    min-height: 60px;
+    padding: 0 14px;
+  }
+  .employee-topbar .shell-brand {
+    font-size: var(--text-xl);
+  }
+  .employee-org {
+    display: none;
+  }
+  .employee-nav {
+    padding: 8px 12px;
+  }
+  .employee-content {
+    padding-top: 20px;
+  }
+}
+@media (max-width: 760px) {
+  .employee-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  .employee-side-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .employee-dashboard-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .employee-dashboard-heading > a {
+    width: 100%;
+  }
+  .employee-current-card {
+    padding: 17px;
+  }
+  .employee-side-cards {
+    grid-template-columns: 1fr;
+  }
+  .live-time-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .live-time-card {
+    padding: 11px;
+  }
+  .live-time-card.is-active {
+    border-width: 2px;
+  }
+  .live-time-card strong {
+    font-size: var(--text-2xl);
+  }
+  .employee-schedule-row {
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .employee-schedule-row > .status-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .schedule-date span {
+    font-size: var(--text-base);
+  }
+  .schedule-time h3 {
+    font-size: var(--text-sm);
+  }
+  .recent-timesheets {
+    padding: 14px;
+  }
+  .desktop-timesheet-table {
+    display: none;
+  }
+  .mobile-timesheet-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .weekly-hours-compact {
+    width: 100%;
+  }
+}

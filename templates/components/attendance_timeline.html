@@ -1,0 +1,35 @@
+{% load tz %}
+<ol class="attendance-timeline" aria-label="Attendance events in time order">
+  <li class="timeline-event">
+    <span class="timeline-marker" aria-hidden="true"></span>
+    <span class="timeline-label">Clocked in</span>
+    <time datetime="{{ session.clock_in_at|timezone:organization.timezone|date:'c' }}">{{ session.clock_in_at|timezone:organization.timezone|date:"M j, g:i:s A T" }}</time>
+  </li>
+  {% for break in session.breaks.all %}
+    <li class="timeline-event">
+      <span class="timeline-marker" aria-hidden="true"></span>
+      <span class="timeline-label">Break started</span>
+      <time datetime="{{ break.started_at|timezone:organization.timezone|date:'c' }}">{{ break.started_at|timezone:organization.timezone|date:"M j, g:i:s A T" }}</time>
+    </li>
+    {% if break.ended_at %}
+      <li class="timeline-event">
+        <span class="timeline-marker" aria-hidden="true"></span>
+        <span class="timeline-label">Break ended</span>
+        <time datetime="{{ break.ended_at|timezone:organization.timezone|date:'c' }}">{{ break.ended_at|timezone:organization.timezone|date:"M j, g:i:s A T" }}</time>
+      </li>
+    {% else %}
+      <li class="timeline-event timeline-event-open">
+        <span class="timeline-marker" aria-hidden="true"></span>
+        <span class="timeline-label">Break in progress</span>
+        <time datetime="{{ break.started_at|timezone:organization.timezone|date:'c' }}">Started {{ break.started_at|timezone:organization.timezone|date:"M j, g:i:s A T" }}</time>
+      </li>
+    {% endif %}
+  {% endfor %}
+  {% if session.clock_out_at %}
+    <li class="timeline-event">
+      <span class="timeline-marker" aria-hidden="true"></span>
+      <span class="timeline-label">Clocked out</span>
+      <time datetime="{{ session.clock_out_at|timezone:organization.timezone|date:'c' }}">{{ session.clock_out_at|timezone:organization.timezone|date:"M j, g:i:s A T" }}</time>
+    </li>
+  {% endif %}
+</ol>

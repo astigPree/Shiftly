@@ -1,0 +1,116 @@
+.timesheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+.timesheet-grid .detail-list {
+  grid-template-columns: minmax(100px, 150px) 1fr;
+}
+
+.totals-list {
+  max-width: 540px;
+}
+
+.review-actions form {
+  margin: 14px 0;
+}
+
+.reject-form {
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+}
+
+.reject-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+}
+
+.review-history {
+  padding-left: 24px;
+}
+
+.review-history li {
+  margin: 12px 0;
+}
+
+.attendance-timeline {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(100px, 130px) minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 9px 0;
+}
+
+.timeline-event::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
+  width: 2px;
+  background: var(--color-border);
+  content: "";
+}
+
+.timeline-event:first-child::before {
+  top: 18px;
+}
+
+.timeline-event:last-child::before {
+  bottom: 18px;
+}
+
+.timeline-marker {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  background: var(--color-primary-500);
+  border: 3px solid var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--color-primary-200);
+}
+
+.timeline-event-open .timeline-marker {
+  background: var(--color-amber-dot);
+  box-shadow: 0 0 0 1px var(--color-amber-bg);
+}
+
+.timeline-label {
+  font-weight: 600;
+}
+
+.timeline-event time {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .timesheet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .timeline-event {
+    grid-template-columns: 14px minmax(0, 1fr);
+    gap: 6px 10px;
+  }
+
+  .timeline-event time {
+    grid-column: 2;
+  }
+}

@@ -9,7 +9,7 @@
     <button type="submit">Filter</button>
   </form>
   {% if page.object_list %}
-  <div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Code</th><th scope="col">Job title</th><th scope="col">Status</th><th scope="col">Account</th><th scope="col">Actions</th></tr></thead><tbody>
+  <div class="table-wrap"><table class="employee-list-table"><thead><tr><th scope="col">Employee</th><th scope="col">Code</th><th scope="col">Job title</th><th scope="col">Status</th><th scope="col">Account</th><th scope="col">Actions</th></tr></thead><tbody>
     {% for employee in page.object_list %}<tr><td><a href="{% url 'employees:detail' employee.pk %}">{{ employee.full_name }}</a><br><span class="muted">{{ employee.email }}</span></td><td>{{ employee.employee_code }}</td><td>{{ employee.job_title|default:"—" }}</td><td><span class="status-badge status-{{ employee.status|lower }}">{{ employee.get_status_display }}</span></td><td>{% if employee.user_id %}Activated{% else %}Invitation pending{% endif %}</td><td><a href="{% url 'employees:edit' employee.pk %}">Edit</a></td></tr>{% endfor %}
   </tbody></table></div>
   {% else %}<div class="empty-state"><h2>No employees found</h2><p>{% if query or status_filter %}Try changing your search or status filter.{% else %}Add an employee to start assigning shifts.{% endif %}</p>{% if not query and not status_filter %}<a class="button-link" href="{% url 'employees:create' %}">Add first employee</a>{% endif %}</div>{% endif %}
