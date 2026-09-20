@@ -1,0 +1,2 @@
+# Local development install: shared app dependencies, without the production WSGI server.
+-r requirements/base.txt

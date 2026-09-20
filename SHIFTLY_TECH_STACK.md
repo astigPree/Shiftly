@@ -63,7 +63,7 @@ Selected on 2026-09-19 and pinned in the repository:
 - Psycopg 3.3.6 with its binary extra in requirements/base.txt for PostgreSQL connections across Windows development and Ubuntu production; tzdata 2026.4 supplies IANA timezone data on Windows.
 - Gunicorn 26.2.0 in requirements/production.txt for the Ubuntu WSGI deployment. Keep this production-only dependency out of the Windows development install.
 
-Install shared dependencies with pip install -r requirements/base.txt. Production environments install pip install -r requirements/production.txt. Update exact pins deliberately after checking upstream support and security releases.
+For local development, install with pip install -r requirements.txt; this root manifest includes the shared dependencies from requirements/base.txt and excludes the production server. Production environments install pip install -r requirements/production.txt. Update exact pins deliberately after checking upstream support and security releases.
 
 Sources: [Django supported releases](https://www.djangoproject.com/download/), [Django Python compatibility](https://docs.djangoproject.com/en/5.2/faq/install/), [Python 3.14 releases](https://www.python.org/doc/versions/), [Psycopg installation](https://www.psycopg.org/psycopg3/docs/basic/install.html), and [Gunicorn 26.2.0](https://pypi.org/project/gunicorn/26.2.0/).
 
