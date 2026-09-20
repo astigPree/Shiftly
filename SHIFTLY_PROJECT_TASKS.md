@@ -114,19 +114,19 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 5 — Attendance records and clock workflow
 
-- [ ] Implement AttendanceSession and BreakSession models, organization/employee/shift relationships, timestamps, and valid status choices.
-- [ ] Choose and document whether individual attendance events are stored as immutable records in addition to session summaries; preserve the original timestamps needed for auditability.
-- [ ] Implement attendance services for clock-in, start-break, end-break, and clock-out; keep state-transition logic out of templates and views.
-- [ ] Use server-generated timezone-aware timestamps as the authoritative record; never accept browser-calculated work duration as authoritative.
-- [ ] Enforce valid transitions: not started → working → on break → working → completed.
-- [ ] Enforce at most one active attendance session per employee/shift, one open break per session, and no duplicate clock action.
-- [ ] Make clock actions transaction-safe and safe against double clicks, retries, refreshes, and concurrent requests.
-- [ ] Validate that the authenticated employee owns the shift/session and cannot act on another employee's or organization's record.
-- [ ] Enforce the Phase 0 rules for unscheduled, early, late, absent, cancelled, and incomplete shifts.
-- [ ] Derive employer attendance states such as scheduled, not clocked in, working, on break, late, absent, and completed from server-side records and agreed rules.
-- [ ] Handle a missing clock-out using the agreed MVP behavior and ensure it cannot silently become an approved complete timesheet.
+- [x] Implement AttendanceSession and BreakSession models, organization/employee/shift relationships, timestamps, and valid status choices.
+- [x] Store clock-in, clock-out, break start, and break end as immutable timestamp fields on the attendance and break session records; separate event rows are unnecessary for this MVP.
+- [x] Implement attendance services for clock-in, start-break, end-break, and clock-out; keep state-transition logic out of templates and views.
+- [x] Use server-generated timezone-aware timestamps as the authoritative record; never accept browser-calculated work duration as authoritative.
+- [x] Enforce valid transitions: not started → working → on break → working → completed.
+- [x] Enforce at most one active attendance session per employee/shift, one open break per session, and no duplicate clock action.
+- [x] Make clock actions transaction-safe and safe against double clicks, retries, refreshes, and concurrent requests.
+- [x] Validate that the authenticated employee owns the shift/session and cannot act on another employee's or organization's record.
+- [x] Enforce the Phase 0 rules for unscheduled, early, late, absent, cancelled, and incomplete shifts.
+- [x] Derive employer attendance states such as scheduled, not clocked in, working, on break, late, absent, and completed from server-side records and agreed rules.
+- [x] Handle a missing clock-out using the agreed MVP behavior and ensure it cannot silently become an approved complete timesheet.
 - [ ] Add tests for every valid and invalid transition, duplicate/concurrent action, timestamp, status, and organization boundary.
-- [ ] Add clear success and failure messages; report success to the browser only after the server commits the action.
+- [x] Add clear success and failure messages; report success to the browser only after the server commits the action.
 
 ## Phase 6 — Timesheet calculation and review
 

@@ -44,4 +44,20 @@ th { color: #52627c; font-size: 14px; }
 .compact-field input, .compact-field select { min-height: 44px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; }
 .inline-form { display: inline-block; margin-left: 10px; }
 .status-cancelled { color: #475467; background: #eef1f5; }
+.status-scheduled { color: #175cd3; background: #eff8ff; }
+.status-late { color: #93370d; background: #fef0c7; }
+.status-absent { color: #b42318; background: #fee4e2; }
+.status-working { color: #067647; background: #e7f6ee; }
+.status-on_break { color: #175cd3; background: #eff8ff; }
+.status-completed { color: #475467; background: #eef1f5; }
+.warning-text { color: #b42318; font-weight: 600; }
+.warning-panel { padding: 12px 14px; color: #93370d; background: #fef0c7; border-radius: 8px; }
+.shift-card-list { display: grid; gap: 16px; }
+.shift-card { width: 100%; margin: 16px auto; }
+.shift-card h2 { margin: 8px 0; font-size: 22px; }
+.eyebrow { margin: 0; color: #63738d; font-size: 14px; font-weight: 600; }
+.event-summary, .action-row { display: flex; flex-wrap: wrap; gap: 18px; margin: 18px 0; }
+.break-list { padding-left: 22px; color: #52627c; }
+.home-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.home-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; background: #eff6ff; border-radius: 8px; text-decoration: none; font-weight: 600; }
 @media (max-width: 600px) { .page-shell { width: min(100% - 24px, 520px); margin: 20px auto; } .auth-card, .content-card { margin: 4vh auto; padding: 22px; } }

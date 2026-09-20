@@ -9,10 +9,12 @@
   <h1>Hello, {{ request.user.first_name|default:request.user.email }}</h1>
   {% if request.user.role == "EMPLOYER" %}
     <p class="muted">{{ organization.name }} · {{ organization.timezone }}</p>
-    <p>Your workspace is ready. Employee, scheduling, attendance, and timesheet workflows are being built.</p>
+    <p>Your workspace is ready. Manage employees, assign one-off shifts, and monitor attendance.</p>
+    <nav class="home-links" aria-label="Employer workspace"><a href="{% url 'employees:list' %}">Employees</a><a href="{% url 'schedules:list' %}">Schedules</a><a href="{% url 'attendance:list' %}">Attendance</a></nav>
   {% else %}
     <p class="muted">{{ organization.name }}</p>
-    <p>Your employee account is active. Your schedule and attendance tools will appear here.</p>
+    <p>Your employee account is active. View your assigned shifts and record attendance here.</p>
+    <a class="button-link" href="{% url 'attendance:my_attendance' %}">My attendance</a>
   {% endif %}
 </section>
 {% endblock %}

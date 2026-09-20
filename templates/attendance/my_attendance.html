@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% load tz %}
+{% block title %}My attendance | Shiftly{% endblock %}
+{% block content %}
+<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>My attendance</h1><p class="muted">Your shifts and clock actions · {{ organization.timezone }}</p></div></header>
+{% if cards %}<div class="shift-card-list">
+{% for card in cards %}{% with shift=card.shift session=card.session state=card.state %}
+<section class="content-card shift-card" aria-labelledby="shift-title-{{ shift.pk }}">
+  <div class="page-header"><div><p class="eyebrow">{{ shift.work_date|date:"l, M j, Y" }}</p><h2 id="shift-title-{{ shift.pk }}">{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %} <span class="muted">(overnight)</span>{% endif %}</h2></div><span class="status-badge status-{{ state.code|lower }}">{{ state.label }}</span></div>
+  {% if state.missing_clock_out %}<p class="warning-panel" role="status">This shift has passed its scheduled end and still needs a clock-out. Your session remains open until you clock out.</p>{% endif %}
+  {% if session %}<div class="event-summary"><span>Clocked in <strong>{{ session.clock_in_at|timezone:organization.timezone|date:"g:i:s A" }}</strong></span>{% if session.clock_out_at %}<span>Clocked out <strong>{{ session.clock_out_at|timezone:organization.timezone|date:"g:i:s A" }}</strong></span>{% endif %}</div>
+    {% if session.breaks.all %}<ul class="break-list">{% for break in session.breaks.all %}<li>Break {{ forloop.counter }}: {{ break.started_at|timezone:organization.timezone|date:"g:i:s A" }}{% if break.ended_at %} – {{ break.ended_at|timezone:organization.timezone|date:"g:i:s A" }}{% else %} – in progress{% endif %}</li>{% endfor %}</ul>{% endif %}
+    {% if not session.clock_out_at %}<div class="action-row">{% if session.status == "ON_BREAK" %}<form method="post" action="{% url 'attendance:end_break' session.pk %}">{% csrf_token %}<button type="submit">End break</button></form>{% else %}<form method="post" action="{% url 'attendance:start_break' session.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Start break</button></form><form method="post" action="{% url 'attendance:clock_out' session.pk %}">{% csrf_token %}<button type="submit">Clock out</button></form>{% endif %}</div>{% endif %}
+  {% elif card.can_clock_in %}<form method="post" action="{% url 'attendance:clock_in' shift.pk %}">{% csrf_token %}<button type="submit">Clock in</button></form>
+  {% elif state.code == "ABSENT" %}<p class="muted">The clock-in window has closed. Contact your employer if you think this is incorrect.</p>
+  {% elif shift.status == "CANCELLED" %}<p class="muted">This shift was cancelled.</p>
+  {% else %}<p class="muted">Clock-in becomes available 30 minutes before the scheduled start and closes at the scheduled end.</p>{% endif %}
+</section>
+{% endwith %}{% endfor %}</div>
+{% else %}<section class="content-card empty-state"><h2>No shifts to show</h2><p>Your upcoming shifts and active attendance sessions will appear here.</p></section>{% endif %}
+{% endblock %}
