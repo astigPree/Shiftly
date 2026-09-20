@@ -11,11 +11,26 @@ from .timeutils import local_datetime_to_utc
 
 
 class ShiftForm(forms.Form):
-    employee = forms.ModelChoiceField(queryset=Employee.objects.none())
-    work_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    start_time = forms.TimeField(widget=forms.TimeInput(attrs={"type": "time"}))
-    end_time = forms.TimeField(widget=forms.TimeInput(attrs={"type": "time"}))
-    scheduled_break_minutes = forms.IntegerField(min_value=0, initial=0, label="Unpaid scheduled break allowance (minutes)")
+    employee = forms.ModelChoiceField(
+        queryset=Employee.objects.none(),
+        label="Employee",
+        help_text="Choose an active employee in this organization.",
+    )
+    work_date = forms.DateField(
+        label="Work date", widget=forms.DateInput(attrs={"type": "date"})
+    )
+    start_time = forms.TimeField(
+        label="Start time", widget=forms.TimeInput(attrs={"type": "time"})
+    )
+    end_time = forms.TimeField(
+        label="End time", widget=forms.TimeInput(attrs={"type": "time"})
+    )
+    scheduled_break_minutes = forms.IntegerField(
+        min_value=0,
+        initial=0,
+        label="Unpaid break allowance (minutes)",
+        help_text="Subtracted from scheduled minutes when the shift is calculated.",
+    )
 
     def __init__(self, *args, organization, instance=None, **kwargs):
         self.organization = organization

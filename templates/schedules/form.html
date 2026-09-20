@@ -1,17 +1,39 @@
 {% extends "layouts/employer.html" %}
-{% load form_tags %}
 {% block title %}{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %} | Shiftly{% endblock %}
 {% block app_content %}
-<section class="content-card">
-  <p><a href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">← Back to schedules</a></p>
-  <h1>{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %}</h1>
-  <p class="muted">Times are entered in the organization time zone. Ambiguous and nonexistent daylight-saving times are not accepted.</p>
-  {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
-  {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-  <form method="post" novalidate>{% csrf_token %}
-    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field|accessible_field }}{% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
-    <p class="muted">If the end time is earlier than the start time, the shift ends the next local day. An equal start and end is invalid.</p>
-    <button type="submit"{% if not has_employees %} disabled{% endif %}>{% if is_create %}Create shift{% else %}Save shift{% endif %}</button>
-  </form>
+<section class="form-page" aria-labelledby="shift-form-title">
+  <a class="form-back-link" href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">← Schedules</a>
+  <header class="form-page-heading">
+    <span class="form-heading-icon">{% include "components/icon.html" with icon_name="calendar" %}</span>
+    <div>
+      <h1 id="shift-form-title">{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %}</h1>
+      <p class="muted">Assign a date and working hours to an employee.</p>
+    </div>
+  </header>
+
+  <section class="form-card form-card--wide" aria-label="Shift details">
+    {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
+    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="form-grid">
+        {% for field in form %}
+          {% if field.name == "employee" %}
+            {% include "components/form_field.html" with field=field full_width=True %}
+          {% else %}
+            {% include "components/form_field.html" with field=field %}
+          {% endif %}
+        {% endfor %}
+      </div>
+      <div class="form-callout" role="note">
+        {% include "components/icon.html" with icon_name="clock" %}
+        <span>Times use {{ organization.timezone }}. An end time earlier than the start means the shift ends the next local day. Daylight-saving times that are ambiguous or do not exist cannot be used.</span>
+      </div>
+      <div class="form-actions">
+        <a class="form-cancel-link" href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">Cancel</a>
+        <button type="submit"{% if not has_employees %} disabled{% endif %}>{% if is_create %}Create shift{% else %}Save shift{% endif %}</button>
+      </div>
+    </form>
+  </section>
 </section>
 {% endblock %}

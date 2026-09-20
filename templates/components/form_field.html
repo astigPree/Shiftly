@@ -1,0 +1,7 @@
+{% load form_tags %}
+<div class="field form-field{% if full_width %} form-field--full{% endif %}{% if field.errors %} form-field--invalid{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field|accessible_field }}
+  {% if field.help_text %}<small class="form-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}
+  {% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}
+</div>

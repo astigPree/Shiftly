@@ -1,5 +1,5 @@
 {% extends layout_template %}
-{% load tz %}
+{% load tz form_tags %}
 {% block title %}Timesheet · {{ timesheet.employee.full_name }} | Shiftly{% endblock %}
 {% block app_content %}
 <section class="content-card wide-card">
@@ -14,7 +14,32 @@
 
   <section class="subsection"><h2>Calculated totals</h2><dl class="detail-list totals-list"><dt>Scheduled minutes</dt><dd>{{ timesheet.scheduled_minutes }} min</dd><dt>Break minutes</dt><dd>{{ timesheet.break_minutes }} min</dd><dt>Worked minutes</dt><dd>{{ timesheet.worked_minutes }} min</dd><dt>Payable minutes</dt><dd>{{ timesheet.payable_minutes }} min</dd><dt>Late minutes</dt><dd>{{ timesheet.late_minutes }} min</dd><dt>Undertime minutes</dt><dd>{{ timesheet.undertime_minutes }} min</dd></dl><p class="muted">Payable minutes record worked duration only. No wage or payroll calculation is performed.</p></section>
 
-  {% if can_review and timesheet.status == "PENDING" %}<section class="subsection review-actions"><h2>Review decision</h2><p>Approval or rejection is final for this timesheet.</p><form method="post" action="{% url 'timesheets:approve' timesheet.pk %}">{% csrf_token %}<button type="submit">Approve timesheet</button></form><form method="post" action="{% url 'timesheets:reject' timesheet.pk %}" class="reject-form">{% csrf_token %}<label for="id_comment">Rejection comment (required)</label>{{ reject_form.comment }}<button class="button-danger" type="submit">Reject timesheet</button></form></section>{% elif can_review and timesheet.status == "NEEDS_REVIEW" %}<section class="subsection review-actions"><h2>Review decision</h2><p>This record cannot be approved. Rejection is final and requires a comment.</p><form method="post" action="{% url 'timesheets:reject' timesheet.pk %}" class="reject-form">{% csrf_token %}<label for="id_comment">Rejection comment (required)</label>{{ reject_form.comment }}<button class="button-danger" type="submit">Reject timesheet</button></form></section>{% endif %}
+  {% if can_review and timesheet.status == "PENDING" %}
+    <section class="subsection review-actions">
+      <h2>Review decision</h2>
+      <p>Approval or rejection is final for this timesheet.</p>
+      <form class="review-approve-form" method="post" action="{% url 'timesheets:approve' timesheet.pk %}">{% csrf_token %}<button type="submit">Approve timesheet</button></form>
+      <form method="post" action="{% url 'timesheets:reject' timesheet.pk %}" class="reject-form">
+        {% csrf_token %}
+        <label for="id_comment">Rejection comment (required)</label>
+        {{ reject_form.comment|accessible_field }}
+        {% if reject_form.comment.errors %}<div class="field-error" role="alert">{{ reject_form.comment.errors }}</div>{% endif %}
+        <button class="button-danger" type="submit">Reject timesheet</button>
+      </form>
+    </section>
+  {% elif can_review and timesheet.status == "NEEDS_REVIEW" %}
+    <section class="subsection review-actions">
+      <h2>Review decision</h2>
+      <p>This record cannot be approved. Rejection is final and requires a comment.</p>
+      <form method="post" action="{% url 'timesheets:reject' timesheet.pk %}" class="reject-form">
+        {% csrf_token %}
+        <label for="id_comment">Rejection comment (required)</label>
+        {{ reject_form.comment|accessible_field }}
+        {% if reject_form.comment.errors %}<div class="field-error" role="alert">{{ reject_form.comment.errors }}</div>{% endif %}
+        <button class="button-danger" type="submit">Reject timesheet</button>
+      </form>
+    </section>
+  {% endif %}
 
   <section class="subsection"><h2>Review history</h2>{% if timesheet.approvals.all %}<ol class="review-history">{% for approval in timesheet.approvals.all %}<li><strong>{{ approval.get_action_display }}</strong> by {{ approval.reviewer.get_full_name|default:approval.reviewer.email }} · {{ approval.reviewed_at|timezone:organization.timezone|date:"M j, Y g:i A T" }}{% if approval.comment %}<p>{{ approval.comment|linebreaksbr }}</p>{% endif %}</li>{% endfor %}</ol>{% else %}<p class="muted">No review decisions have been recorded.</p>{% endif %}</section>
 </section>

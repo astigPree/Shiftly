@@ -1,17 +1,30 @@
 {% extends "layouts/employee.html" %}
-{% load form_tags %}
 {% block title %}Profile | Shiftly{% endblock %}
 {% block app_content %}
-<header class="page-title"><h1>Profile</h1><p class="muted">Manage the name shown on your Shiftly account.</p></header>
-<section class="settings-card employee-profile-card">
-  <h2>Personal details</h2><p class="muted">Your employer manages your email, employee code, and job title.</p>
-  {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-  <form method="post" novalidate>{% csrf_token %}
-    <div class="settings-email"><span>Email address</span><strong>{{ request.user.email }}</strong></div>
-    <div class="settings-email"><span>Employee code</span><strong>{{ employee.employee_code }}</strong></div>
-    <div class="settings-email"><span>Job title</span><strong>{{ employee.job_title|default:"Not specified" }}</strong></div>
-    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field|accessible_field }}{% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
-    <button type="submit">Save profile</button>
-  </form>
+<section class="form-page" aria-labelledby="profile-title">
+  <header class="form-page-heading">
+    <span class="form-heading-icon">{% include "components/icon.html" with icon_name="user" %}</span>
+    <div><h1 id="profile-title">Your profile</h1><p class="muted">Manage the name shown on your Shiftly account.</p></div>
+  </header>
+  <section class="form-card form-card--wide" aria-label="Personal profile details">
+    <h2 class="form-section-label">Personal details</h2>
+    <p class="muted">Your employer manages your email, employee code, and job title.</p>
+    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="form-readonly-list" aria-label="Employer managed details">
+        <div class="form-readonly-item"><span>Email address</span><strong>{{ request.user.email }}</strong></div>
+        <div class="form-readonly-item"><span>Employee code</span><strong>{{ employee.employee_code }}</strong></div>
+        <div class="form-readonly-item"><span>Job title</span><strong>{{ employee.job_title|default:"Not specified" }}</strong></div>
+      </div>
+      <div class="form-grid">
+        {% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}
+      </div>
+      <div class="form-actions">
+        <a class="form-cancel-link" href="{% url 'attendance:my_attendance' %}">Cancel</a>
+        <button type="submit">Save profile</button>
+      </div>
+    </form>
+  </section>
 </section>
 {% endblock %}

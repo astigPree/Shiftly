@@ -8,8 +8,35 @@ from .models import Employee
 class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
-        fields = ("employee_code", "first_name", "last_name", "email", "job_title")
-        widgets = {"job_title": forms.TextInput(attrs={"autocomplete": "organization-title"})}
+        fields = ("employee_code", "job_title", "first_name", "last_name", "email")
+        labels = {
+            "employee_code": "Employee code",
+            "job_title": "Job title (optional)",
+            "first_name": "First name",
+            "last_name": "Last name",
+            "email": "Email address",
+        }
+        help_texts = {
+            "employee_code": "Internal identifier used in schedules and reports.",
+            "email": "Used to send the employee their Shiftly account invitation.",
+        }
+        widgets = {
+            "employee_code": forms.TextInput(
+                attrs={"autocomplete": "off", "placeholder": "e.g. EMP-001"}
+            ),
+            "job_title": forms.TextInput(
+                attrs={"autocomplete": "organization-title", "placeholder": "e.g. Customer Support"}
+            ),
+            "first_name": forms.TextInput(
+                attrs={"autocomplete": "given-name", "placeholder": "e.g. Alex"}
+            ),
+            "last_name": forms.TextInput(
+                attrs={"autocomplete": "family-name", "placeholder": "e.g. Santos"}
+            ),
+            "email": forms.EmailInput(
+                attrs={"autocomplete": "email", "placeholder": "name@company.com"}
+            ),
+        }
 
     def clean_employee_code(self):
         return self.cleaned_data["employee_code"].strip().upper()

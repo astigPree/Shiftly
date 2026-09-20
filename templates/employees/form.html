@@ -1,15 +1,41 @@
 {% extends "layouts/employer.html" %}
-{% load form_tags %}
 {% block title %}{% if is_create %}Add employee{% else %}Edit {{ employee.full_name }}{% endif %} | Shiftly{% endblock %}
 {% block app_content %}
-<section class="content-card">
-  <p><a href="{% if is_create %}{% url 'employees:list' %}{% else %}{% url 'employees:detail' employee.pk %}{% endif %}">← Back to employees</a></p>
-  <h1>{% if is_create %}Add an employee{% else %}Edit employee{% endif %}</h1>
-  <p class="muted">{% if is_create %}We will email an account activation link after the profile is saved.{% else %}Employee records are retained when access is deactivated.{% endif %}</p>
-  {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-  <form method="post" novalidate>{% csrf_token %}
-    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field|accessible_field }}{% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
-    <button type="submit">{% if is_create %}Create employee and send invite{% else %}Save changes{% endif %}</button>
-  </form>
+<section class="form-page form-page--employee" aria-labelledby="employee-form-title">
+  <a class="form-back-link" href="{% if is_create %}{% url 'employees:list' %}{% else %}{% url 'employees:detail' employee.pk %}{% endif %}">← {% if is_create %}Employees{% else %}Back to employee{% endif %}</a>
+  <header class="form-page-heading">
+    <span class="form-heading-icon">{% include "components/icon.html" with icon_name="user-plus" %}</span>
+    <div>
+      <h1 id="employee-form-title">{% if is_create %}Add employee{% else %}Edit employee{% endif %}</h1>
+      <p class="muted">{% if is_create %}Add someone to your Shiftly workspace.{% else %}Update {{ employee.full_name }}'s employee details.{% endif %}</p>
+    </div>
+  </header>
+
+  <section class="form-card" aria-labelledby="employee-details-heading">
+    <h2 class="form-section-label" id="employee-details-heading">Employee details</h2>
+    {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="form-grid">
+        {% for field in form %}
+          {% if field.name == "email" %}
+            {% include "components/form_field.html" with field=field full_width=True %}
+          {% else %}
+            {% include "components/form_field.html" with field=field %}
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if is_create %}
+        <div class="form-callout" role="note">
+          {% include "components/icon.html" with icon_name="mail" %}
+          <span>After you create this employee, Shiftly will send an account activation link to their email address.</span>
+        </div>
+      {% endif %}
+      <div class="form-actions">
+        <a class="form-cancel-link" href="{% if is_create %}{% url 'employees:list' %}{% else %}{% url 'employees:detail' employee.pk %}{% endif %}">Cancel</a>
+        <button type="submit">{% if is_create %}Create employee{% else %}Save changes{% endif %}</button>
+      </div>
+    </form>
+  </section>
 </section>
 {% endblock %}
