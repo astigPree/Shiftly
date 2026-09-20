@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block body_class %}app-body{% endblock %}
+{% block main_class %}app-shell-root{% endblock %}
+{% block messages %}{% endblock %}
+{% block content %}
+<div class="employee-shell">
+  <header class="employee-topbar">
+    <a class="shell-brand" href="{% url 'attendance:my_attendance' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
+    <span class="employee-org">{{ organization.name }}</span>
+    <details class="account-menu">
+      <summary><span class="account-avatar" aria-hidden="true">{{ request.user.first_name|first|upper|default:"E" }}</span><span class="account-name"><strong>{{ request.user.get_full_name|default:request.user.email }}</strong><small>Employee</small></span><span aria-hidden="true">⌄</span></summary>
+      <div class="account-popover"><p>{{ request.user.email }}</p><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit" class="menu-signout">Sign out</button></form></div>
+    </details>
+  </header>
+  <nav class="employee-nav" aria-label="Employee navigation">
+    <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" href="{% url 'attendance:my_attendance' %}">Home</a>
+    <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" href="{% url 'timesheets:my_list' %}">Timesheets</a>
+  </nav>
+  <main class="app-content employee-content">
+    {% include "components/messages.html" %}
+    {% block app_content %}{% endblock %}
+  </main>
+</div>
+{% endblock %}

@@ -143,17 +143,15 @@ The MVP is ready when an employer can create an organization, add an employee, a
 - [x] Ensure rejected/incomplete records follow the documented lifecycle and are not treated as approved payroll-ready records.
 - [ ] Add tests for calculation edge cases, lifecycle transitions, duplicate generation, rejection, approval, and permissions.
 
-## Phase 7 — Employer workspace and dashboard
-
-- [ ] Build the employer app shell with sidebar, top bar, organization context, account menu, active navigation, and responsive behavior.
-- [ ] Implement navigation for Overview, Employees, Schedules, Attendance, Timesheets, Reports, and Settings.
-- [ ] Build the dashboard greeting/date and the core KPI cards for employee count, working, late, and absent.
-- [ ] Build today's attendance table with employee, shift, status, last activity, and links/actions to relevant records.
-- [ ] Provide a clear link from dashboard cards and table rows to the filtered underlying records.
-- [ ] Implement the attendance page with organization-local date/status filters and manual refresh or modest polling; no WebSockets.
-- [ ] Implement organization settings needed for the MVP, including organization name and timezone, plus account profile settings if required by onboarding.
-- [ ] Use shared badges, cards, tables, forms, pagination, confirmations, and empty/error states from the design system.
-- [ ] Ensure UI status badges always include readable text, not color alone.
+- [x] Build the employer app shell with sidebar, top bar, organization context, account menu, active navigation, and responsive behavior.
+- [x] Implement navigation for Overview, Employees, Schedules, Attendance, Timesheets, Reports, and Settings.
+- [x] Build the dashboard greeting/date and the core KPI cards for employee count, working, late, and absent.
+- [x] Build today's attendance table with employee, shift, status, last activity, and links/actions to relevant records.
+- [x] Provide a clear link from dashboard cards and table rows to the filtered underlying records.
+- [x] Implement the attendance page with organization-local date/status filters and manual refresh or modest polling; no WebSockets.
+- [x] Implement organization settings needed for the MVP, including organization name and timezone, plus account profile settings if required by onboarding.
+- [x] Use shared badges, cards, tables, forms, pagination, confirmations, and empty/error states from the design system.
+- [x] Ensure UI status badges always include readable text, not color alone.
 - [ ] Add tests for dashboard counts, filtered attendance visibility, and employer page access.
 
 ## Phase 8 — Employee workspace and attendance UI

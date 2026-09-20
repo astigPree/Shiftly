@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+{% extends layout_template %}
 {% load tz %}
 {% block title %}Timesheet · {{ timesheet.employee.full_name }} | Shiftly{% endblock %}
-{% block content %}
+{% block app_content %}
 <section class="content-card wide-card">
   <p><a href="{% if can_review %}{% url 'timesheets:list' %}{% else %}{% url 'timesheets:my_list' %}{% endif %}">← Timesheets</a></p>
   <div class="page-header"><div><h1>{{ timesheet.employee.full_name }}</h1><p class="muted">{{ timesheet.shift.work_date|date:"l, F j, Y" }} · {{ organization.timezone }}</p></div><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div>

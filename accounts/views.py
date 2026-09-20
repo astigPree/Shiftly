@@ -8,12 +8,13 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm
+from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
 from accounts.models import User
 from employees.models import EmployeeInvitation
 from employees.services import accept_employee_invitation
 from organizations.models import Organization
-from .permissions import organization_for_user
+from .permissions import employer_required, organization_for_user
+from .services import employer_dashboard_data, save_workspace_settings
 
 
 def index(request):
@@ -58,11 +59,53 @@ def home(request):
     organization = organization_for_user(request.user)
     if organization is None:
         raise PermissionDenied
+    if request.user.role == User.Role.EMPLOYER:
+        context = employer_dashboard_data(organization)
+        return render(
+            request,
+            "accounts/dashboard.html",
+            {"organization": organization, "greeting_name": request.user.first_name or request.user.email, **context},
+        )
     employee = getattr(request.user, "employee_profile", None)
     return render(
         request,
         "accounts/home.html",
         {"organization": organization, "employee": employee},
+    )
+
+
+@require_http_methods(["GET", "POST"])
+@employer_required
+def workspace_settings(request):
+    organization = organization_for_user(request.user)
+    timezone_locked = organization.shifts.exists()
+    form = OrganizationSettingsForm(
+        request.POST or None,
+        organization=organization,
+        user=request.user,
+        timezone_locked=timezone_locked,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            organization = save_workspace_settings(
+                organization=organization,
+                user=request.user,
+                organization_name=form.cleaned_data["organization_name"],
+                timezone_name=form.cleaned_data["timezone"],
+                first_name=form.cleaned_data["first_name"],
+                last_name=form.cleaned_data["last_name"],
+            )
+        except ValidationError as error:
+            for field, errors in error.error_dict.items():
+                for field_error in errors:
+                    form.add_error(field, field_error)
+        else:
+            messages.success(request, "Organization settings saved.")
+            return redirect("accounts:settings")
+    return render(
+        request,
+        "accounts/settings.html",
+        {"form": form, "organization": organization, "timezone_locked": timezone_locked},
     )
 
 

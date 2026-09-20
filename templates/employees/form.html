@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% block title %}{% if is_create %}Add employee{% else %}Edit {{ employee.full_name }}{% endif %} | Shiftly{% endblock %}
-{% block content %}
+{% block app_content %}
 <section class="content-card">
   <p><a href="{% if is_create %}{% url 'employees:list' %}{% else %}{% url 'employees:detail' employee.pk %}{% endif %}">← Back to employees</a></p>
   <h1>{% if is_create %}Add an employee{% else %}Edit employee{% endif %}</h1>

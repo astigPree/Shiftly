@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% block title %}Employees | Shiftly{% endblock %}
-{% block content %}
-<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>Employees</h1><p class="muted">{{ total_count }} employee{{ total_count|pluralize }} in your organization</p></div><a class="button-link" href="{% url 'employees:create' %}">Add employee</a></header>
+{% block app_content %}
+<header class="page-header"><div><h1>Employees</h1><p class="muted">{{ total_count }} employee{{ total_count|pluralize }} in your organization</p></div><a class="button-link" href="{% url 'employees:create' %}">Add employee</a></header>
 <section class="content-card wide-card">
   <form method="get" class="filters">
     <label for="id_q">Search employees</label><input id="id_q" type="search" name="q" value="{{ query }}" placeholder="Name, code, email, or job title">

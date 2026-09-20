@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% load tz %}
 {% block title %}Schedules | Shiftly{% endblock %}
-{% block content %}
-<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>Schedules</h1><p class="muted">One-off shifts for {{ organization.name }} · {{ organization.timezone }}</p></div><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></header>
+{% block app_content %}
+<header class="page-header"><div><h1>Schedules</h1><p class="muted">One-off shifts for {{ organization.name }} · {{ organization.timezone }}</p></div><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></header>
 <section class="content-card wide-card">
   <form method="get" class="filters">
     <div class="field compact-field"><label for="id_start_date">From date</label>{{ filter_form.start_date }}</div>

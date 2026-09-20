@@ -1,16 +1,15 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Shiftly{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body>
-  <main class="page-shell">
-    {% for message in messages %}
-      <div class="notice" role="status">{{ message }}</div>
-    {% endfor %}
+<body class="{% block body_class %}{% endblock %}">
+  <main class="{% block main_class %}page-shell{% endblock %}">
+    {% block messages %}{% include "components/messages.html" %}{% endblock %}
     {% block content %}{% endblock %}
   </main>
 </body>

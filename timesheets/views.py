@@ -39,7 +39,7 @@ def timesheet_list(request):
     return render(
         request,
         "timesheets/list.html",
-        {"page": page, "filter_form": filter_form, "can_review": True},
+        {"page": page, "filter_form": filter_form, "can_review": True, "organization": organization, "layout_template": "layouts/employer.html"},
     )
 
 
@@ -55,6 +55,7 @@ def timesheet_detail(request, pk):
             "can_review": True,
             "reject_form": RejectTimesheetForm(),
             "organization": organization,
+            "layout_template": "layouts/employer.html",
         },
     )
 
@@ -66,7 +67,11 @@ def my_timesheets(request):
         _with_details(Timesheet.objects.filter(employee=employee, organization=employee.organization)),
         30,
     ).get_page(request.GET.get("page"))
-    return render(request, "timesheets/list.html", {"page": page, "can_review": False, "employee_view": True})
+    return render(
+        request,
+        "timesheets/list.html",
+        {"page": page, "can_review": False, "employee_view": True, "organization": employee.organization, "layout_template": "layouts/employee.html"},
+    )
 
 
 @employee_required
@@ -83,6 +88,7 @@ def my_timesheet_detail(request, pk):
             "timesheet": timesheet,
             "can_review": False,
             "organization": employee.organization,
+            "layout_template": "layouts/employee.html",
         },
     )
 

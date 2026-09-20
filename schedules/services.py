@@ -2,6 +2,7 @@ from django.apps import apps
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 
+from organizations.models import Organization
 from .models import Shift
 
 
@@ -40,6 +41,7 @@ def _validate_conflicts(shift, *, exclude_pk=None):
 
 @transaction.atomic
 def create_shift(*, organization, employee, work_date, scheduled_start, scheduled_end, scheduled_break_minutes):
+    organization = Organization.objects.select_for_update().get(pk=organization.pk)
     employee = type(employee).objects.select_for_update().get(pk=employee.pk)
     _validate_assignment(organization, employee)
     shift = Shift(

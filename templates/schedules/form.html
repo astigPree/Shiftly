@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% block title %}{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %} | Shiftly{% endblock %}
-{% block content %}
+{% block app_content %}
 <section class="content-card">
   <p><a href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">← Back to schedules</a></p>
   <h1>{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %}</h1>

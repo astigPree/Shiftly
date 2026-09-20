@@ -32,6 +32,9 @@ def attendance_list(request):
     except ValueError:
         selected_date = local_today
     status_filter = request.GET.get("status", "").upper()
+    allowed_statuses = ["SCHEDULED", "LATE", "ABSENT", "WORKING", "ON_BREAK", "COMPLETED", "CANCELLED"]
+    if status_filter not in allowed_statuses:
+        status_filter = ""
     shifts = _with_attendance(
         Shift.objects.filter(organization=organization, work_date=selected_date)
         .select_related("employee", "organization")
@@ -41,26 +44,25 @@ def attendance_list(request):
     rows = []
     for shift in shifts:
         state = attendance_state(shift, at=now)
-        if status_filter and status_filter != state["code"]:
-            continue
         session = getattr(shift, "attendance_session", None)
+        late_clock_in = bool(session and session.clock_in_at > shift.scheduled_start)
+        if status_filter == "LATE":
+            if state["code"] != "LATE" and not late_clock_in:
+                continue
+        elif status_filter == "WORKING":
+            if state["code"] not in ("WORKING", "ON_BREAK"):
+                continue
+        elif status_filter and status_filter != state["code"]:
+            continue
         rows.append(
             {
                 "shift": shift,
                 "session": session,
                 "state": state,
                 "last_activity": last_activity(session),
-                "late_clock_in": bool(session and session.clock_in_at > shift.scheduled_start),
+                "late_clock_in": late_clock_in,
             }
         )
-    allowed_statuses = ["SCHEDULED", "LATE", "ABSENT", "WORKING", "ON_BREAK", "COMPLETED", "CANCELLED"]
-    if status_filter not in allowed_statuses:
-        status_filter = ""
-        rows = []
-        for shift in shifts:
-            state = attendance_state(shift, at=now)
-            session = getattr(shift, "attendance_session", None)
-            rows.append({"shift": shift, "session": session, "state": state, "last_activity": last_activity(session), "late_clock_in": bool(session and session.clock_in_at > shift.scheduled_start)})
     page = Paginator(rows, 30).get_page(request.GET.get("page"))
     return render(
         request,
@@ -75,6 +77,7 @@ def attendance_list(request):
                 ("CANCELLED", "Cancelled"),
             ],
             "organization": organization,
+            "local_today": local_today,
         },
     )
 
@@ -116,7 +119,7 @@ def my_attendance(request):
     return render(
         request,
         "attendance/my_attendance.html",
-        {"cards": cards, "organization": organization, "now": now},
+        {"cards": cards, "organization": organization, "now": now, "local_today": today},
     )
 
 

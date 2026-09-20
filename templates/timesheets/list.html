@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+{% extends layout_template %}
 {% block title %}{% if employee_view %}My timesheets{% else %}Timesheets{% endif %} | Shiftly{% endblock %}
-{% block content %}
-<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>{% if employee_view %}My timesheets{% else %}Timesheets{% endif %}</h1><p class="muted">Completed shift records and review status</p></div></header>
+{% block app_content %}
+<header class="page-header"><div><h1>{% if employee_view %}My timesheets{% else %}Timesheets{% endif %}</h1><p class="muted">Completed shift records and review status</p></div></header>
 <section class="content-card wide-card">
   {% if can_review %}<form method="get" class="filters">
     <div class="field compact-field"><label for="id_start_date">From date</label>{{ filter_form.start_date }}</div><div class="field compact-field"><label for="id_end_date">To date</label>{{ filter_form.end_date }}</div><div class="field compact-field"><label for="id_employee">Employee</label>{{ filter_form.employee }}</div><div class="field compact-field"><label for="id_status">Status</label>{{ filter_form.status }}</div><button type="submit">Filter</button>

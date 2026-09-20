@@ -61,7 +61,12 @@ def shift_create(request):
     return render(
         request,
         "schedules/form.html",
-        {"form": form, "is_create": True, "has_employees": form.fields["employee"].queryset.exists()},
+        {
+            "form": form,
+            "is_create": True,
+            "organization": organization,
+            "has_employees": form.fields["employee"].queryset.exists(),
+        },
     )
 
 
@@ -99,7 +104,13 @@ def shift_edit(request, pk):
     return render(
         request,
         "schedules/form.html",
-        {"form": form, "is_create": False, "shift": shift, "has_employees": form.fields["employee"].queryset.exists()},
+        {
+            "form": form,
+            "is_create": False,
+            "shift": shift,
+            "organization": organization,
+            "has_employees": form.fields["employee"].queryset.exists(),
+        },
     )
 
 

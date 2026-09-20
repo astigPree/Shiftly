@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% block title %}{{ employee.full_name }} | Employees | Shiftly{% endblock %}
-{% block content %}
+{% block app_content %}
 <section class="content-card">
   <p><a href="{% url 'employees:list' %}">← Employees</a></p>
   <div class="page-header"><div><h1>{{ employee.full_name }}</h1><p class="muted">{{ employee.get_status_display }} · {{ employee.employee_code }}</p></div><a class="button-link" href="{% url 'employees:edit' employee.pk %}">Edit profile</a></div>

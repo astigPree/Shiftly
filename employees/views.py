@@ -25,6 +25,7 @@ def _employee_queryset(user):
 
 @employer_required
 def employee_list(request):
+    organization = organization_for_user(request.user)
     employees = _employee_queryset(request.user)
     query = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
@@ -49,6 +50,7 @@ def employee_list(request):
             "status_filter": status,
             "statuses": Employee.Status.choices,
             "total_count": employees.count(),
+            "organization": organization,
         },
     )
 
@@ -72,7 +74,7 @@ def employee_create(request):
         else:
             messages.success(request, f"Employee created. An activation link was sent to {employee.email}.")
             return redirect("employees:detail", pk=employee.pk)
-    return render(request, "employees/form.html", {"form": form, "is_create": True})
+    return render(request, "employees/form.html", {"form": form, "is_create": True, "organization": organization})
 
 
 @employer_required
@@ -82,7 +84,7 @@ def employee_detail(request, pk):
     return render(
         request,
         "employees/detail.html",
-        {"employee": employee, "latest_invitation": invitation},
+        {"employee": employee, "latest_invitation": invitation, "organization": employee.organization},
     )
 
 
@@ -125,7 +127,7 @@ def employee_edit(request, pk):
     return render(
         request,
         "employees/form.html",
-        {"form": form, "is_create": False, "employee": employee},
+        {"form": form, "is_create": False, "employee": employee, "organization": organization},
     )
 
 

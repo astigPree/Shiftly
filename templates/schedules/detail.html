@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+{% extends "layouts/employer.html" %}
 {% load tz %}
 {% block title %}Shift for {{ shift.employee.full_name }} | Shiftly{% endblock %}
-{% block content %}
+{% block app_content %}
 <section class="content-card">
   <p><a href="{% url 'schedules:list' %}">← Schedules</a></p>
   <div class="page-header"><div><h1>{{ shift.employee.full_name }}</h1><p class="muted">{{ shift.work_date|date:"l, F j, Y" }} · {{ organization.timezone }}</p></div><span class="status-badge status-{{ shift.status|lower }}">{{ shift.get_status_display }}</span></div>
