@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load static %}
 {% block body_class %}app-body{% endblock %}
 {% block page %}
 <div class="app-shell-root">
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell employer-shell">
   <aside class="app-sidebar" aria-label="Employer navigation">
-    <a class="shell-brand" href="{% url 'accounts:home' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
+    <a class="shell-brand" href="{% url 'accounts:home' %}"><img class="brand-mark" src="{% static 'assets/shiftly-mark.svg' %}" alt=""><span>Shiftly</span></a>
     <div class="organization-switcher"><span class="org-avatar" aria-hidden="true">{{ organization.name|first|upper }}</span><span class="org-label"><strong>{{ organization.name }}</strong><small>Organization</small></span></div>
     <nav class="primary-nav" aria-label="Employer navigation">
       <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'home' %} active{% endif %}" aria-label="Overview" href="{% url 'accounts:home' %}">{% include "components/icon.html" with icon_name="home" icon_class="nav-icon" %}<span class="nav-label">Overview</span></a>

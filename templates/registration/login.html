@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Sign in | Shiftly{% endblock %}
 {% block content %}
 <section class="auth-card" aria-labelledby="page-title">
-  <a class="brand" href="{% url 'accounts:index' %}">Shiftly</a>
+  <a class="brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
   <h1 id="page-title">Welcome back</h1>
   <p class="muted">Sign in to continue to your workspace.</p>
   {% if form.errors %}<div id="login-error" class="error-list" role="alert">Email or password is incorrect, or this account is inactive.</div>{% endif %}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 140" role="img" aria-labelledby="title description">
+  <title id="title">Shiftly</title>
+  <desc id="description">People. Time. Progress.</desc>
+  <defs>
+    <linearGradient id="shiftly-logo-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.52" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+  <path d="M92 24C82 15 68 10 53 10 30 10 14 24 14 43c0 17 13 24 34 26l22 2c21 2 36 13 36 30 0 17-16 27-40 27-19 0-35-7-45-18" fill="none" stroke="url(#shiftly-logo-gradient)" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="145" y="76" fill="#0f172a" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="62" font-weight="750" letter-spacing="-2.5">Shiftly</text>
+  <text x="148" y="111" fill="#64748b" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="25" font-weight="400" letter-spacing="0.1">People. Time. Progress.</text>
+</svg>

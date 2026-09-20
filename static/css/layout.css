@@ -33,14 +33,11 @@
   text-decoration: none;
 }
 .brand-mark {
-  display: grid;
+  display: block;
   width: 34px;
   height: 34px;
-  place-items: center;
-  color: var(--color-white);
-  background: var(--color-primary);
-  border-radius: var(--radius-md);
-  font-size: var(--text-lg);
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 .organization-switcher {
   display: flex;

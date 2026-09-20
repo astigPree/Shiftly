@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" role="img" aria-labelledby="title">
+  <title id="title">Shiftly mark</title>
+  <defs>
+    <linearGradient id="shiftly-mark-gradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.52" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+  <path d="M92 24C82 15 68 10 53 10 30 10 14 24 14 43c0 17 13 24 34 26l22 2c21 2 36 13 36 30 0 17-16 27-40 27-19 0-35-7-45-18" fill="none" stroke="url(#shiftly-mark-gradient)" stroke-width="19" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

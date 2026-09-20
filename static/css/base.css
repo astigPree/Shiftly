@@ -76,10 +76,15 @@ textarea {
   box-shadow: var(--shadow-card);
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
   color: var(--color-text);
-  font-size: var(--text-2xl);
-  font-weight: 750;
   text-decoration: none;
+}
+.auth-logo {
+  display: block;
+  width: min(100%, 280px);
+  height: auto;
 }
 h1 {
   margin: 20px 0 8px;

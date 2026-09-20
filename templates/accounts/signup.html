@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load form_tags %}
+{% load form_tags static %}
 {% block title %}Create your Shiftly workspace{% endblock %}
 {% block content %}
 <section class="auth-card" aria-labelledby="page-title">
-  <a class="brand" href="{% url 'accounts:index' %}">Shiftly</a>
+  <a class="brand" href="{% url 'accounts:index' %}"><img class="auth-logo" src="{% static 'assets/shiftly-logo.svg' %}" alt="Shiftly — People. Time. Progress."></a>
   <h1 id="page-title">Create your workspace</h1>
   <p class="muted">Set up your employer account and organization.</p>
   <form method="post" novalidate>

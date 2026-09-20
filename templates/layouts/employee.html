@@ -6,7 +6,7 @@
 <a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="employee-shell">
   <header class="employee-topbar">
-    <a class="shell-brand" href="{% url 'attendance:my_attendance' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
+    <a class="shell-brand" href="{% url 'attendance:my_attendance' %}"><img class="brand-mark" src="{% static 'assets/shiftly-mark.svg' %}" alt=""><span>Shiftly</span></a>
     <span class="employee-org">{{ organization.name }}</span>
     <details class="account-menu">
       <summary><span class="account-avatar" aria-hidden="true">{{ request.user.first_name|first|upper|default:"E" }}</span><span class="account-name"><strong>{{ request.user.get_full_name|default:request.user.email }}</strong><small>Employee</small></span><span aria-hidden="true">⌄</span></summary>
