@@ -1,18 +1,119 @@
 {% extends "layouts/employer.html" %}
+{% load static %}
 {% block title %}Employees | Shiftly{% endblock %}
 {% block app_content %}
-<header class="page-header"><div><h1>Employees</h1><p class="muted">{{ total_count }} employee{{ total_count|pluralize }} in your organization</p></div><a class="button-link" href="{% url 'employees:create' %}">Add employee</a></header>
-<section class="content-card wide-card">
-  <form method="get" class="filters">
-    <div class="field compact-field filter-search-field"><label for="id_q">Search employees</label><input id="id_q" type="search" name="q" value="{{ query }}" placeholder="Name, code, email, or job title"></div>
-    <div class="field compact-field"><label for="id_status">Status</label><select id="id_status" name="status"><option value="">All statuses</option>{% for value,label in statuses %}<option value="{{ value }}"{% if status_filter == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
-    <button type="submit">Filter</button>
-  </form>
-  {% if page.object_list %}
-  <div class="table-wrap"><table class="employee-list-table"><thead><tr><th scope="col">Employee</th><th scope="col">Code</th><th scope="col">Job title</th><th scope="col">Status</th><th scope="col">Account</th><th scope="col">Actions</th></tr></thead><tbody>
-    {% for employee in page.object_list %}<tr><td><a href="{% url 'employees:detail' employee.pk %}">{{ employee.full_name }}</a><br><span class="muted">{{ employee.email }}</span></td><td>{{ employee.employee_code }}</td><td>{{ employee.job_title|default:"—" }}</td><td><span class="status-badge status-{{ employee.status|lower }}">{{ employee.get_status_display }}</span></td><td>{% if employee.user_id %}Activated{% else %}Invitation pending{% endif %}</td><td><a href="{% url 'employees:edit' employee.pk %}">Edit</a></td></tr>{% endfor %}
-  </tbody></table></div>
-  {% else %}<div class="empty-state"><h2>No employees found</h2><p>{% if query or status_filter %}Try changing your search or status filter.{% else %}Add an employee to start assigning shifts.{% endif %}</p>{% if not query and not status_filter %}<a class="button-link" href="{% url 'employees:create' %}">Add first employee</a>{% endif %}</div>{% endif %}
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Employee pages">{% if page.has_previous %}<a href="?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+<section class="employee-directory" aria-labelledby="employee-directory-title">
+  <header class="employee-directory-header">
+    <div>
+      <h1 id="employee-directory-title">Employees</h1>
+      <p class="employee-directory-summary" aria-label="Employee totals">
+        <span>{{ total_count }} employee{{ total_count|pluralize }}</span>
+        <span class="summary-separator" aria-hidden="true">·</span>
+        <span class="summary-active">{{ active_count }} active</span>
+        <span class="summary-separator" aria-hidden="true">·</span>
+        <span>{{ inactive_count }} inactive</span>
+      </p>
+    </div>
+    <a class="button-link employee-add-button" href="{% url 'employees:create' %}">
+      {% include "components/icon.html" with icon_name="user-plus" icon_class="employee-add-icon" %}
+      <span>Add employee</span>
+    </a>
+  </header>
+
+  <section class="employee-directory-card" aria-label="Employee directory results">
+    {% if total_count %}
+      <form method="get" class="employee-directory-toolbar" role="search">
+        <input type="hidden" name="per_page" value="{{ page_size }}">
+        <div class="employee-search-field">
+          <label class="visually-hidden" for="id_q">Search employees</label>
+          {% include "components/icon.html" with icon_name="search" icon_class="employee-search-icon" %}
+          <input id="id_q" type="search" name="q" value="{{ query }}" placeholder="Search by name, code, email, or job title">
+        </div>
+        <div class="employee-status-field">
+          <label class="visually-hidden" for="id_status">Filter by employee status</label>
+          <select id="id_status" name="status">
+            <option value="">All statuses</option>
+            {% for value,label in statuses %}<option value="{{ value }}"{% if status_filter == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <button class="button-secondary employee-filter-button" type="submit">Apply</button>
+        {% if query or status_filter %}<a class="employee-clear-button" href="{% url 'employees:list' %}">{% include "components/icon.html" with icon_name="refresh" icon_class="employee-clear-icon" %}<span>Clear filters</span></a>{% endif %}
+      </form>
+
+      {% if page.paginator.count %}
+        <div class="employee-results-meta" role="status" aria-live="polite">
+          {% if query or status_filter %}
+            <p><strong>{{ page.paginator.count }} matching employee{{ page.paginator.count|pluralize }}</strong><span>Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} matches from {{ total_count }} total.</span></p>
+          {% else %}
+            <p>Showing {{ page.start_index }}–{{ page.end_index }} of {{ total_count }} employee{{ total_count|pluralize }}</p>
+          {% endif %}
+        </div>
+        <div class="table-wrap employee-directory-table-wrap" tabindex="0" aria-label="Scrollable employee directory">
+          <table class="employee-directory-table">
+            <caption class="visually-hidden">Employees in {{ organization.name }}</caption>
+            <thead><tr><th scope="col">Employee</th><th scope="col">Code</th><th scope="col">Job title</th><th scope="col">Status</th><th scope="col">Account</th><th scope="col">Actions</th></tr></thead>
+            <tbody>
+              {% for employee in page.object_list %}
+                <tr>
+                  <td>
+                    <div class="employee-identity">
+                      <span class="employee-avatar employee-avatar--{% cycle 'blue' 'violet' 'rose' 'green' %}" aria-hidden="true">{{ employee.first_name|first|upper }}{{ employee.last_name|first|upper }}</span>
+                      <div class="employee-identity-copy">
+                        <a class="employee-name" href="{% url 'employees:detail' employee.pk %}">{{ employee.full_name }}</a>
+                        <span class="employee-email">{{ employee.email }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="employee-code">{{ employee.employee_code }}</td>
+                  <td>{{ employee.job_title|default:"—" }}</td>
+                  <td><span class="status-badge status-{{ employee.status|lower }}">{{ employee.get_status_display }}</span></td>
+                  <td><span class="account-state account-state--{{ employee.account_state_class }}">{{ employee.account_state_label }}</span></td>
+                  <td><a class="employee-edit-link" href="{% url 'employees:edit' employee.pk %}" aria-label="Edit {{ employee.full_name }}">Edit</a></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="employee-directory-footer">
+          <form method="get" class="employee-page-size-form">
+            {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+            {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+            <label for="id_per_page">Rows per page</label>
+            <select id="id_per_page" name="per_page" data-submit-on-change>
+              {% for option in page_size_choices %}<option value="{{ option }}"{% if page_size == option %} selected{% endif %}>{{ option }}</option>{% endfor %}
+            </select>
+            <noscript><button type="submit">Apply</button></noscript>
+          </form>
+          {% if page.paginator.num_pages > 1 %}
+            <nav class="employee-pagination" aria-label="Employee pages">
+              {% if page.has_previous %}<a class="pagination-arrow" href="?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&per_page={{ page_size }}&page={{ page.previous_page_number }}" aria-label="Previous page">{% include "components/icon.html" with icon_name="chevron-left" icon_class="pagination-icon" %}</a>{% else %}<span class="pagination-arrow is-disabled" aria-disabled="true">{% include "components/icon.html" with icon_name="chevron-left" icon_class="pagination-icon" %}</span>{% endif %}
+              {% for item in pagination_items %}
+                {% if item %}
+                  {% if item == page.number %}<span class="page-number is-current" aria-current="page">{{ item }}</span>{% else %}<a class="page-number" href="?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&per_page={{ page_size }}&page={{ item }}" aria-label="Page {{ item }}">{{ item }}</a>{% endif %}
+                {% else %}<span class="pagination-ellipsis" aria-hidden="true">…</span>{% endif %}
+              {% endfor %}
+              {% if page.has_next %}<a class="pagination-arrow" href="?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&per_page={{ page_size }}&page={{ page.next_page_number }}" aria-label="Next page">{% include "components/icon.html" with icon_name="chevron-right" icon_class="pagination-icon" %}</a>{% else %}<span class="pagination-arrow is-disabled" aria-disabled="true">{% include "components/icon.html" with icon_name="chevron-right" icon_class="pagination-icon" %}</span>{% endif %}
+            </nav>
+          {% endif %}
+        </footer>
+      {% else %}
+        <div class="employee-empty-state" role="status">
+          <span class="employee-empty-icon">{% include "components/icon.html" with icon_name="users" %}</span>
+          <h2>No employees match your filters</h2>
+          <p>Try another name or status, or clear the filters to see everyone in your organization.</p>
+          <a class="form-cancel-link" href="{% url 'employees:list' %}">Clear filters</a>
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="employee-empty-state" role="status">
+        <span class="employee-empty-icon">{% include "components/icon.html" with icon_name="users" %}</span>
+        <h2>No employees yet</h2>
+        <p>Add your first employee to start building your Shiftly workforce.</p>
+        <a class="button-link" href="{% url 'employees:create' %}">Add first employee</a>
+      </div>
+    {% endif %}
+  </section>
 </section>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/employee-list.js' %}" defer></script>{% endblock %}

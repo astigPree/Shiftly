@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Prefetch, Q
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -29,7 +29,21 @@ def _employee_queryset(user):
 @require_GET
 def employee_list(request):
     organization = organization_for_user(request.user)
-    employees = _employee_queryset(request.user)
+    all_employees = _employee_queryset(request.user)
+    summary = all_employees.aggregate(
+        total_count=Count("id"),
+        active_count=Count("id", filter=Q(status=Employee.Status.ACTIVE)),
+        inactive_count=Count("id", filter=Q(status=Employee.Status.INACTIVE)),
+    )
+    employees = all_employees.prefetch_related(
+        Prefetch(
+            "invitations",
+            queryset=EmployeeInvitation.objects.only(
+                "id", "employee_id", "expires_at", "accepted_at", "revoked_at"
+            ).order_by("-created_at")[:1],
+            to_attr="latest_list_invitations",
+        )
+    )
     query = request.GET.get("q", "").strip()
     status = request.GET.get("status", "")
     if query:
@@ -43,7 +57,58 @@ def employee_list(request):
     valid_statuses = {choice for choice, _label in Employee.Status.choices}
     if status in valid_statuses:
         employees = employees.filter(status=status)
-    page = Paginator(employees, 20).get_page(request.GET.get("page"))
+    else:
+        status = ""
+
+    page_size_choices = (10, 20, 50)
+    try:
+        page_size = int(request.GET.get("per_page", 20))
+    except (TypeError, ValueError):
+        page_size = 20
+    if page_size not in page_size_choices:
+        page_size = 20
+
+    page = Paginator(employees, page_size).get_page(request.GET.get("page"))
+    page_count = page.paginator.num_pages
+    if page_count <= 7:
+        pagination_items = list(range(1, page_count + 1))
+    else:
+        first_page = max(1, min(page.number - 1, page_count - 2))
+        last_page = min(page_count, max(page.number + 1, 3))
+        pagination_items = [1]
+        if first_page > 2:
+            pagination_items.append(None)
+        pagination_items.extend(range(max(2, first_page), min(page_count, last_page + 1)))
+        if last_page < page_count - 1:
+            pagination_items.append(None)
+        pagination_items.append(page_count)
+
+    now = timezone.now()
+    for employee in page.object_list:
+        invitation = employee.latest_list_invitations[0] if employee.latest_list_invitations else None
+        if employee.user_id:
+            if employee.user.is_active:
+                employee.account_state_label = "Activated"
+                employee.account_state_class = "activated"
+            else:
+                employee.account_state_label = "Access disabled"
+                employee.account_state_class = "disabled"
+        elif invitation is None:
+            employee.account_state_label = "Not invited"
+            employee.account_state_class = "not-invited"
+        elif invitation.accepted_at:
+            employee.account_state_label = "Invitation accepted"
+            employee.account_state_class = "accepted"
+        elif invitation.revoked_at:
+            employee.account_state_label = "Invitation revoked"
+            employee.account_state_class = "revoked"
+        elif invitation.expires_at <= now:
+            employee.account_state_label = "Invitation expired"
+            employee.account_state_class = "expired"
+        else:
+            employee.account_state_label = "Invitation sent"
+            employee.account_state_class = "sent"
+
     return render(
         request,
         "employees/list.html",
@@ -52,7 +117,10 @@ def employee_list(request):
             "query": query,
             "status_filter": status,
             "statuses": Employee.Status.choices,
-            "total_count": employees.count(),
+            **summary,
+            "page_size": page_size,
+            "page_size_choices": page_size_choices,
+            "pagination_items": pagination_items,
             "organization": organization,
         },
     )
