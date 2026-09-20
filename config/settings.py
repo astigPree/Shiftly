@@ -8,6 +8,32 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _load_dotenv(path):
+    """Load simple KEY=VALUE entries without overriding existing environment vars."""
+    if not path.is_file():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+
+        name, separator, value = line.partition("=")
+        if not separator:
+            continue
+        name = name.strip()
+        value = value.strip()
+        if value[:1] in {"'", '"'} and value[-1:] == value[:1]:
+            value = value[1:-1]
+        if name:
+            os.environ.setdefault(name, value)
+
+
+_load_dotenv(BASE_DIR / ".env")
+
+
 def _env_bool(name, default=False):
     value = os.environ.get(name)
     if value is None:

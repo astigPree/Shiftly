@@ -18,13 +18,12 @@ Confirm that `python --version` reports Python 3.9, then install the development
 ```cmd
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+copy .env.example .env
 ```
 
-Set development mode in the same Command Prompt window. Django will create and use the ignored `db.sqlite3` file in the project directory:
+Open `.env` and replace `SECRET_KEY` with a unique random value for your machine. Django loads this project-root file automatically when it starts. Existing Windows environment variables take precedence over values in `.env`. With `DEBUG=true`, local development uses the ignored `db.sqlite3` file and console email backend; you do not need to run `set DEBUG=true` in each terminal.
 
-```cmd
-set DEBUG=true
-```
+Do not use the development `.env` settings in production. Production should provide its own environment variables, including `SECRET_KEY`, `DEBUG=false`, `ALLOWED_HOSTS`, and `DATABASE_URL`.
 
 Apply database migrations and start Django's development server:
 
@@ -33,6 +32,6 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-Open <http://127.0.0.1:8000/signup/> to create the first employer workspace. Command Prompt environment variables last only for the current window, so set `DEBUG` again in a new one. Production remains configured for PostgreSQL through `DATABASE_URL`.
+Open <http://127.0.0.1:8000/signup/> to create the first employer workspace. Production remains configured for PostgreSQL through `DATABASE_URL`.
 
 The root `requirements.txt` installs the shared application dependencies for development. The PostgreSQL adapter and Gunicorn are kept in `requirements/production.txt`.
