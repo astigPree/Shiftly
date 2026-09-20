@@ -19,6 +19,11 @@ from .services import cancel_shift, create_shift, update_shift
 from timesheets.models import Timesheet
 
 
+def _shift_duration_label(minutes):
+    hours, remainder = divmod(max(0, minutes), 60)
+    return f"{hours}h {remainder:02d}m" if hours else f"{remainder}m"
+
+
 def _scoped_shifts(user):
     organization = organization_for_user(user)
     return Shift.objects.none() if organization is None else Shift.objects.filter(organization=organization).select_related("employee")
@@ -244,17 +249,20 @@ def shift_detail(request, pk):
     shift = get_object_or_404(
         _scoped_shifts(request.user).select_related("attendance_session"), pk=pk
     )
+    shift_session = getattr(shift, "attendance_session", None)
+    shift_state = attendance_state(shift)
     return render(
         request,
         "schedules/detail.html",
         {
             "shift": shift,
             "organization": organization,
-            "shift_state": attendance_state(shift),
-            "can_manage_shift": (
-                shift.status == Shift.Status.SCHEDULED
-                and getattr(shift, "attendance_session", None) is None
-            ),
+            "shift_state": shift_state,
+            "can_manage_shift": shift.status == Shift.Status.SCHEDULED and shift_session is None,
+            "shift_session": shift_session,
+            "scheduled_duration_label": _shift_duration_label(shift.scheduled_minutes),
+            "gross_duration_label": _shift_duration_label(shift.scheduled_gross_minutes),
+            "is_long_shift": shift.scheduled_gross_minutes > 12 * 60,
         },
     )
 

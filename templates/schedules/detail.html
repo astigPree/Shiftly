@@ -1,11 +1,102 @@
 {% extends "layouts/employer.html" %}
 {% load tz %}
-{% block title %}Shift for {{ shift.employee.full_name }} | Shiftly{% endblock %}
+{% block title %}Shift details · {{ shift.employee.full_name }} | Shiftly{% endblock %}
 {% block app_content %}
-<section class="content-card">
-  <p><a href="{% url 'schedules:list' %}">← Schedules</a></p>
-  <div class="page-header"><div><h1>{{ shift.employee.full_name }}</h1><p class="muted">{{ shift.work_date|date:"l, F j, Y" }} · {{ organization.timezone }}</p></div><span class="status-badge status-{{ shift_state.code|lower }}">{{ shift_state.label }}</span></div>
-  <dl class="detail-list"><dt>Employee code</dt><dd>{{ shift.employee.employee_code }}</dd><dt>Scheduled start</dt><dd>{{ shift.scheduled_start|timezone:organization.timezone|date:"M j, Y, g:i:s A T" }}</dd><dt>Scheduled end</dt><dd>{{ shift.scheduled_end|timezone:organization.timezone|date:"M j, Y, g:i:s A T" }}</dd><dt>Scheduled duration</dt><dd>{{ shift.scheduled_gross_minutes }} gross minutes · {{ shift.scheduled_minutes }} scheduled minutes after allowance</dd><dt>Unpaid break allowance</dt><dd>{{ shift.scheduled_break_minutes }} minutes</dd></dl>
-  {% if can_manage_shift %}<div class="subsection"><a class="button-link" href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><form class="inline-form" method="post" action="{% url 'schedules:cancel' shift.pk %}" onsubmit="return window.confirm('Cancel this shift? This action will be recorded in the audit log.');">{% csrf_token %}<button class="button-danger" type="submit">Cancel shift</button></form><p class="muted">Once attendance begins, the shift cannot be edited or cancelled.</p></div>{% elif shift.status == "SCHEDULED" %}<div class="subsection"><p class="muted">Attendance has started. This shift can no longer be edited or cancelled.</p></div>{% endif %}
-</section>
+<div class="shift-detail-page">
+  <p class="shift-detail-back"><a href="{% url 'schedules:list' %}">{% include "components/icon.html" with icon_name="chevron-left" icon_class="shift-back-icon" %}<span>Schedules</span></a></p>
+
+  <header class="shift-detail-heading">
+    <div class="shift-detail-heading-main">
+      <h1>Shift details</h1>
+      <div class="shift-detail-employee-heading">
+        <span class="shift-employee-avatar" aria-hidden="true">{{ shift.employee.first_name|first|upper }}{{ shift.employee.last_name|first|upper }}</span>
+        <div>
+          <h2>{{ shift.employee.full_name }}</h2>
+          <p>{{ shift.employee.job_title|default:"Employee" }} <span aria-hidden="true">·</span> Employee #{{ shift.employee.employee_code }}</p>
+        </div>
+      </div>
+      <p class="shift-detail-date">{{ shift.work_date|date:"l, F j, Y" }} · {{ organization.timezone }}</p>
+    </div>
+    <span class="status-badge status-{{ shift_state.code|lower }} shift-detail-status">{{ shift_state.label }}</span>
+  </header>
+
+  <section class="shift-time-card" aria-labelledby="scheduled-time-title">
+    <header class="shift-detail-card-heading">
+      <span class="shift-detail-icon">{% include "components/icon.html" with icon_name="calendar" %}</span>
+      <h2 id="scheduled-time-title">Scheduled time</h2>
+    </header>
+    <div class="shift-time-line">
+      <div class="shift-time-point">
+        <span class="shift-time-label">Start</span>
+        <strong>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}</strong>
+        <span>{{ shift.scheduled_start|timezone:organization.timezone|date:"M j, Y · l" }}</span>
+      </div>
+      <span class="shift-time-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="arrow-right" %}</span>
+      <div class="shift-time-point">
+        <span class="shift-time-label">End</span>
+        <strong>{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</strong>
+        <span>{{ shift.scheduled_end|timezone:organization.timezone|date:"M j, Y · l" }}</span>
+      </div>
+      {% if shift.is_overnight %}<span class="shift-overnight-badge">{% include "components/icon.html" with icon_name="moon" %}<span>Overnight</span></span>{% endif %}
+    </div>
+    <div class="shift-time-summary">
+      <div><span class="shift-detail-icon shift-detail-icon--muted">{% include "components/icon.html" with icon_name="clock" %}</span><span><strong>{{ scheduled_duration_label }}</strong> scheduled</span></div>
+      <span class="shift-time-summary-divider" aria-hidden="true"></span>
+      <div><span class="shift-detail-icon shift-detail-icon--muted">{% include "components/icon.html" with icon_name="coffee" %}</span><span>Unpaid break: <strong>{{ shift.scheduled_break_minutes }}m</strong></span></div>
+    </div>
+  </section>
+
+  {% if is_long_shift %}
+    <aside class="shift-long-warning" role="note" aria-label="Long shift notice">
+      <span class="shift-warning-icon">{% include "components/icon.html" with icon_name="alert" %}</span>
+      <div><strong>Long shift</strong><p>This shift spans {{ gross_duration_label }}. Review the start and end times if this wasn’t intended.</p></div>
+    </aside>
+  {% endif %}
+
+  <div class="shift-detail-info-grid">
+    <section class="shift-detail-panel" aria-labelledby="assigned-employee-title">
+      <header class="shift-detail-panel-heading">
+        <span class="shift-detail-icon">{% include "components/icon.html" with icon_name="user" %}</span>
+        <h2 id="assigned-employee-title">Assigned employee</h2>
+        <a href="{% url 'employees:detail' shift.employee.pk %}">View employee <span aria-hidden="true">→</span></a>
+      </header>
+      <div class="shift-assigned-employee">
+        <span class="shift-employee-avatar shift-employee-avatar--large" aria-hidden="true">{{ shift.employee.first_name|first|upper }}{{ shift.employee.last_name|first|upper }}</span>
+        <div><strong>{{ shift.employee.full_name }}</strong><span>{{ shift.employee.job_title|default:"Employee" }}</span><span>Employee #{{ shift.employee.employee_code }}</span></div>
+      </div>
+    </section>
+
+    <section class="shift-detail-panel" aria-labelledby="shift-information-title">
+      <header class="shift-detail-panel-heading">
+        <span class="shift-detail-icon">{% include "components/icon.html" with icon_name="file" %}</span>
+        <h2 id="shift-information-title">Shift information</h2>
+      </header>
+      <dl class="shift-information-list">
+        <div><dt>Work date</dt><dd>{{ shift.work_date|date:"M j, Y" }}</dd></div>
+        <div><dt>Time zone</dt><dd>{{ organization.timezone }}</dd></div>
+        <div><dt>Status</dt><dd><span class="status-badge status-{{ shift_state.code|lower }}">{{ shift_state.label }}</span></dd></div>
+        <div><dt>Break allowance</dt><dd>{{ shift.scheduled_break_minutes }} minutes</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="shift-controls-panel" aria-labelledby="shift-controls-title">
+    <header class="shift-controls-heading">
+      <span class="shift-detail-icon">{% include "components/icon.html" with icon_name="settings" %}</span>
+      <div><h2 id="shift-controls-title">Shift controls</h2>
+        {% if can_manage_shift %}<p>You can modify this shift until attendance begins.</p>{% elif shift.status == "CANCELLED" %}<p>This shift is cancelled. Its details remain available for reference.</p>{% elif shift_state.code == "COMPLETED" %}<p>Attendance is complete. This shift is locked for editing and cancellation.</p>{% else %}<p>Attendance has started. This shift is locked for editing and cancellation.</p>{% endif %}
+      </div>
+    </header>
+    {% if can_manage_shift %}
+      <div class="shift-control-actions">
+        <a class="button-link shift-edit-button" href="{% url 'schedules:edit' shift.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit shift</span></a>
+        <form method="post" action="{% url 'schedules:cancel' shift.pk %}" onsubmit="return window.confirm('Cancel this shift? This action will be recorded in the audit log.');">
+          {% csrf_token %}
+          <button class="shift-cancel-button" type="submit">{% include "components/icon.html" with icon_name="trash" icon_class="button-icon" %}<span>Cancel shift</span></button>
+        </form>
+      </div>
+      <p class="shift-controls-help">Once attendance begins, this shift will be locked for editing and cancellation.</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}
