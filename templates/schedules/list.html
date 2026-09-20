@@ -2,19 +2,124 @@
 {% load tz %}
 {% block title %}Schedules | Shiftly{% endblock %}
 {% block app_content %}
-<header class="page-header"><div><h1>Schedules</h1><p class="muted">One-off shifts for {{ organization.name }} · {{ organization.timezone }}</p></div><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></header>
-<section class="content-card wide-card">
-  <form method="get" class="filters">
-    <div class="field compact-field"><label for="id_start_date">From date</label>{{ filter_form.start_date }}</div>
-    <div class="field compact-field"><label for="id_end_date">To date</label>{{ filter_form.end_date }}</div>
-    <div class="field compact-field"><label for="id_employee">Employee</label>{{ filter_form.employee }}</div>
-    <div class="field compact-field"><label for="id_status">Status</label>{{ filter_form.status }}</div>
-    <button type="submit">Filter</button>
+<div class="schedules-page">
+  <header class="schedules-page-heading">
+    <div>
+      <h1>Schedules</h1>
+      <p>Manage one-off shifts for {{ organization.name }} · {{ organization.timezone }}</p>
+    </div>
+    <a class="button-link schedules-create-button" href="{% url 'schedules:create' %}">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}<span>Schedule shift</span></a>
+  </header>
+
+  <section class="schedule-summary-grid" aria-label="Shift summary">
+    <a class="schedule-summary-card schedule-summary-card--blue" href="{% url 'schedules:list' %}">
+      <span class="schedule-summary-icon">{% include "components/icon.html" with icon_name="calendar" %}</span>
+      <span class="schedule-summary-copy"><strong>{{ summary.total_count }}</strong><span>Total shifts</span></span>
+      <span class="schedule-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="schedule-summary-card schedule-summary-card--green" href="{% url 'schedules:list' %}?status=SCHEDULED">
+      <span class="schedule-summary-icon"><span class="schedule-summary-dot" aria-hidden="true"></span></span>
+      <span class="schedule-summary-copy"><strong>{{ summary.upcoming_count }}</strong><span>Scheduled</span><small>Awaiting start</small></span>
+      <span class="schedule-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="schedule-summary-card schedule-summary-card--green" href="{% url 'schedules:list' %}?status=COMPLETED">
+      <span class="schedule-summary-icon">{% include "components/icon.html" with icon_name="check-circle" %}</span>
+      <span class="schedule-summary-copy"><strong>{{ summary.completed_count }}</strong><span>Completed</span></span>
+      <span class="schedule-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+    <a class="schedule-summary-card schedule-summary-card--red" href="{% url 'schedules:list' %}?status=CANCELLED">
+      <span class="schedule-summary-icon">{% include "components/icon.html" with icon_name="close" %}</span>
+      <span class="schedule-summary-copy"><strong>{{ summary.cancelled_count }}</strong><span>Cancelled</span></span>
+      <span class="schedule-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
+  </section>
+
+  <form method="get" action="{% url 'schedules:list' %}" class="schedule-filter-panel" aria-labelledby="schedule-filter-heading">
+    <div class="schedule-filter-heading">
+      <h2 id="schedule-filter-heading">Filter shifts</h2>
+      <p>{% include "components/icon.html" with icon_name="info" icon_class="schedule-info-icon" %}<span>One-off shifts only</span></p>
+    </div>
+    <div class="schedule-filter-fields">
+      <div class="schedule-filter-field">
+        <label for="id_start_date">From date</label>
+        <div class="schedule-filter-control schedule-filter-control--date">{% include "components/icon.html" with icon_name="calendar" icon_class="schedule-input-icon" %}{{ filter_form.start_date }}</div>
+      </div>
+      <div class="schedule-filter-field">
+        <label for="id_end_date">To date</label>
+        <div class="schedule-filter-control schedule-filter-control--date">{% include "components/icon.html" with icon_name="calendar" icon_class="schedule-input-icon" %}{{ filter_form.end_date }}</div>
+      </div>
+      <div class="schedule-filter-field">
+        <label for="id_employee">Employee</label>
+        <div class="schedule-filter-control">{{ filter_form.employee }}</div>
+      </div>
+      <div class="schedule-filter-field">
+        <label for="id_status">Status</label>
+        <div class="schedule-filter-control">{{ filter_form.status }}</div>
+      </div>
+      <div class="schedule-filter-actions">
+        <button type="submit">Apply filters</button>
+        <a class="schedule-clear-button" href="{% url 'schedules:list' %}">Clear</a>
+      </div>
+    </div>
+    {% if filter_form.errors %}<div class="error-list" role="alert">Correct the filters to apply them.</div>{% endif %}
   </form>
-  {% if filter_form.errors %}<div class="error-list" role="alert">Correct the schedule filters to apply them.</div>{% endif %}
-  {% if page.object_list %}<div class="table-wrap"><table class="schedule-table"><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Break allowance</th><th scope="col">Status</th></tr></thead><tbody>
-    {% for shift in page.object_list %}<tr><td><a href="{% url 'schedules:detail' shift.pk %}">{{ shift.work_date|date:"D, M j, Y" }}</a></td><td>{{ shift.employee.full_name }}<br><span class="muted">{{ shift.employee.employee_code }}</span></td><td>{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}{% if shift.is_overnight %}<span class="muted"> (overnight)</span>{% endif %}</td><td>{{ shift.scheduled_break_minutes }} min</td><td><span class="status-badge status-{{ shift.status|lower }}">{{ shift.get_status_display }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% else %}<div class="empty-state"><h2>No shifts found</h2><p>{% if request.GET %}Try adjusting the date or employee filters.{% else %}Create a one-off shift and assign it to an employee.{% endif %}</p>{% if not request.GET %}<a class="button-link" href="{% url 'schedules:create' %}">Schedule first shift</a>{% endif %}</div>{% endif %}
-  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Schedule pages">{% if page.has_previous %}<a href="?{{ request.GET.urlencode }}&page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?{{ request.GET.urlencode }}&page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
-</section>
+
+  <section class="schedule-table-panel" aria-labelledby="schedule-table-heading">
+    <header class="schedule-table-heading">
+      <h2 id="schedule-table-heading">Schedules <span>(One-off shifts)</span></h2>
+      <p>{% if page.paginator.count %}Showing {{ showing_start }}–{{ showing_end }} of {{ page.paginator.count }} shifts{% else %}Showing 0 shifts{% endif %}</p>
+    </header>
+    {% if page.object_list %}
+      <div class="schedule-table-wrap">
+        <table class="schedule-list-table">
+          <thead><tr>
+            <th scope="col"{% if sort_key == "work_date" %} aria-sort="{% if direction == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}><a class="schedule-sort-link" href="{{ sort_links.work_date }}">Work date <span aria-hidden="true">{% if sort_key == "work_date" %}{% if direction == "asc" %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span></a></th>
+            <th scope="col"{% if sort_key == "employee" %} aria-sort="{% if direction == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}><a class="schedule-sort-link" href="{{ sort_links.employee }}">Employee <span aria-hidden="true">{% if sort_key == "employee" %}{% if direction == "asc" %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span></a></th>
+            <th scope="col"{% if sort_key == "shift" %} aria-sort="{% if direction == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}><a class="schedule-sort-link" href="{{ sort_links.shift }}">Shift <span aria-hidden="true">{% if sort_key == "shift" %}{% if direction == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span></a></th>
+            <th scope="col"{% if sort_key == "break" %} aria-sort="{% if direction == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}><a class="schedule-sort-link" href="{{ sort_links.break }}">Break allowance <span aria-hidden="true">{% if sort_key == "break" %}{% if direction == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span></a></th>
+            <th scope="col"{% if sort_key == "status" %} aria-sort="{% if direction == 'asc' %}ascending{% else %}descending{% endif %}"{% endif %}><a class="schedule-sort-link" href="{{ sort_links.status }}">Status <span aria-hidden="true">{% if sort_key == "status" %}{% if direction == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span></a></th>
+            <th scope="col" class="schedule-actions-heading">Actions</th>
+          </tr></thead>
+          <tbody>
+            {% for shift in page.object_list %}
+              <tr>
+                <td><a class="schedule-date-link" href="{% url 'schedules:detail' shift.pk %}">{{ shift.work_date|date:"D, M j, Y" }}</a></td>
+                <td><span class="schedule-employee-name">{{ shift.employee.full_name }}</span><span class="schedule-employee-code">{{ shift.employee.employee_code }}</span></td>
+                <td><span class="schedule-time">{{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</span>{% if shift.is_overnight %}<span class="schedule-overnight">(overnight)</span>{% endif %}</td>
+                <td>{{ shift.scheduled_break_minutes }} min</td>
+                <td><span class="status-badge status-{{ shift.attendance_state.code|lower }}">{{ shift.attendance_state.label }}</span></td>
+                <td class="schedule-actions-cell">
+                  <details class="schedule-row-menu">
+                    <summary aria-label="Actions for {{ shift.employee.full_name }} on {{ shift.work_date|date:'M j, Y' }}"><span aria-hidden="true">•••</span></summary>
+                    <div class="schedule-row-menu-popover">
+                      <a href="{% url 'schedules:detail' shift.pk %}">View shift</a>
+                      {% if shift.can_manage %}<a href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><form method="post" action="{% url 'schedules:cancel' shift.pk %}" onsubmit="return window.confirm('Cancel this shift? This action will be recorded in the audit log.');">{% csrf_token %}<button type="submit" class="schedule-menu-danger">Cancel shift</button></form>{% endif %}
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <footer class="schedule-table-footer">
+        <p>Showing {{ showing_start }}–{{ showing_end }} of {{ page.paginator.count }} shifts</p>
+        {% if page.paginator.num_pages > 1 %}
+          <nav class="schedule-pagination" aria-label="Schedule pages">
+            {% if page.has_previous %}<a class="schedule-pagination-direction" href="{% if querystring %}?{{ querystring }}&amp;{% else %}?{% endif %}page={{ page.previous_page_number }}"><span aria-hidden="true">‹</span> Previous</a>{% else %}<span class="schedule-pagination-direction is-disabled"><span aria-hidden="true">‹</span> Previous</span>{% endif %}
+            {% for page_number in pagination_items %}
+              {% if page_number %}<a class="schedule-pagination-page{% if page.number == page_number %} is-current{% endif %}" href="{% if querystring %}?{{ querystring }}&amp;{% else %}?{% endif %}page={{ page_number }}"{% if page.number == page_number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% else %}<span class="schedule-pagination-ellipsis" aria-hidden="true">…</span>{% endif %}
+            {% endfor %}
+            {% if page.has_next %}<a class="schedule-pagination-direction" href="{% if querystring %}?{{ querystring }}&amp;{% else %}?{% endif %}page={{ page.next_page_number }}">Next <span aria-hidden="true">›</span></a>{% else %}<span class="schedule-pagination-direction is-disabled">Next <span aria-hidden="true">›</span></span>{% endif %}
+          </nav>
+        {% endif %}
+      </footer>
+    {% else %}
+      <div class="schedule-list-empty">
+        {% include "components/icon.html" with icon_name="calendar" icon_class="schedule-empty-icon" %}
+        {% if has_filters %}<h3>No shifts match these filters</h3><p>Change the date range, employee, or status and try again.</p><a class="schedule-clear-button" href="{% url 'schedules:list' %}">Clear filters</a>{% else %}<h3>No shifts scheduled yet</h3><p>Schedule a one-off shift to assign a work date and hours to an employee.</p><a class="button-link" href="{% url 'schedules:create' %}">Schedule the first shift</a>{% endif %}
+      </div>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

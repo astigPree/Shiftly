@@ -1,17 +1,29 @@
 from django import forms
 
 from employees.models import Employee
-from .models import Shift
 
 
 class ShiftFilterForm(forms.Form):
     start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     employee = forms.ModelChoiceField(queryset=Employee.objects.none(), required=False)
-    status = forms.ChoiceField(required=False, choices=[("", "All statuses"), *Shift.Status.choices])
+    status = forms.ChoiceField(
+        required=False,
+        choices=[
+            ("", "All statuses"),
+            ("SCHEDULED", "Scheduled"),
+            ("WORKING", "Working"),
+            ("ON_BREAK", "On break"),
+            ("LATE", "Late"),
+            ("ABSENT", "Absent"),
+            ("COMPLETED", "Completed"),
+            ("CANCELLED", "Cancelled"),
+        ],
+    )
 
     def __init__(self, *args, organization, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["employee"].empty_label = "All employees"
         self.fields["employee"].queryset = Employee.objects.filter(
             organization=organization
         ).order_by("last_name", "first_name")

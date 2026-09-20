@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum
+from django.db.models import Case, CharField, Count, Q, Sum, Value, When
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -29,22 +29,170 @@ def _scoped_shifts(user):
 def shift_list(request):
     organization = organization_for_user(request.user)
     filter_form = ShiftFilterForm(request.GET or None, organization=organization)
-    shifts = _scoped_shifts(request.user)
+    now = timezone.now()
+    base_shifts = _scoped_shifts(request.user).select_related(
+        "employee", "organization", "attendance_session"
+    )
+    summary = base_shifts.aggregate(
+        total_count=Count("pk"),
+        upcoming_count=Count(
+            "pk",
+            filter=Q(
+                status=Shift.Status.SCHEDULED,
+                scheduled_start__gt=now,
+                attendance_session__isnull=True,
+            ),
+        ),
+        completed_count=Count(
+            "pk",
+            filter=Q(
+                status=Shift.Status.SCHEDULED,
+                attendance_session__clock_out_at__isnull=False,
+            ),
+        ),
+        cancelled_count=Count("pk", filter=Q(status=Shift.Status.CANCELLED)),
+    )
+    shifts = base_shifts
+    has_filters = False
     if filter_form.is_valid():
         data = filter_form.cleaned_data
         if data.get("start_date"):
             shifts = shifts.filter(work_date__gte=data["start_date"])
+            has_filters = True
         if data.get("end_date"):
             shifts = shifts.filter(work_date__lte=data["end_date"])
+            has_filters = True
         if data.get("employee"):
             shifts = shifts.filter(employee=data["employee"])
-        if data.get("status"):
-            shifts = shifts.filter(status=data["status"])
-    page = Paginator(shifts, 30).get_page(request.GET.get("page"))
+            has_filters = True
+        status_filter = data.get("status")
+        if status_filter:
+            has_filters = True
+            if status_filter == "SCHEDULED":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    scheduled_start__gt=now,
+                    attendance_session__isnull=True,
+                )
+            elif status_filter == "WORKING":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    attendance_session__status="WORKING",
+                    attendance_session__clock_out_at__isnull=True,
+                )
+            elif status_filter == "ON_BREAK":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    attendance_session__status="ON_BREAK",
+                    attendance_session__clock_out_at__isnull=True,
+                )
+            elif status_filter == "LATE":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    attendance_session__isnull=True,
+                    scheduled_start__lte=now,
+                    scheduled_end__gt=now,
+                )
+            elif status_filter == "ABSENT":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    attendance_session__isnull=True,
+                    scheduled_end__lte=now,
+                )
+            elif status_filter == "COMPLETED":
+                shifts = shifts.filter(
+                    status=Shift.Status.SCHEDULED,
+                    attendance_session__clock_out_at__isnull=False,
+                )
+            elif status_filter == "CANCELLED":
+                shifts = shifts.filter(status=Shift.Status.CANCELLED)
+
+    sort_fields = {
+        "work_date": "work_date",
+        "employee": "employee__last_name",
+        "shift": "scheduled_start",
+        "break": "scheduled_break_minutes",
+        "status": "display_status",
+    }
+    sort_key = request.GET.get("sort", "work_date")
+    if sort_key not in sort_fields:
+        sort_key = "work_date"
+    direction = request.GET.get("direction", "asc").lower()
+    if direction not in {"asc", "desc"}:
+        direction = "asc"
+
+    shifts = shifts.annotate(
+        display_status=Case(
+            When(status=Shift.Status.CANCELLED, then=Value("Cancelled")),
+            When(attendance_session__clock_out_at__isnull=False, then=Value("Completed")),
+            When(attendance_session__status="ON_BREAK", then=Value("On break")),
+            When(attendance_session__isnull=False, then=Value("Working")),
+            When(
+                scheduled_start__lte=now,
+                scheduled_end__gt=now,
+                then=Value("Late"),
+            ),
+            When(scheduled_end__lte=now, then=Value("Absent")),
+            default=Value("Scheduled"),
+            output_field=CharField(),
+        )
+    )
+    order_field = sort_fields[sort_key]
+    if direction == "desc":
+        order_field = f"-{order_field}"
+    shifts = shifts.order_by(order_field, "work_date", "pk")
+
+    page = Paginator(shifts, 3).get_page(request.GET.get("page"))
+    for shift in page.object_list:
+        shift.attendance_state = attendance_state(shift, at=now)
+        shift.can_manage = (
+            shift.status == Shift.Status.SCHEDULED
+            and getattr(shift, "attendance_session", None) is None
+        )
+
+    query_without_page = request.GET.copy()
+    query_without_page.pop("page", None)
+    querystring = query_without_page.urlencode()
+    sort_links = {}
+    for key in sort_fields:
+        sort_query = query_without_page.copy()
+        next_direction = (
+            "desc" if key == sort_key and direction == "asc" else "asc"
+        )
+        sort_query["sort"] = key
+        sort_query["direction"] = next_direction
+        sort_links[key] = f"?{sort_query.urlencode()}"
+
+    page_count = page.paginator.num_pages
+    if page_count <= 7:
+        pagination_items = list(range(1, page_count + 1))
+    else:
+        first_page = max(1, min(page.number - 1, page_count - 2))
+        last_page = min(page_count, max(page.number + 1, 3))
+        pagination_items = [1]
+        if first_page > 2:
+            pagination_items.append(None)
+        pagination_items.extend(range(max(2, first_page), min(page_count, last_page + 1)))
+        if last_page < page_count - 1:
+            pagination_items.append(None)
+        pagination_items.append(page_count)
     return render(
         request,
         "schedules/list.html",
-        {"page": page, "filter_form": filter_form, "organization": organization},
+        {
+            "page": page,
+            "filter_form": filter_form,
+            "organization": organization,
+            "summary": summary,
+            "has_filters": has_filters,
+            "sort_key": sort_key,
+            "direction": direction,
+            "sort_links": sort_links,
+            "querystring": querystring,
+            "pagination_items": pagination_items,
+            "showing_start": page.start_index() if page.paginator.count else 0,
+            "showing_end": page.end_index() if page.paginator.count else 0,
+        },
     )
 
 
@@ -93,8 +241,22 @@ def shift_create(request):
 @require_GET
 def shift_detail(request, pk):
     organization = organization_for_user(request.user)
-    shift = get_object_or_404(_scoped_shifts(request.user), pk=pk)
-    return render(request, "schedules/detail.html", {"shift": shift, "organization": organization})
+    shift = get_object_or_404(
+        _scoped_shifts(request.user).select_related("attendance_session"), pk=pk
+    )
+    return render(
+        request,
+        "schedules/detail.html",
+        {
+            "shift": shift,
+            "organization": organization,
+            "shift_state": attendance_state(shift),
+            "can_manage_shift": (
+                shift.status == Shift.Status.SCHEDULED
+                and getattr(shift, "attendance_session", None) is None
+            ),
+        },
+    )
 
 
 @employer_required
