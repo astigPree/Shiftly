@@ -21,7 +21,7 @@
   </aside>
   <div class="app-workspace">
     <header class="app-topbar">
-      <div class="topbar-context"><span class="mobile-org-name">{{ organization.name }}</span><span class="topbar-date">{% if local_today %}{{ local_today|date:"D, M j, Y" }}{% else %}{{ organization.timezone }}{% endif %}</span></div>
+      <div class="topbar-context"><span class="mobile-org-name">{{ organization.name }}</span>{% if not hide_topbar_context %}<span class="topbar-date">{% if local_today %}{{ local_today|date:"D, M j, Y" }}{% else %}{{ organization.timezone }}{% endif %}</span>{% endif %}</div>
       <details class="account-menu">
         <summary><span class="account-avatar" aria-hidden="true">{{ request.user.first_name|first|upper|default:"A" }}</span><span class="account-name"><strong>{{ request.user.get_full_name|default:request.user.email }}</strong><small>Company Admin</small></span><span class="account-chevron" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-down" icon_class="account-chevron-icon" %}</span></summary>
         <div class="account-popover"><p>{{ request.user.email }}</p><a href="{% url 'accounts:settings' %}">Organization settings</a><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit" class="menu-signout">Sign out</button></form></div>

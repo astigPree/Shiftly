@@ -2,59 +2,159 @@
 {% load form_tags tz %}
 {% block title %}Reports | Shiftly{% endblock %}
 {% block app_content %}
-<header class="dashboard-heading"><div><p class="eyebrow">{{ organization.timezone }}</p><h1>Reports</h1><p class="muted">Attendance, completed work hours, and timesheet decisions.</p></div></header>
-
-<section class="report-section" aria-labelledby="daily-report-heading">
-  <header class="report-section-heading"><div><h2 id="daily-report-heading">Daily attendance</h2><p class="muted">All shifts assigned to the selected organization-local work date.</p></div></header>
-  <form method="get" action="{% url 'reports:home' %}" class="filters report-filters">
-    <div class="field compact-field"><label for="id_daily_date">Work date</label>{{ daily_form.daily_date|accessible_field }}{% if daily_form.daily_date.errors %}<span id="{{ daily_form.daily_date.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_date.errors }}</span>{% endif %}</div>
-    <div class="field compact-field"><label for="id_daily_employee">Employee</label>{{ daily_form.daily_employee|accessible_field }}{% if daily_form.daily_employee.errors %}<span id="{{ daily_form.daily_employee.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_employee.errors }}</span>{% endif %}</div>
-    <div class="field compact-field"><label for="id_daily_status">Attendance status</label>{{ daily_form.daily_status|accessible_field }}{% if daily_form.daily_status.errors %}<span id="{{ daily_form.daily_status.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_status.errors }}</span>{% endif %}</div>
-    <button type="submit">Apply filters</button>
-  </form>
-  {% if daily_form.errors %}<div class="error-list" role="alert">Correct the daily report filters and try again.</div>{% endif %}
-  <div class="content-card report-table-card">
-    {% if daily_rows %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col">Record</th></tr></thead><tbody>
-      {% for row in daily_rows %}<tr><td><a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a><br><span class="muted">{{ row.shift.employee.employee_code }}</span></td><td>{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td><td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span>{% if row.late_clock_in %}<small class="warning-text">Late clock-in</small>{% endif %}{% if row.state.missing_clock_out %}<small class="warning-text">Missing clock-out</small>{% endif %}</td><td>{% if row.last_activity %}{{ row.last_activity|timezone:organization.timezone|date:"g:i A" }}{% else %}—{% endif %}</td><td><a href="{% url 'schedules:detail' row.shift.pk %}">View shift</a></td></tr>{% endfor %}
-    </tbody></table></div>{% else %}<div class="empty-state compact-empty"><h3>No attendance records match</h3><p>Try another date or clear the employee and status filters.</p></div>{% endif %}
-  </div>
-</section>
-
-<div class="reports-grid">
-  <section class="report-section" aria-labelledby="weekly-report-heading">
-    <header class="report-section-heading"><div><h2 id="weekly-report-heading">Weekly employee hours</h2><p class="muted">ISO week: {{ selected_week_start|date:"M j" }} – {{ selected_week_end|date:"M j, Y" }}</p></div></header>
-    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters"><div class="field compact-field"><label for="id_week_of">Week containing</label>{{ week_form.week_of|accessible_field }}{% if week_form.week_of.errors %}<span id="{{ week_form.week_of.auto_id }}_errors" class="field-error" role="alert">{{ week_form.week_of.errors }}</span>{% endif %}</div><button type="submit">Show week</button></form>
-    {% if week_form.errors %}<div class="error-list" role="alert">Choose a valid date for the weekly report.</div>{% endif %}
-    <div class="content-card report-table-card">{% if weekly_employees %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Completed shifts</th></tr></thead><tbody>
-      {% for row in weekly_employees %}<tr><td>{{ row.employee.full_name }}<br><span class="muted">{{ row.employee.employee_code }} · {{ row.employee.get_status_display }}</span></td><td>{{ row.worked_label }}</td><td>{{ row.completed_shifts }}</td></tr>{% endfor %}
-    </tbody></table></div>{% else %}<div class="empty-state compact-empty"><p>No employees have been added yet.</p></div>{% endif %}</div>
-  </section>
-
-  <section class="report-section" aria-labelledby="timesheet-status-heading">
-    <header class="report-section-heading"><div><h2 id="timesheet-status-heading">Timesheet status summary</h2><p class="muted">Inclusive local work-date range.</p></div></header>
-    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters timesheet-report-form">
-      <div class="field compact-field"><label for="id_start_date">From date</label>{{ timesheet_form.start_date|accessible_field }}{% if timesheet_form.start_date.errors %}<span id="{{ timesheet_form.start_date.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.start_date.errors }}</span>{% endif %}</div>
-      <div class="field compact-field"><label for="id_end_date">To date</label>{{ timesheet_form.end_date|accessible_field }}{% if timesheet_form.end_date.errors %}<span id="{{ timesheet_form.end_date.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.end_date.errors }}</span>{% endif %}</div>
-      <div class="field compact-field"><label for="id_employee">Employee</label>{{ timesheet_form.employee|accessible_field }}{% if timesheet_form.employee.errors %}<span id="{{ timesheet_form.employee.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.employee.errors }}</span>{% endif %}</div>
-      <div class="field compact-field"><label for="id_status">Timesheet status</label>{{ timesheet_form.status|accessible_field }}{% if timesheet_form.status.errors %}<span id="{{ timesheet_form.status.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.status.errors }}</span>{% endif %}</div>
-      <button type="submit">Apply filters</button>
-      <button class="button-secondary" type="submit" formaction="{% url 'reports:timesheet_csv' %}">Export CSV</button>
-    </form>
-    {% if timesheet_form.errors %}<div class="error-list" role="alert">Correct the timesheet report filters and try again.</div>{% endif %}
-    <div class="content-card report-table-card"><div class="table-wrap"><table><thead><tr><th scope="col">Status</th><th scope="col">Records</th><th scope="col">Worked time</th></tr></thead><tbody>{% for row in timesheet_status_summary %}<tr><td><span class="status-badge status-{{ row.code|lower }}">{{ row.label }}</span></td><td>{{ row.count }}</td><td>{{ row.worked_minutes }} min</td></tr>{% endfor %}</tbody></table></div></div>
-    <div class="content-card report-table-card report-records-card"><h3>Timesheets in this range</h3>
-      {% if timesheet_page.object_list %}<div class="table-wrap"><table><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead><tbody>{% for timesheet in timesheet_page.object_list %}<tr><td>{{ timesheet.shift.work_date|date:"M j, Y" }}</td><td>{{ timesheet.employee.full_name }}</td><td>{{ timesheet.worked_minutes }} min</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td><td><a href="{% url 'timesheets:detail' timesheet.pk %}">Review</a></td></tr>{% endfor %}</tbody></table></div>
-      {% else %}<div class="empty-state compact-empty"><p>No timesheets match this date range and filter.</p></div>{% endif %}
-      {% if timesheet_page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Timesheet report pages">{% if timesheet_page.has_previous %}<a href="?start_date={{ timesheet_form.start_date.value|urlencode }}&end_date={{ timesheet_form.end_date.value|urlencode }}&employee={{ timesheet_form.employee.value|default:'' }}&status={{ timesheet_form.status.value|urlencode }}&page={{ timesheet_page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ timesheet_page.number }} of {{ timesheet_page.paginator.num_pages }}</span>{% if timesheet_page.has_next %}<a href="?start_date={{ timesheet_form.start_date.value|urlencode }}&end_date={{ timesheet_form.end_date.value|urlencode }}&employee={{ timesheet_form.employee.value|default:'' }}&status={{ timesheet_form.status.value|urlencode }}&page={{ timesheet_page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+<div class="reports-page">
+  <header class="reports-heading">
+    <div>
+      <h1>Reports</h1>
+      <p>Analyze workforce attendance, worked hours, timesheets, and activity.</p>
     </div>
-  </section>
-</div>
+    <p class="reports-timezone">Organization time zone: <strong>{{ timezone_label }}</strong></p>
+  </header>
 
-<section class="report-section audit-report-section" aria-labelledby="activity-heading">
-  <header class="report-section-heading"><div><h2 id="activity-heading">Recent activity</h2><p class="muted">Administrative changes and timesheet decisions in this organization.</p></div></header>
-  <div class="content-card activity-list-card">
-    {% if recent_activity %}<ol class="activity-list">{% for event in recent_activity %}<li><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|timezone:organization.timezone|date:"M j, Y · g:i A" }}</time><div><strong>{{ event.get_action_display }}</strong><p>{{ event.summary }}</p><small>By {{ event.actor.get_full_name|default:event.actor.email }} · {{ event.target_type|title }} #{{ event.target_id }}</small></div></li>{% endfor %}</ol>
-    {% else %}<div class="empty-state compact-empty"><p>No activity has been recorded yet.</p></div>{% endif %}
-  </div>
-</section>
+  <nav class="reports-tabs" aria-label="Report types">
+    <a class="report-tab{% if active_report == 'attendance' %} is-active{% endif %}" href="?report=attendance"{% if active_report == 'attendance' %} aria-current="page"{% endif %}>
+      {% include "components/icon.html" with icon_name="clock" icon_class="report-tab-icon" %}<span>Attendance</span>
+    </a>
+    <a class="report-tab{% if active_report == 'hours' %} is-active{% endif %}" href="?report=hours"{% if active_report == 'hours' %} aria-current="page"{% endif %}>
+      {% include "components/icon.html" with icon_name="chart" icon_class="report-tab-icon" %}<span>Employee hours</span>
+    </a>
+    <a class="report-tab{% if active_report == 'timesheets' %} is-active{% endif %}" href="?report=timesheets"{% if active_report == 'timesheets' %} aria-current="page"{% endif %}>
+      {% include "components/icon.html" with icon_name="calendar" icon_class="report-tab-icon" %}<span>Timesheets</span>
+    </a>
+    <a class="report-tab{% if active_report == 'activity' %} is-active{% endif %}" href="?report=activity"{% if active_report == 'activity' %} aria-current="page"{% endif %}>
+      {% include "components/icon.html" with icon_name="file" icon_class="report-tab-icon" %}<span>Activity log</span>
+    </a>
+  </nav>
+
+  {% if active_report == "attendance" %}
+    <section class="report-workspace" aria-labelledby="attendance-report-heading">
+      <header class="report-workspace-heading">
+        <div><h2 id="attendance-report-heading">Attendance report</h2><p>View attendance status for all shifts on the selected work date.</p></div>
+        <div class="report-date-context">{% include "components/icon.html" with icon_name="calendar" %}<span>{{ daily_date|date:"D, M j, Y" }}</span></div>
+      </header>
+      <form method="get" action="{% url 'reports:home' %}" class="report-filter-panel">
+        <input type="hidden" name="report" value="attendance">
+        <div class="report-filter-grid report-filter-grid--attendance">
+          <div class="report-filter-field"><label for="id_daily_date">Work date</label>{{ daily_form.daily_date|accessible_field }}{% if daily_form.daily_date.errors %}<span id="{{ daily_form.daily_date.auto_id }}_errors" class="field-error">{{ daily_form.daily_date.errors }}</span>{% endif %}</div>
+          <div class="report-filter-field"><label for="id_daily_employee">Employee</label>{{ daily_form.daily_employee|accessible_field }}{% if daily_form.daily_employee.errors %}<span id="{{ daily_form.daily_employee.auto_id }}_errors" class="field-error">{{ daily_form.daily_employee.errors }}</span>{% endif %}</div>
+          <div class="report-filter-field"><label for="id_daily_status">Attendance status</label>{{ daily_form.daily_status|accessible_field }}{% if daily_form.daily_status.errors %}<span id="{{ daily_form.daily_status.auto_id }}_errors" class="field-error">{{ daily_form.daily_status.errors }}</span>{% endif %}</div>
+          <div class="report-filter-actions"><button type="submit">{% include "components/icon.html" with icon_name="filter" icon_class="report-button-icon" %}<span>Apply filters</span></button><a href="?report=attendance">Clear</a></div>
+        </div>
+        {% if daily_form.errors %}<div class="error-list" role="alert">Correct the attendance filters and try again.</div>{% endif %}
+      </form>
+
+      <div class="report-summary-grid report-summary-grid--attendance" aria-label="Attendance summary">
+        <article class="report-summary-card report-summary-card--blue"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="calendar" %}</span><div><strong>{{ attendance_summary.assigned_count }}</strong><span>Assigned shifts</span><small>Total for this date</small></div></article>
+        <article class="report-summary-card report-summary-card--green"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="user-check" %}</span><div><strong>{{ attendance_summary.present_count }}</strong><span>Present</span><small>Clocked in or completed</small></div></article>
+        <article class="report-summary-card report-summary-card--amber"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="clock" %}</span><div><strong>{{ attendance_summary.late_count }}</strong><span>Late</span><small>Clocked in after schedule</small></div></article>
+        <article class="report-summary-card report-summary-card--red"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="user-x" %}</span><div><strong>{{ attendance_summary.absent_count }}</strong><span>Absent</span><small>No clock-in recorded</small></div></article>
+      </div>
+
+      <section class="report-records-panel" aria-label="Attendance records">
+        <div class="report-table-wrap" tabindex="0" aria-label="Scrollable attendance report">
+          <table class="report-data-table report-attendance-table">
+            <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col">Exception</th><th scope="col">Record</th></tr></thead>
+            <tbody>
+              {% for row in daily_page.object_list %}
+                <tr>
+                  <td><a class="report-employee-name" href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a><span class="report-cell-meta">{{ row.shift.employee.employee_code }}{% if row.shift.employee.job_title %} · {{ row.shift.employee.job_title }}{% endif %}</span></td>
+                  <td><span class="report-nowrap">{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</span>{% if row.overnight %}<span class="report-cell-meta">Overnight</span>{% endif %}</td>
+                  <td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span></td>
+                  <td>{% if row.last_activity_label %}{{ row.last_activity_label }}{% else %}<span class="report-cell-meta">No attendance yet</span>{% endif %}</td>
+                  <td>{% if row.exception == "—" %}<span class="report-cell-meta">—</span>{% else %}<span class="report-exception">{{ row.exception }}</span>{% endif %}</td>
+                  <td><a class="report-record-link" href="{% url 'schedules:detail' row.shift.pk %}">View shift</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6"><div class="report-empty"><h3>No attendance records found</h3><p>Try another work date or clear the employee and status filters.</p></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <footer class="report-table-footer"><p>Showing {{ showing_start }}–{{ showing_end }} of {{ daily_page.paginator.count }} shift{{ daily_page.paginator.count|pluralize }}</p>
+          {% if daily_page.paginator.num_pages > 1 %}<nav class="report-pagination" aria-label="Attendance report pages">
+            {% if daily_page.has_previous %}<a class="report-page-control" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ daily_page.previous_page_number }}" aria-label="Previous page">{% include "components/icon.html" with icon_name="chevron-left" %}</a>{% else %}<span class="report-page-control is-disabled" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-left" %}</span>{% endif %}
+            {% for page_number in pagination_items %}{% if page_number == daily_page.paginator.ELLIPSIS %}<span class="report-page-ellipsis">…</span>{% else %}<a class="report-page-number{% if page_number == daily_page.number %} is-current{% endif %}" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page_number }}"{% if page_number == daily_page.number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endif %}{% endfor %}
+            {% if daily_page.has_next %}<a class="report-page-control" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ daily_page.next_page_number }}" aria-label="Next page">{% include "components/icon.html" with icon_name="chevron-right" %}</a>{% else %}<span class="report-page-control is-disabled" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>{% endif %}
+          </nav>{% endif %}
+        </footer>
+      </section>
+    </section>
+
+  {% elif active_report == "hours" %}
+    <section class="report-workspace" aria-labelledby="hours-report-heading">
+      <header class="report-workspace-heading">
+        <div><h2 id="hours-report-heading">Employee hours</h2><p>{{ selected_week_start|date:"M j" }} – {{ selected_week_end|date:"M j, Y" }} · hours from completed shifts</p></div>
+      </header>
+      <form method="get" action="{% url 'reports:home' %}" class="report-filter-panel report-filter-panel--compact">
+        <input type="hidden" name="report" value="hours">
+        <div class="report-filter-grid report-filter-grid--week">
+          <div class="report-filter-field"><label for="id_week_of">Week containing</label>{{ week_form.week_of|accessible_field }}{% if week_form.week_of.errors %}<span id="{{ week_form.week_of.auto_id }}_errors" class="field-error">{{ week_form.week_of.errors }}</span>{% endif %}</div>
+          <div class="report-filter-actions"><button type="submit">Show week</button><a href="?report=hours">This week</a></div>
+        </div>
+        {% if week_form.errors %}<div class="error-list" role="alert">Choose a valid date for the employee hours report.</div>{% endif %}
+      </form>
+      <div class="report-summary-grid report-summary-grid--hours" aria-label="Employee hours summary">
+        <article class="report-summary-card report-summary-card--blue"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="clock" %}</span><div><strong>{{ weekly_summary.worked_label }}</strong><span>Total worked</span><small>Across all employees</small></div></article>
+        <article class="report-summary-card report-summary-card--green"><span class="report-summary-icon">{% include "components/icon.html" with icon_name="check-circle" %}</span><div><strong>{{ weekly_summary.completed_shifts }}</strong><span>Completed shifts</span><small>For the selected week</small></div></article>
+      </div>
+      <section class="report-records-panel" aria-label="Weekly employee hours">
+        <header class="report-records-heading"><h3>Hours by employee</h3><p>Sorted from most worked hours to least</p></header>
+        <div class="report-table-wrap" tabindex="0" aria-label="Scrollable employee hours report">
+          <table class="report-data-table"><thead><tr><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Completed shifts</th></tr></thead><tbody>
+            {% for row in weekly_employees %}<tr><td><span class="report-employee-name">{{ row.employee.full_name }}</span><span class="report-cell-meta">{{ row.employee.employee_code }}{% if row.employee.job_title %} · {{ row.employee.job_title }}{% endif %}</span></td><td class="report-number">{{ row.worked_label }}</td><td class="report-number">{{ row.completed_shifts }}</td></tr>
+            {% empty %}<tr><td colspan="3"><div class="report-empty"><h3>No employees yet</h3><p>Add employees to include them in the weekly hours report.</p></div></td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+      </section>
+    </section>
+
+  {% elif active_report == "timesheets" %}
+    <section class="report-workspace" aria-labelledby="timesheets-report-heading">
+      <header class="report-workspace-heading">
+        <div><h2 id="timesheets-report-heading">Timesheet report</h2><p>Review completed work records across the selected date range.</p></div>
+        <button class="button-secondary report-export" type="submit" form="timesheet-report-filter-form" formaction="{% url 'reports:timesheet_csv' %}">{% include "components/icon.html" with icon_name="download" icon_class="report-button-icon" %}<span>Export CSV</span></button>
+      </header>
+      <form id="timesheet-report-filter-form" method="get" action="{% url 'reports:home' %}" class="report-filter-panel">
+        <input type="hidden" name="report" value="timesheets">
+        <div class="report-filter-grid report-filter-grid--timesheets">
+          <div class="report-filter-field"><label for="id_start_date">From date</label>{{ timesheet_form.start_date|accessible_field }}{% if timesheet_form.start_date.errors %}<span id="{{ timesheet_form.start_date.auto_id }}_errors" class="field-error">{{ timesheet_form.start_date.errors }}</span>{% endif %}</div>
+          <div class="report-filter-field"><label for="id_end_date">To date</label>{{ timesheet_form.end_date|accessible_field }}{% if timesheet_form.end_date.errors %}<span id="{{ timesheet_form.end_date.auto_id }}_errors" class="field-error">{{ timesheet_form.end_date.errors }}</span>{% endif %}</div>
+          <div class="report-filter-field"><label for="id_employee">Employee</label>{{ timesheet_form.employee|accessible_field }}{% if timesheet_form.employee.errors %}<span id="{{ timesheet_form.employee.auto_id }}_errors" class="field-error">{{ timesheet_form.employee.errors }}</span>{% endif %}</div>
+          <div class="report-filter-field"><label for="id_status">Status</label>{{ timesheet_form.status|accessible_field }}{% if timesheet_form.status.errors %}<span id="{{ timesheet_form.status.auto_id }}_errors" class="field-error">{{ timesheet_form.status.errors }}</span>{% endif %}</div>
+          <div class="report-filter-actions"><button type="submit">{% include "components/icon.html" with icon_name="filter" icon_class="report-button-icon" %}<span>Apply filters</span></button><a href="?report=timesheets">Clear</a></div>
+        </div>
+        {% if timesheet_form.errors %}<div class="error-list" role="alert">Correct the timesheet filters and try again.{% for field in timesheet_form %}{% if field.errors %} {{ field.errors|striptags }}{% endif %}{% endfor %}</div>{% endif %}
+      </form>
+      <div class="report-summary-grid report-summary-grid--timesheets" aria-label="Timesheet status summary">
+        {% for row in timesheet_status_summary %}<article class="report-summary-card report-summary-card--{{ row.code|lower }}"><span class="report-summary-icon">{% if row.code == "APPROVED" %}{% include "components/icon.html" with icon_name="check-circle" %}{% elif row.code == "REJECTED" %}{% include "components/icon.html" with icon_name="close" %}{% elif row.code == "NEEDS_REVIEW" %}{% include "components/icon.html" with icon_name="alert" %}{% else %}{% include "components/icon.html" with icon_name="clock" %}{% endif %}</span><div><strong>{{ row.count }}</strong><span>{{ row.label }}</span><small>{{ row.worked_label }} worked</small></div></article>{% endfor %}
+      </div>
+      <section class="report-records-panel" aria-label="Timesheet records">
+        <header class="report-records-heading"><h3>Timesheet records</h3><p>{% if timesheet_page.paginator.count %}Showing {{ showing_start }}–{{ showing_end }} of {{ timesheet_page.paginator.count }} timesheet{{ timesheet_page.paginator.count|pluralize }}{% else %}No timesheets in this range{% endif %}</p></header>
+        <div class="report-table-wrap" tabindex="0" aria-label="Scrollable timesheet report">
+          <table class="report-data-table report-timesheet-table"><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Scheduled</th><th scope="col">Worked</th><th scope="col">Variance</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead><tbody>
+            {% for row in timesheet_rows %}{% with timesheet=row.timesheet %}<tr><td><a class="report-record-link" href="{% url 'timesheets:detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a></td><td><span class="report-employee-name">{{ timesheet.employee.full_name }}</span><span class="report-cell-meta">{{ timesheet.employee.employee_code }}{% if timesheet.employee.job_title %} · {{ timesheet.employee.job_title }}{% endif %}</span></td><td class="report-number">{{ row.scheduled_label }}</td><td class="report-number">{{ row.worked_label }}</td><td class="report-number report-variance--{{ row.variance_tone }}">{{ row.variance_label }}</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td><td><a class="report-record-link" href="{% url 'timesheets:detail' timesheet.pk %}">View</a></td></tr>{% endwith %}
+            {% empty %}<tr><td colspan="7"><div class="report-empty"><h3>No timesheets found</h3><p>Completed shifts appear here after an employee clocks out. Try another date range or clear your filters.</p></div></td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+        <footer class="report-table-footer"><p>Showing {{ showing_start }}–{{ showing_end }} of {{ timesheet_page.paginator.count }} timesheet{{ timesheet_page.paginator.count|pluralize }}</p>
+          {% if timesheet_page.paginator.num_pages > 1 %}<nav class="report-pagination" aria-label="Timesheet report pages">
+            {% if timesheet_page.has_previous %}<a class="report-page-control" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ timesheet_page.previous_page_number }}" aria-label="Previous page">{% include "components/icon.html" with icon_name="chevron-left" %}</a>{% else %}<span class="report-page-control is-disabled" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-left" %}</span>{% endif %}
+            {% for page_number in pagination_items %}{% if page_number == timesheet_page.paginator.ELLIPSIS %}<span class="report-page-ellipsis">…</span>{% else %}<a class="report-page-number{% if page_number == timesheet_page.number %} is-current{% endif %}" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page_number }}"{% if page_number == timesheet_page.number %} aria-current="page"{% endif %}>{{ page_number }}</a>{% endif %}{% endfor %}
+            {% if timesheet_page.has_next %}<a class="report-page-control" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ timesheet_page.next_page_number }}" aria-label="Next page">{% include "components/icon.html" with icon_name="chevron-right" %}</a>{% else %}<span class="report-page-control is-disabled" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>{% endif %}
+          </nav>{% endif %}
+        </footer>
+      </section>
+    </section>
+
+  {% else %}
+    <section class="report-workspace" aria-labelledby="activity-report-heading">
+      <header class="report-workspace-heading"><div><h2 id="activity-report-heading">Activity log</h2><p>Latest organization changes and timesheet decisions.</p></div><span class="report-count-chip">{{ recent_activity|length }} recent event{{ recent_activity|length|pluralize }}</span></header>
+      {% if recent_activity %}
+        <ol class="activity-timeline" aria-label="Latest organization activity">
+          {% for event in recent_activity %}<li class="activity-timeline-item"><span class="activity-timeline-marker" aria-hidden="true"></span><time datetime="{{ event.created_at|date:'c' }}">{{ event.created_at|timezone:organization.timezone|date:"M j, Y · g:i A" }}</time><div class="activity-timeline-content"><h3>{{ event.get_action_display }}</h3><p>{{ event.summary }}</p><small>By {{ event.actor.get_full_name|default:event.actor.email }} · {{ event.target_type|title }} #{{ event.target_id }}</small></div></li>{% endfor %}
+        </ol>
+      {% else %}<div class="report-empty report-empty--large"><h3>No activity recorded yet</h3><p>Organization changes and timesheet decisions will appear here.</p></div>{% endif %}
+    </section>
+  {% endif %}
+</div>
 {% endblock %}
