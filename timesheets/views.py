@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
 from .forms import RejectTimesheetForm, TimesheetFilterForm
@@ -21,6 +21,7 @@ def _with_details(queryset):
 
 
 @employer_required
+@require_GET
 def timesheet_list(request):
     organization = organization_for_user(request.user)
     filter_form = TimesheetFilterForm(request.GET or None, organization=organization)
@@ -44,6 +45,7 @@ def timesheet_list(request):
 
 
 @employer_required
+@require_GET
 def timesheet_detail(request, pk):
     organization = organization_for_user(request.user)
     timesheet = get_object_or_404(_with_details(Timesheet.objects.filter(organization=organization)), pk=pk)
@@ -61,6 +63,7 @@ def timesheet_detail(request, pk):
 
 
 @employee_required
+@require_GET
 def my_timesheets(request):
     employee = request.user.employee_profile
     page = Paginator(
@@ -75,6 +78,7 @@ def my_timesheets(request):
 
 
 @employee_required
+@require_GET
 def my_timesheet_detail(request, pk):
     employee = request.user.employee_profile
     timesheet = get_object_or_404(

@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods
 
 from accounts.forms import EmployerSignupForm, EmployeeInvitationAcceptanceForm, OrganizationSettingsForm
 from accounts.models import User
@@ -20,6 +20,7 @@ from .permissions import employee_required, employer_required, organization_for_
 from .services import employer_dashboard_data, save_workspace_settings
 
 
+@require_GET
 def index(request):
     if request.user.is_authenticated:
         return redirect("accounts:home")
@@ -67,6 +68,7 @@ def employer_signup(request):
 
 
 @login_required
+@require_GET
 def home(request):
     organization = organization_for_user(request.user)
     if organization is None:

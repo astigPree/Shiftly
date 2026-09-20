@@ -1,4 +1,5 @@
 {% extends "layouts/employer.html" %}
+{% load form_tags %}
 {% block title %}Settings | Shiftly{% endblock %}
 {% block app_content %}
 <header class="page-title"><h1>Organization settings</h1><p class="muted">Manage your workspace details and account profile.</p></header>
@@ -6,7 +7,7 @@
   <h2>Organization</h2><p class="muted">These details are used across schedules, attendance, and reports.</p>
   {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
   <form method="post" novalidate>{% csrf_token %}
-    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field|accessible_field }}{% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
     <div class="settings-email"><span>Login email</span><strong>{{ request.user.email }}</strong><small>Email changes are not available in MVP.</small></div>
     <button type="submit">Save settings</button>
   </form>

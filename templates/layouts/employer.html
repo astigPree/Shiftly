@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block body_class %}app-body{% endblock %}
-{% block main_class %}app-shell-root{% endblock %}
-{% block messages %}{% endblock %}
-{% block content %}
+{% block page %}
+<div class="app-shell-root">
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="app-shell employer-shell">
   <aside class="app-sidebar" aria-label="Employer navigation">
     <a class="shell-brand" href="{% url 'accounts:home' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
@@ -27,10 +27,11 @@
         <div class="account-popover"><p>{{ request.user.email }}</p><a href="{% url 'accounts:settings' %}">Organization settings</a><form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit" class="menu-signout">Sign out</button></form></div>
       </details>
     </header>
-    <main class="app-content">
+    <main id="main-content" class="app-content">
       {% include "components/messages.html" %}
       {% block app_content %}{% endblock %}
     </main>
   </div>
+</div>
 </div>
 {% endblock %}

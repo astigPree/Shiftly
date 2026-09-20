@@ -8,10 +8,12 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body class="{% block body_class %}{% endblock %}">
-  <main class="{% block main_class %}page-shell{% endblock %}">
-    {% block messages %}{% include "components/messages.html" %}{% endblock %}
-    {% block content %}{% endblock %}
-  </main>
+  {% block page %}
+    <main class="page-shell">
+      {% block messages %}{% include "components/messages.html" %}{% endblock %}
+      {% block content %}{% endblock %}
+    </main>
+  {% endblock %}
   {% block scripts %}{% endblock %}
 </body>
 </html>

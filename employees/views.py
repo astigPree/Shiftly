@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from audit.models import AuditEvent
 from audit.services import record_event
@@ -26,6 +26,7 @@ def _employee_queryset(user):
 
 
 @employer_required
+@require_GET
 def employee_list(request):
     organization = organization_for_user(request.user)
     employees = _employee_queryset(request.user)
@@ -58,6 +59,7 @@ def employee_list(request):
 
 
 @employer_required
+@require_http_methods(["GET", "POST"])
 def employee_create(request):
     organization = organization_for_user(request.user)
     form = EmployeeForm(request.POST or None)
@@ -89,6 +91,7 @@ def employee_create(request):
 
 
 @employer_required
+@require_GET
 def employee_detail(request, pk):
     employee = get_object_or_404(_employee_queryset(request.user), pk=pk)
     invitation = employee.invitations.order_by("-created_at").first()
@@ -100,6 +103,7 @@ def employee_detail(request, pk):
 
 
 @employer_required
+@require_http_methods(["GET", "POST"])
 def employee_edit(request, pk):
     organization = organization_for_user(request.user)
     employee = get_object_or_404(_employee_queryset(request.user), pk=pk)

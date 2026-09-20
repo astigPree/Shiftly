@@ -7,7 +7,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
 from attendance.services import attendance_state
@@ -24,6 +24,7 @@ def _scoped_shifts(user):
 
 
 @employer_required
+@require_GET
 def shift_list(request):
     organization = organization_for_user(request.user)
     filter_form = ShiftFilterForm(request.GET or None, organization=organization)
@@ -47,6 +48,7 @@ def shift_list(request):
 
 
 @employer_required
+@require_http_methods(["GET", "POST"])
 def shift_create(request):
     organization = organization_for_user(request.user)
     form = ShiftForm(request.POST or None, organization=organization)
@@ -79,6 +81,7 @@ def shift_create(request):
 
 
 @employer_required
+@require_GET
 def shift_detail(request, pk):
     organization = organization_for_user(request.user)
     shift = get_object_or_404(_scoped_shifts(request.user), pk=pk)
@@ -86,6 +89,7 @@ def shift_detail(request, pk):
 
 
 @employer_required
+@require_http_methods(["GET", "POST"])
 def shift_edit(request, pk):
     organization = organization_for_user(request.user)
     shift = get_object_or_404(_scoped_shifts(request.user), pk=pk)
@@ -138,6 +142,7 @@ def shift_cancel(request, pk):
 
 
 @employee_required
+@require_GET
 def my_schedule(request):
     employee = request.user.employee_profile
     organization = employee.organization

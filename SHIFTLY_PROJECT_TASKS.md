@@ -178,16 +178,16 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 10 — Shared design, accessibility, security, and quality
 
-- [ ] Implement the documented blue/neutral/status color tokens, typography, spacing, borders, and restrained shadows in organized vanilla CSS.
+- [x] Implement the documented blue/neutral/status color tokens, typography, spacing, borders, and restrained shadows in organized vanilla CSS.
 - [ ] Build layouts for the target desktop widths and verify employee workflows on mobile-sized screens.
-- [ ] Make forms, tables, navigation, dialogs, and attendance controls keyboard usable with visible focus.
-- [ ] Use semantic HTML, associated labels, correct headings, accessible validation/error messages, and table headers.
-- [ ] Meet the documented minimum touch target for mobile interactions and avoid dense mobile tables.
-- [ ] Use Django CSRF protection on all state-changing forms/requests and validate HTTP methods.
-- [ ] Configure secure session/CSRF cookie settings, HTTPS-aware proxy settings, allowed hosts, trusted origins, and production DEBUG=False.
-- [ ] Review authentication, password reset, role checks, organization scoping, and object-level authorization for every view/action.
-- [ ] Review database constraints, query indexes, error handling, and transaction behavior for attendance and approval actions.
-- [ ] Configure application logging for errors and operational events without secrets or passwords.
+- [x] Make forms, tables, navigation, dialogs, and attendance controls keyboard usable with visible focus.
+- [x] Use semantic HTML, associated labels, correct headings, accessible validation/error messages, and table headers.
+- [x] Meet the documented minimum touch target for mobile interactions and avoid dense mobile tables.
+- [x] Use Django CSRF protection on all state-changing forms/requests and validate HTTP methods.
+- [x] Configure secure session/CSRF cookie settings, HTTPS-aware proxy settings, allowed hosts, trusted origins, and production DEBUG=False.
+- [x] Review authentication, password reset, role checks, organization scoping, and object-level authorization for every view/action.
+- [x] Review database constraints, query indexes, error handling, and transaction behavior for attendance and approval actions.
+- [x] Configure application logging for errors and operational events without secrets or passwords.
 - [ ] Add automated model, service, permission, and view tests required by the Tech Stack document.
 - [ ] Cover the end-to-end scenarios: new organization, employee setup, scheduled overnight shift, clock/break/clock-out, calculation, approval/rejection, reporting, and CSV export.
 - [ ] Add edge-case coverage for timezone/date boundaries, invalid transitions, missing events, concurrent requests, inactive accounts, and cross-tenant identifiers.

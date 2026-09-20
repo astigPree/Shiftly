@@ -32,6 +32,7 @@ def _filter_form_data(request, keys, *, form_class, initial, organization=None):
     return initial, form
 
 
+@require_GET
 @employer_required
 def report_home(request):
     organization = organization_for_user(request.user)

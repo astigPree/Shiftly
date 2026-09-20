@@ -1,5 +1,5 @@
 {% extends "layouts/employer.html" %}
-{% load tz %}
+{% load form_tags tz %}
 {% block title %}Reports | Shiftly{% endblock %}
 {% block app_content %}
 <header class="dashboard-heading"><div><p class="eyebrow">{{ organization.timezone }}</p><h1>Reports</h1><p class="muted">Attendance, completed work hours, and timesheet decisions.</p></div></header>
@@ -7,9 +7,9 @@
 <section class="report-section" aria-labelledby="daily-report-heading">
   <header class="report-section-heading"><div><h2 id="daily-report-heading">Daily attendance</h2><p class="muted">All shifts assigned to the selected organization-local work date.</p></div></header>
   <form method="get" action="{% url 'reports:home' %}" class="filters report-filters">
-    <div class="field compact-field"><label for="id_daily_date">Work date</label>{{ daily_form.daily_date }}</div>
-    <div class="field compact-field"><label for="id_daily_employee">Employee</label>{{ daily_form.daily_employee }}</div>
-    <div class="field compact-field"><label for="id_daily_status">Attendance status</label>{{ daily_form.daily_status }}</div>
+    <div class="field compact-field"><label for="id_daily_date">Work date</label>{{ daily_form.daily_date|accessible_field }}{% if daily_form.daily_date.errors %}<span id="{{ daily_form.daily_date.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_date.errors }}</span>{% endif %}</div>
+    <div class="field compact-field"><label for="id_daily_employee">Employee</label>{{ daily_form.daily_employee|accessible_field }}{% if daily_form.daily_employee.errors %}<span id="{{ daily_form.daily_employee.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_employee.errors }}</span>{% endif %}</div>
+    <div class="field compact-field"><label for="id_daily_status">Attendance status</label>{{ daily_form.daily_status|accessible_field }}{% if daily_form.daily_status.errors %}<span id="{{ daily_form.daily_status.auto_id }}_errors" class="field-error" role="alert">{{ daily_form.daily_status.errors }}</span>{% endif %}</div>
     <button type="submit">Apply filters</button>
   </form>
   {% if daily_form.errors %}<div class="error-list" role="alert">Correct the daily report filters and try again.</div>{% endif %}
@@ -23,7 +23,7 @@
 <div class="reports-grid">
   <section class="report-section" aria-labelledby="weekly-report-heading">
     <header class="report-section-heading"><div><h2 id="weekly-report-heading">Weekly employee hours</h2><p class="muted">ISO week: {{ selected_week_start|date:"M j" }} – {{ selected_week_end|date:"M j, Y" }}</p></div></header>
-    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters"><div class="field compact-field"><label for="id_week_of">Week containing</label>{{ week_form.week_of }}</div><button type="submit">Show week</button></form>
+    <form method="get" action="{% url 'reports:home' %}" class="filters report-filters"><div class="field compact-field"><label for="id_week_of">Week containing</label>{{ week_form.week_of|accessible_field }}{% if week_form.week_of.errors %}<span id="{{ week_form.week_of.auto_id }}_errors" class="field-error" role="alert">{{ week_form.week_of.errors }}</span>{% endif %}</div><button type="submit">Show week</button></form>
     {% if week_form.errors %}<div class="error-list" role="alert">Choose a valid date for the weekly report.</div>{% endif %}
     <div class="content-card report-table-card">{% if weekly_employees %}<div class="table-wrap"><table><thead><tr><th scope="col">Employee</th><th scope="col">Worked</th><th scope="col">Completed shifts</th></tr></thead><tbody>
       {% for row in weekly_employees %}<tr><td>{{ row.employee.full_name }}<br><span class="muted">{{ row.employee.employee_code }} · {{ row.employee.get_status_display }}</span></td><td>{{ row.worked_label }}</td><td>{{ row.completed_shifts }}</td></tr>{% endfor %}
@@ -33,10 +33,10 @@
   <section class="report-section" aria-labelledby="timesheet-status-heading">
     <header class="report-section-heading"><div><h2 id="timesheet-status-heading">Timesheet status summary</h2><p class="muted">Inclusive local work-date range.</p></div></header>
     <form method="get" action="{% url 'reports:home' %}" class="filters report-filters timesheet-report-form">
-      <div class="field compact-field"><label for="id_start_date">From date</label>{{ timesheet_form.start_date }}</div>
-      <div class="field compact-field"><label for="id_end_date">To date</label>{{ timesheet_form.end_date }}</div>
-      <div class="field compact-field"><label for="id_employee">Employee</label>{{ timesheet_form.employee }}</div>
-      <div class="field compact-field"><label for="id_status">Timesheet status</label>{{ timesheet_form.status }}</div>
+      <div class="field compact-field"><label for="id_start_date">From date</label>{{ timesheet_form.start_date|accessible_field }}{% if timesheet_form.start_date.errors %}<span id="{{ timesheet_form.start_date.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.start_date.errors }}</span>{% endif %}</div>
+      <div class="field compact-field"><label for="id_end_date">To date</label>{{ timesheet_form.end_date|accessible_field }}{% if timesheet_form.end_date.errors %}<span id="{{ timesheet_form.end_date.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.end_date.errors }}</span>{% endif %}</div>
+      <div class="field compact-field"><label for="id_employee">Employee</label>{{ timesheet_form.employee|accessible_field }}{% if timesheet_form.employee.errors %}<span id="{{ timesheet_form.employee.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.employee.errors }}</span>{% endif %}</div>
+      <div class="field compact-field"><label for="id_status">Timesheet status</label>{{ timesheet_form.status|accessible_field }}{% if timesheet_form.status.errors %}<span id="{{ timesheet_form.status.auto_id }}_errors" class="field-error" role="alert">{{ timesheet_form.status.errors }}</span>{% endif %}</div>
       <button type="submit">Apply filters</button>
       <button class="button-secondary" type="submit" formaction="{% url 'reports:timesheet_csv' %}">Export CSV</button>
     </form>

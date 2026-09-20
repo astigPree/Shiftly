@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 {% block body_class %}app-body{% endblock %}
-{% block main_class %}app-shell-root{% endblock %}
-{% block messages %}{% endblock %}
-{% block content %}
+{% block page %}
+<div class="app-shell-root">
+<a class="skip-link" href="#main-content">Skip to main content</a>
 <div class="employee-shell">
   <header class="employee-topbar">
     <a class="shell-brand" href="{% url 'attendance:my_attendance' %}"><span class="brand-mark" aria-hidden="true">S</span><span>Shiftly</span></a>
@@ -19,10 +19,11 @@
     <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" href="{% url 'timesheets:my_list' %}">Timesheets</a>
     <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'profile' %} active{% endif %}" href="{% url 'accounts:profile' %}"><span aria-hidden="true">♙</span>Profile</a>
   </nav>
-  <main class="app-content employee-content">
+  <main id="main-content" class="app-content employee-content">
     {% include "components/messages.html" %}
     {% block app_content %}{% endblock %}
   </main>
+</div>
 </div>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/attendance_timer.js' %}" defer></script>{% endblock %}

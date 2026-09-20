@@ -1,4 +1,5 @@
 {% extends "layouts/employee.html" %}
+{% load form_tags %}
 {% block title %}Profile | Shiftly{% endblock %}
 {% block app_content %}
 <header class="page-title"><h1>Profile</h1><p class="muted">Manage the name shown on your Shiftly account.</p></header>
@@ -9,7 +10,7 @@
     <div class="settings-email"><span>Email address</span><strong>{{ request.user.email }}</strong></div>
     <div class="settings-email"><span>Employee code</span><strong>{{ employee.employee_code }}</strong></div>
     <div class="settings-email"><span>Job title</span><strong>{{ employee.job_title|default:"Not specified" }}</strong></div>
-    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.errors %}<div class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
+    {% for field in form %}<div class="field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field|accessible_field }}{% if field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}{% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}</div>{% endfor %}
     <button type="submit">Save profile</button>
   </form>
 </section>

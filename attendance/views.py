@@ -7,7 +7,7 @@ from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
 from employees.models import Employee
@@ -35,6 +35,7 @@ def _minutes_label(minutes):
 
 
 @employer_required
+@require_GET
 def attendance_list(request):
     organization = organization_for_user(request.user)
     local_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
@@ -95,6 +96,7 @@ def attendance_list(request):
 
 
 @employee_required
+@require_GET
 def my_attendance(request):
     employee = request.user.employee_profile
     organization = employee.organization
