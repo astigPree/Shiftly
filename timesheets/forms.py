@@ -18,6 +18,7 @@ class TimesheetFilterForm(forms.Form):
         self.fields["employee"].queryset = Employee.objects.filter(
             organization=organization
         ).order_by("last_name", "first_name")
+        self.fields["employee"].empty_label = "All employees"
 
     def clean(self):
         cleaned = super().clean()
