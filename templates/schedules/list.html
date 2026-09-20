@@ -93,9 +93,10 @@
                     <summary aria-label="Actions for {{ shift.employee.full_name }} on {{ shift.work_date|date:'M j, Y' }}"><span aria-hidden="true">•••</span></summary>
                     <div class="schedule-row-menu-popover">
                       <a href="{% url 'schedules:detail' shift.pk %}">View shift</a>
-                      {% if shift.can_manage %}<a href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><form method="post" action="{% url 'schedules:cancel' shift.pk %}" onsubmit="return window.confirm('Cancel this shift? This action will be recorded in the audit log.');">{% csrf_token %}<button type="submit" class="schedule-menu-danger">Cancel shift</button></form>{% endif %}
+                      {% if shift.can_manage %}<a href="{% url 'schedules:edit' shift.pk %}">Edit shift</a><button type="button" class="schedule-menu-danger" data-open-shift-cancel aria-haspopup="dialog" aria-controls="shift-cancel-dialog-{{ shift.pk }}">Cancel shift</button>{% endif %}
                     </div>
                   </details>
+                  {% if shift.can_manage %}{% include "components/shift_cancel_dialog.html" with shift=shift %}{% endif %}
                 </td>
               </tr>
             {% endfor %}

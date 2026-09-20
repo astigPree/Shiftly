@@ -1,0 +1,19 @@
+<dialog class="shift-confirm-dialog" id="shift-cancel-dialog-{{ shift.pk }}" data-shift-cancel-dialog aria-labelledby="shift-cancel-title-{{ shift.pk }}" aria-describedby="shift-cancel-description-{{ shift.pk }}">
+  <div class="shift-confirm-dialog-content">
+    <span class="shift-confirm-dialog-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" %}</span>
+    <p class="shift-confirm-dialog-eyebrow">Schedule change</p>
+    <h2 id="shift-cancel-title-{{ shift.pk }}">Cancel this shift?</h2>
+    <p id="shift-cancel-description-{{ shift.pk }}">This will cancel {{ shift.employee.full_name }}’s shift. The employee will no longer be able to clock in for it, and this change will be recorded in the audit history.</p>
+    <dl class="shift-confirm-dialog-details">
+      <div><dt>Employee</dt><dd>{{ shift.employee.full_name }}</dd></div>
+      <div><dt>Work date</dt><dd>{{ shift.work_date|date:"D, M j, Y" }}</dd></div>
+    </dl>
+    <form method="post" action="{% url 'schedules:cancel' shift.pk %}">
+      {% csrf_token %}
+      <div class="shift-confirm-dialog-actions">
+        <button class="shift-confirm-keep" type="button" data-close-shift-cancel autofocus>Keep shift</button>
+        <button class="shift-confirm-submit" type="submit">{% include "components/icon.html" with icon_name="trash" icon_class="button-icon" %}<span>Cancel shift</span></button>
+      </div>
+    </form>
+  </div>
+</dialog>

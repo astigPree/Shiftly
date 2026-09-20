@@ -90,13 +90,11 @@
     {% if can_manage_shift %}
       <div class="shift-control-actions">
         <a class="button-link shift-edit-button" href="{% url 'schedules:edit' shift.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit shift</span></a>
-        <form method="post" action="{% url 'schedules:cancel' shift.pk %}" onsubmit="return window.confirm('Cancel this shift? This action will be recorded in the audit log.');">
-          {% csrf_token %}
-          <button class="shift-cancel-button" type="submit">{% include "components/icon.html" with icon_name="trash" icon_class="button-icon" %}<span>Cancel shift</span></button>
-        </form>
+        <button class="shift-cancel-button" type="button" data-open-shift-cancel aria-haspopup="dialog" aria-controls="shift-cancel-dialog-{{ shift.pk }}">{% include "components/icon.html" with icon_name="trash" icon_class="button-icon" %}<span>Cancel shift</span></button>
       </div>
       <p class="shift-controls-help">Once attendance begins, this shift will be locked for editing and cancellation.</p>
     {% endif %}
   </section>
+  {% if can_manage_shift %}{% include "components/shift_cancel_dialog.html" with shift=shift %}{% endif %}
 </div>
 {% endblock %}
