@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .dashboard-heading h1 {
   margin: 5px 0;
@@ -16,7 +16,20 @@
 .dashboard-heading-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
+}
+.app-body--overview .topbar-date {
+  display: none;
+}
+.dashboard-heading-actions .button-link,
+.dashboard-heading-actions .button-link-secondary {
+  gap: 8px;
+}
+.button-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }
 .button-link-secondary {
   display: inline-flex;
@@ -36,7 +49,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 .kpi-card {
   display: grid;
@@ -44,8 +57,8 @@
   grid-template-rows: auto auto 1fr;
   align-items: center;
   column-gap: 15px;
-  min-height: 150px;
-  padding: 19px;
+  min-height: 144px;
+  padding: 18px 20px;
   color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -116,7 +129,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 19px 20px;
+  padding: 16px 18px;
 }
 .panel-heading > div {
   display: flex;
@@ -188,9 +201,82 @@ td small {
 .panel-footer a {
   text-decoration: none;
 }
+.dashboard-table th,
+.dashboard-table td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.overview-panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+.panel-heading > .overview-panel-actions {
+  align-items: center;
+  gap: 8px;
+}
+.overview-updated {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.overview-refresh {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--color-gray-700);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.overview-refresh:hover {
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+  background: var(--color-primary-50);
+}
+.overview-refresh .icon {
+  width: 18px;
+  height: 18px;
+}
+.overview-empty-state {
+  display: grid;
+  min-height: 180px;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  padding: 20px 16px;
+}
+.overview-empty-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 2px;
+  place-items: center;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+.overview-empty-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+.overview-empty-state h3,
+.overview-empty-state p {
+  margin: 0;
+}
+.overview-empty-state p {
+  color: var(--color-text-muted);
+}
+.overview-empty-state .button-link {
+  gap: 8px;
+  margin-top: 6px;
+}
 .dashboard-attention {
-  margin-top: 24px;
-  padding: var(--space-5);
+  margin-top: 16px;
+  padding: 16px 18px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -200,10 +286,10 @@ td small {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
+  margin-bottom: 12px;
 }
 .attention-heading h2 {
-  margin: 0 0 4px;
+  margin: 0 0 3px;
   font-size: var(--text-lg);
 }
 .attention-heading p {
@@ -217,10 +303,10 @@ td small {
 .attention-card {
   display: flex;
   min-width: 0;
-  min-height: 88px;
+  min-height: 72px;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3);
+  padding: 10px 12px;
   color: var(--color-text);
   background: var(--color-gray-50);
   border: 1px solid var(--color-border);
@@ -270,6 +356,30 @@ td small {
 .attention-copy small {
   color: var(--color-text-muted);
   line-height: 1.35;
+}
+.attention-clear {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+}
+.attention-clear > .icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+.attention-clear strong {
+  color: var(--color-text);
+}
+.attention-clear p {
+  margin: 2px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
 }
 .page-title {
   margin-bottom: 20px;

@@ -103,7 +103,12 @@ def home(request):
         return render(
             request,
             "accounts/dashboard.html",
-            {"organization": organization, "greeting_name": request.user.first_name or request.user.email, **context},
+            {
+                "organization": organization,
+                "greeting_name": request.user.get_full_name().strip()
+                or request.user.email,
+                **context,
+            },
         )
     return redirect("attendance:my_attendance")
 

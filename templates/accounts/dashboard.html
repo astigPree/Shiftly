@@ -1,29 +1,175 @@
 {% extends "layouts/employer.html" %}
 {% load tz %}
 {% block title %}Overview | Shiftly{% endblock %}
+{% block body_class %}app-body app-body--overview{% endblock %}
 {% block app_content %}
-<header class="dashboard-heading"><div><p class="eyebrow">{{ local_now|date:"l, F j, Y" }}</p><h1>Good {{ greeting_period }}, {{ greeting_name }}!</h1><p class="muted">Here’s what’s happening with your team today.</p></div><div class="dashboard-heading-actions"><a class="button-link" href="{% url 'employees:create' %}">Add employee</a><a class="button-secondary button-link-secondary" href="{% url 'schedules:create' %}">Schedule shift</a></div></header>
+<header class="dashboard-heading">
+  <div>
+    <p class="eyebrow">{{ local_now|date:"l, F j, Y" }}</p>
+    <h1>Good {{ greeting_period }}, {{ greeting_name }}!</h1>
+    <p class="muted">Here's what's happening with your team today.</p>
+  </div>
+  <div class="dashboard-heading-actions">
+    <a class="button-link" href="{% url 'employees:create' %}">
+      {% include "components/icon.html" with icon_name="user-plus" icon_class="button-icon" %}
+      <span>Add employee</span>
+    </a>
+    {% if can_schedule_shift %}
+      <a class="button-secondary button-link-secondary" href="{% url 'schedules:create' %}">
+        {% include "components/icon.html" with icon_name="calendar" icon_class="button-icon" %}
+        <span>Schedule shift</span>
+      </a>
+    {% endif %}
+  </div>
+</header>
 
 <section class="kpi-grid" aria-label="Today's workforce summary">
-  <a class="kpi-card" href="{% url 'employees:list' %}"><span class="kpi-icon kpi-blue">{% include "components/icon.html" with icon_name="users" icon_class="icon" %}</span><span class="kpi-value">{{ employee_count }}</span><span class="kpi-label">Employees</span><span class="kpi-helper">Total team members <span aria-hidden="true">›</span></span></a>
-  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&status=WORKING"><span class="kpi-icon kpi-green">{% include "components/icon.html" with icon_name="user-check" icon_class="icon" %}</span><span class="kpi-value">{{ working_count }}</span><span class="kpi-label">Working</span><span class="kpi-helper">On shift right now <span aria-hidden="true">›</span></span></a>
-  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&status=LATE"><span class="kpi-icon kpi-amber">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span><span class="kpi-value">{{ late_count }}</span><span class="kpi-label">Late</span><span class="kpi-helper">Arrived after schedule <span aria-hidden="true">›</span></span></a>
-  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&status=ABSENT"><span class="kpi-icon kpi-red">{% include "components/icon.html" with icon_name="user-x" icon_class="icon" %}</span><span class="kpi-value">{{ absent_count }}</span><span class="kpi-label">Absent</span><span class="kpi-helper">Did not clock in <span aria-hidden="true">›</span></span></a>
+  <a class="kpi-card" href="{% url 'employees:list' %}?status=ACTIVE">
+    <span class="kpi-icon kpi-blue">{% include "components/icon.html" with icon_name="users" icon_class="icon" %}</span>
+    <span class="kpi-value">{{ active_employee_count }}</span>
+    <span class="kpi-label">Active Employees</span>
+    <span class="kpi-helper">Team members enabled <span aria-hidden="true">›</span></span>
+  </a>
+  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&amp;status=WORKING">
+    <span class="kpi-icon kpi-green">{% include "components/icon.html" with icon_name="user-check" icon_class="icon" %}</span>
+    <span class="kpi-value">{{ on_shift_count }}</span>
+    <span class="kpi-label">On Shift</span>
+    <span class="kpi-helper">Working or on break <span aria-hidden="true">›</span></span>
+  </a>
+  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&amp;status=LATE">
+    <span class="kpi-icon kpi-amber">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span>
+    <span class="kpi-value">{{ late_count }}</span>
+    <span class="kpi-label">Late</span>
+    <span class="kpi-helper">Arrived after schedule <span aria-hidden="true">›</span></span>
+  </a>
+  <a class="kpi-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}&amp;status=ABSENT">
+    <span class="kpi-icon kpi-red">{% include "components/icon.html" with icon_name="user-x" icon_class="icon" %}</span>
+    <span class="kpi-value">{{ absent_count }}</span>
+    <span class="kpi-label">Absent</span>
+    <span class="kpi-helper">No clock-in recorded <span aria-hidden="true">›</span></span>
+  </a>
 </section>
 
 <section class="dashboard-panel" aria-labelledby="today-attendance-title">
-  <header class="panel-heading"><div>{% include "components/icon.html" with icon_name="calendar" icon_class="panel-icon" %}<div><h2 id="today-attendance-title">Today’s Attendance</h2><p class="muted">Real-time view of your team’s attendance for {{ local_today|date:"M j" }}.</p></div></div><a class="button-secondary button-link-secondary" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}">View all <span aria-hidden="true">→</span></a></header>
-  {% if attendance_rows %}<div class="table-wrap"><table class="dashboard-table"><thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col">Actions</th></tr></thead><tbody>
-  {% for row in attendance_rows %}<tr><td><span class="employee-initial" aria-hidden="true">{{ row.shift.employee.first_name|first|upper }}{{ row.shift.employee.last_name|first|upper }}</span><span class="employee-cell"><a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a><small>{{ row.shift.employee.job_title|default:row.shift.employee.employee_code }}</small></span></td><td>{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td><td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span>{% if row.late_clock_in %}<small class="warning-text">Late clock-in</small>{% endif %}{% if row.state.missing_clock_out %}<small class="warning-text">Missing clock-out</small>{% endif %}</td><td>{% if row.last_activity %}{{ row.last_activity|timezone:organization.timezone|date:"g:i A" }}{% if row.session.status == "ON_BREAK" %}<small>On break</small>{% elif row.session.clock_out_at %}<small>Clocked out</small>{% else %}<small>Clocked in</small>{% endif %}{% else %}—{% endif %}</td><td><a href="{% url 'schedules:detail' row.shift.pk %}" aria-label="View {{ row.shift.employee.full_name }}'s shift">View</a></td></tr>{% endfor %}
-  </tbody></table></div><footer class="panel-footer">Showing {{ attendance_rows|length }} of {{ attendance_total }} shifts scheduled today <a href="{% url 'employees:list' %}">View all employees <span aria-hidden="true">→</span></a></footer>
-  {% else %}<div class="empty-state"><h3>No shifts scheduled today</h3><p>Create your team’s first shift or review your employee list.</p><a class="button-link" href="{% url 'schedules:create' %}">Schedule a shift</a></div>{% endif %}
+  <header class="panel-heading">
+    <div>
+      {% include "components/icon.html" with icon_name="calendar" icon_class="panel-icon" %}
+      <div>
+        <h2 id="today-attendance-title">Today's Attendance</h2>
+        <p class="muted">Today's team attendance status.</p>
+      </div>
+    </div>
+    <div class="overview-panel-actions">
+      <span class="overview-updated">Updated {{ updated_at|date:"g:i A" }}</span>
+      <a class="overview-refresh" href="{% url 'accounts:home' %}" aria-label="Refresh overview" title="Refresh overview">
+        {% include "components/icon.html" with icon_name="refresh" icon_class="icon" %}
+      </a>
+      <a class="button-secondary button-link-secondary" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}">
+        View all <span aria-hidden="true">→</span>
+      </a>
+    </div>
+  </header>
+
+  {% if attendance_rows %}
+    <div class="table-wrap">
+      <table class="dashboard-table">
+        <thead>
+          <tr>
+            <th scope="col">Employee</th>
+            <th scope="col">Shift</th>
+            <th scope="col">Status</th>
+            <th scope="col">Last activity</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in attendance_rows %}
+            <tr>
+              <td>
+                <span class="employee-initial" aria-hidden="true">{{ row.shift.employee.first_name|first|upper }}{{ row.shift.employee.last_name|first|upper }}</span>
+                <span class="employee-cell">
+                  <a href="{% url 'employees:detail' row.shift.employee.pk %}">{{ row.shift.employee.full_name }}</a>
+                  <small>{{ row.shift.employee.job_title|default:row.shift.employee.employee_code }}</small>
+                </span>
+              </td>
+              <td>{{ row.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ row.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</td>
+              <td>
+                <span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span>
+                {% if row.late_clock_in %}<small class="warning-text">Late clock-in</small>{% endif %}
+                {% if row.state.missing_clock_out %}<small class="warning-text">Missing clock-out</small>{% endif %}
+              </td>
+              <td>
+                {% if row.last_activity %}
+                  {{ row.last_activity|timezone:organization.timezone|date:"g:i A" }}
+                  {% if row.session.status == "ON_BREAK" %}<small>Break started</small>
+                  {% elif row.session.clock_out_at %}<small>Clocked out</small>
+                  {% else %}<small>Clocked in</small>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td><a href="{% url 'schedules:detail' row.shift.pk %}" aria-label="View {{ row.shift.employee.full_name }}'s shift">View</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <footer class="panel-footer">
+      Showing {{ attendance_rows|length }} of {{ today_shift_count }} scheduled shifts today
+      <a href="{% url 'employees:list' %}">View all employees <span aria-hidden="true">→</span></a>
+    </footer>
+  {% else %}
+    <div class="empty-state overview-empty-state">
+      {% if dashboard_empty_state == "no_employees" %}
+        <span class="overview-empty-icon">{% include "components/icon.html" with icon_name="user-plus" icon_class="icon" %}</span>
+        <h3>No active employees yet</h3>
+        <p>Add an employee before creating a schedule.</p>
+        <a class="button-link" href="{% url 'employees:create' %}">
+          {% include "components/icon.html" with icon_name="user-plus" icon_class="button-icon" %}
+          <span>Add employee</span>
+        </a>
+      {% else %}
+        <span class="overview-empty-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span>
+        <h3>No shifts scheduled today</h3>
+        <p>Your team is ready. Create today's first shift.</p>
+        <a class="button-link" href="{% url 'schedules:create' %}">
+          {% include "components/icon.html" with icon_name="calendar" icon_class="button-icon" %}
+          <span>Schedule a shift</span>
+        </a>
+      {% endif %}
+    </div>
+  {% endif %}
 </section>
+
 <section class="dashboard-attention" aria-labelledby="needs-attention-title">
-  <header class="attention-heading"><div><h2 id="needs-attention-title">Needs attention</h2><p class="muted">Open timesheet decisions and attendance follow-up.</p></div></header>
-  <div class="attention-grid">
-    <a class="attention-card" href="{% url 'timesheets:list' %}?status=PENDING"><span class="attention-icon attention-blue">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span><span class="attention-copy"><strong>{{ pending_timesheet_count }}</strong><span>Pending timesheets</span><small>Ready for employer review</small></span></a>
-    <a class="attention-card" href="{% url 'timesheets:list' %}?status=NEEDS_REVIEW"><span class="attention-icon attention-amber">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span><span class="attention-copy"><strong>{{ needs_review_timesheet_count }}</strong><span>Needs review</span><small>Inspect the reason and record a decision</small></span></a>
-    <a class="attention-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}"><span class="attention-icon attention-red">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span><span class="attention-copy"><strong>{{ missing_clock_out_count }}</strong><span>Open clock-outs</span><small>Check today's incomplete sessions</small></span></a>
-  </div>
+  <header class="attention-heading">
+    <div>
+      <h2 id="needs-attention-title">Needs attention</h2>
+      {% if has_attention %}
+        <p class="muted">
+          {% if attention_count == 1 %}1 item requires employer action.{% else %}{{ attention_count }} items require employer action.{% endif %}
+        </p>
+      {% endif %}
+    </div>
+  </header>
+  {% if has_attention %}
+    <div class="attention-grid">
+      <a class="attention-card" href="{% url 'timesheets:list' %}?status=PENDING">
+        <span class="attention-icon attention-blue">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+        <span class="attention-copy"><strong>{{ pending_timesheet_count }}</strong><span>Pending timesheets</span><small>Review submitted time</small></span>
+      </a>
+      <a class="attention-card" href="{% url 'timesheets:list' %}?status=NEEDS_REVIEW">
+        <span class="attention-icon attention-amber">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span>
+        <span class="attention-copy"><strong>{{ needs_review_timesheet_count }}</strong><span>Needs review</span><small>Resolve flagged timesheets</small></span>
+      </a>
+      <a class="attention-card" href="{% url 'attendance:list' %}?date={{ local_today|date:'Y-m-d' }}">
+        <span class="attention-icon attention-red">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span>
+        <span class="attention-copy"><strong>{{ missing_clock_out_count }}</strong><span>Open clock-outs</span><small>Check incomplete sessions</small></span>
+      </a>
+    </div>
+  {% else %}
+    <div class="attention-clear" role="status">
+      {% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}
+      <div><strong>You're all caught up</strong><p>No timesheets or incomplete clock-outs need follow-up.</p></div>
+    </div>
+  {% endif %}
 </section>
 {% endblock %}

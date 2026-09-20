@@ -21,19 +21,23 @@ def employer_dashboard_data(organization, now=None):
     local_now = timezone.localtime(now, org_timezone)
     local_today = local_now.date()
     shifts = (
-        Shift.objects.filter(organization=organization, work_date=local_today)
+        Shift.objects.filter(
+            organization=organization,
+            work_date=local_today,
+            status=Shift.Status.SCHEDULED,
+        )
         .select_related("employee", "organization", "attendance_session")
         .prefetch_related("attendance_session__breaks")
         .order_by("scheduled_start", "employee__last_name", "employee__first_name")
     )
     rows = []
-    counts = {"WORKING": 0, "LATE": 0, "ABSENT": 0, "MISSING_CLOCK_OUT": 0}
+    counts = {"ON_SHIFT": 0, "LATE": 0, "ABSENT": 0, "MISSING_CLOCK_OUT": 0}
     for shift in shifts:
         session = getattr(shift, "attendance_session", None)
         state = attendance_state(shift, at=now)
         late_clock_in = bool(session and session.clock_in_at > shift.scheduled_start)
         if state["code"] in ("WORKING", "ON_BREAK"):
-            counts["WORKING"] += 1
+            counts["ON_SHIFT"] += 1
         if state["code"] == "LATE" or late_clock_in:
             counts["LATE"] += 1
         if state["code"] == "ABSENT":
@@ -55,23 +59,37 @@ def employer_dashboard_data(organization, now=None):
         .values("status")
         .annotate(total=Count("pk"))
     }
+    active_employee_count = Employee.objects.filter(
+        organization=organization,
+        status=Employee.Status.ACTIVE,
+    ).count()
+    attention_count = (
+        timesheet_counts.get(Timesheet.Status.PENDING, 0)
+        + timesheet_counts.get(Timesheet.Status.NEEDS_REVIEW, 0)
+        + counts["MISSING_CLOCK_OUT"]
+    )
     return {
         "local_today": local_today,
         "local_now": local_now,
+        "updated_at": local_now,
         "greeting_period": (
             "morning" if local_now.hour < 12
             else "afternoon" if local_now.hour < 17
             else "evening"
         ),
-        "employee_count": Employee.objects.filter(organization=organization).count(),
-        "working_count": counts["WORKING"],
+        "active_employee_count": active_employee_count,
+        "can_schedule_shift": active_employee_count > 0,
+        "on_shift_count": counts["ON_SHIFT"],
         "late_count": counts["LATE"],
         "absent_count": counts["ABSENT"],
         "missing_clock_out_count": counts["MISSING_CLOCK_OUT"],
         "pending_timesheet_count": timesheet_counts.get(Timesheet.Status.PENDING, 0),
         "needs_review_timesheet_count": timesheet_counts.get(Timesheet.Status.NEEDS_REVIEW, 0),
-        "attendance_rows": rows[:10],
-        "attendance_total": len(rows),
+        "attention_count": attention_count,
+        "has_attention": attention_count > 0,
+        "attendance_rows": rows[:5],
+        "today_shift_count": len(rows),
+        "dashboard_empty_state": "no_employees" if active_employee_count == 0 else "no_shifts",
     }
 
 

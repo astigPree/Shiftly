@@ -151,6 +151,7 @@
 
   .dashboard-heading-actions > a {
     flex: 1;
+    justify-content: center;
   }
 
   .kpi-grid {
@@ -175,7 +176,10 @@
   }
 
   .panel-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-items: flex-start;
+    gap: 12px;
     padding: 15px;
   }
 
@@ -191,6 +195,15 @@
     min-height: 44px;
     padding: 0 9px;
     font-size: var(--text-xs);
+  }
+
+  .overview-panel-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .overview-updated {
+    margin-right: auto;
   }
 
   .panel-footer {
