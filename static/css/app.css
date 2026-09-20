@@ -60,4 +60,17 @@ th { color: #52627c; font-size: 14px; }
 .break-list { padding-left: 22px; color: #52627c; }
 .home-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .home-links a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; background: #eff6ff; border-radius: 8px; text-decoration: none; font-weight: 600; }
+.status-pending { color: #175cd3; background: #eff8ff; }
+.status-approved { color: #067647; background: #e7f6ee; }
+.status-rejected { color: #b42318; background: #fee4e2; }
+.status-needs_review { color: #93370d; background: #fef0c7; }
+.timesheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.timesheet-grid .detail-list { grid-template-columns: minmax(100px, 150px) 1fr; }
+.totals-list { max-width: 540px; }
+.review-actions form { margin: 14px 0; }
+.reject-form { display: grid; gap: 10px; max-width: 560px; }
+.reject-form textarea { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; }
+.review-history { padding-left: 24px; }
+.review-history li { margin: 12px 0; }
+@media (max-width: 720px) { .timesheet-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .page-shell { width: min(100% - 24px, 520px); margin: 20px auto; } .auth-card, .content-card { margin: 4vh auto; padding: 22px; } }

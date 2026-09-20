@@ -17,6 +17,8 @@ def _require_owner(employee, actor):
 def _ensure_clockable(shift, employee, now):
     if shift.employee_id != employee.pk:
         raise PermissionDenied
+    if shift.organization_id != employee.organization_id:
+        raise PermissionDenied("The shift does not belong to the employee's organization.")
     if employee.status != Employee.Status.ACTIVE:
         raise PermissionDenied("Inactive employees cannot record attendance.")
     if shift.status != Shift.Status.SCHEDULED:
@@ -113,6 +115,9 @@ def clock_out(*, session, employee, actor, at=None):
     session.clock_out_at = now
     session.status = AttendanceSession.Status.COMPLETED
     session.save(update_fields=["clock_out_at", "status", "updated_at"])
+    from timesheets.services import generate_timesheet
+
+    generate_timesheet(session)
     return session
 
 

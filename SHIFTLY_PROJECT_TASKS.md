@@ -130,17 +130,17 @@ The MVP is ready when an employer can create an organization, add an employee, a
 
 ## Phase 6 — Timesheet calculation and review
 
-- [ ] Implement Timesheet records linked to organization, employee, shift, and attendance data.
-- [ ] Implement a pure, server-side calculator for scheduled minutes, worked minutes, break minutes, payable minutes, late minutes, and undertime minutes using the Phase 0 rules.
-- [ ] Use integer minute fields (or another explicitly documented precision) consistently and avoid browser-side payroll-relevant arithmetic.
-- [ ] Generate or update a timesheet at the defined point in the attendance lifecycle without creating duplicate records.
-- [ ] Implement Pending, Approved, Rejected, and Needs Review states with validated transitions.
-- [ ] Implement TimesheetApproval history with reviewer, action, comment, and reviewed timestamp.
-- [ ] Implement employer timesheet list, filters, detail, and employee timesheet history/detail pages.
-- [ ] Show enough evidence to review a timesheet: scheduled shift, clock events, breaks, calculated totals, late/undertime values, and review history.
-- [ ] Implement approve and reject actions with server-side employer authorization and the agreed rejection-comment rule.
-- [ ] Prevent an employee from changing attendance through timesheet pages and prevent uncontrolled modification of an approved timesheet.
-- [ ] Ensure rejected/incomplete records follow the documented lifecycle and are not treated as approved payroll-ready records.
+- [x] Implement Timesheet records linked to organization, employee, shift, and attendance data.
+- [x] Implement a pure, server-side calculator for scheduled minutes, worked minutes, break minutes, payable minutes, late minutes, and undertime minutes using the Phase 0 rules.
+- [x] Use integer minute fields (or another explicitly documented precision) consistently and avoid browser-side payroll-relevant arithmetic.
+- [x] Generate or update a timesheet at the defined point in the attendance lifecycle without creating duplicate records.
+- [x] Implement Pending, Approved, Rejected, and Needs Review states with validated transitions.
+- [x] Implement TimesheetApproval history with reviewer, action, comment, and reviewed timestamp.
+- [x] Implement employer timesheet list, filters, detail, and employee timesheet history/detail pages.
+- [x] Show enough evidence to review a timesheet: scheduled shift, clock events, breaks, calculated totals, late/undertime values, and review history.
+- [x] Implement approve and reject actions with server-side employer authorization and the agreed rejection-comment rule.
+- [x] Prevent an employee from changing attendance through timesheet pages and prevent uncontrolled modification of an approved timesheet.
+- [x] Ensure rejected/incomplete records follow the documented lifecycle and are not treated as approved payroll-ready records.
 - [ ] Add tests for calculation edge cases, lifecycle transitions, duplicate generation, rejection, approval, and permissions.
 
 ## Phase 7 — Employer workspace and dashboard

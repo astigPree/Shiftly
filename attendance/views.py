@@ -182,5 +182,5 @@ def clock_out_action(request, session_pk):
     except ValidationError as error:
         messages.error(request, " ".join(error.messages))
     else:
-        messages.success(request, "You are clocked out. Your timesheet is being prepared.")
+        messages.success(request, "You are clocked out. Your completed timesheet is ready for review.")
     return redirect("attendance:my_attendance")

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{% if employee_view %}My timesheets{% else %}Timesheets{% endif %} | Shiftly{% endblock %}
+{% block content %}
+<header class="page-header"><div><a class="brand" href="{% url 'accounts:home' %}">Shiftly</a><h1>{% if employee_view %}My timesheets{% else %}Timesheets{% endif %}</h1><p class="muted">Completed shift records and review status</p></div></header>
+<section class="content-card wide-card">
+  {% if can_review %}<form method="get" class="filters">
+    <div class="field compact-field"><label for="id_start_date">From date</label>{{ filter_form.start_date }}</div><div class="field compact-field"><label for="id_end_date">To date</label>{{ filter_form.end_date }}</div><div class="field compact-field"><label for="id_employee">Employee</label>{{ filter_form.employee }}</div><div class="field compact-field"><label for="id_status">Status</label>{{ filter_form.status }}</div><button type="submit">Filter</button>
+  </form>{% if filter_form.errors %}<div class="error-list" role="alert">Correct the filters to apply them.</div>{% endif %}{% endif %}
+  {% if page.object_list %}<div class="table-wrap"><table><thead><tr><th scope="col">Work date</th><th scope="col">Employee</th><th scope="col">Scheduled</th><th scope="col">Worked</th><th scope="col">Status</th></tr></thead><tbody>
+  {% for timesheet in page.object_list %}<tr><td>{% if can_review %}<a href="{% url 'timesheets:detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a>{% else %}<a href="{% url 'timesheets:my_detail' timesheet.pk %}">{{ timesheet.shift.work_date|date:"M j, Y" }}</a>{% endif %}</td><td>{{ timesheet.employee.full_name }}<br><span class="muted">{{ timesheet.employee.employee_code }}</span></td><td>{{ timesheet.scheduled_minutes }} min</td><td>{{ timesheet.worked_minutes }} min</td><td><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="empty-state"><h2>No timesheets found</h2><p>{% if can_review %}Completed shifts appear here after employees clock out.{% else %}Your completed shifts will appear here after clock-out.{% endif %}</p></div>{% endif %}
+  {% if page.paginator.num_pages > 1 %}<nav class="pagination" aria-label="Timesheet pages">{% if page.has_previous %}<a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}page={{ page.next_page_number }}">Next</a>{% endif %}</nav>{% endif %}
+</section>
+{% endblock %}
