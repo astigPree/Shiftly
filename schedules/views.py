@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
+from attendance.models import AttendanceSession
 from attendance.services import attendance_state
 from employees.models import Employee
 from .forms import ShiftForm
@@ -328,6 +329,11 @@ def my_schedule(request):
     now = timezone.now()
     local_today = timezone.localdate(now, timezone=ZoneInfo(organization.timezone))
     week_start = local_today - timedelta(days=local_today.weekday())
+    has_open_session = AttendanceSession.objects.filter(
+        organization=organization,
+        employee=employee,
+        clock_out_at__isnull=True,
+    ).exists()
     shifts = (
         Shift.objects.filter(organization=organization, employee=employee)
         .filter(
@@ -342,6 +348,21 @@ def my_schedule(request):
             "shift": shift,
             "session": getattr(shift, "attendance_session", None),
             "state": attendance_state(shift, at=now),
+            "show_clock_in": (
+                getattr(shift, "attendance_session", None) is None
+                and shift.status == Shift.Status.SCHEDULED
+                and not has_open_session
+                and now < shift.scheduled_end
+            ),
+            "can_clock_in": (
+                getattr(shift, "attendance_session", None) is None
+                and shift.status == Shift.Status.SCHEDULED
+                and not has_open_session
+                and now >= shift.scheduled_start - timedelta(minutes=30)
+                and now < shift.scheduled_end
+            ),
+            "clock_in_opens_at": shift.scheduled_start - timedelta(minutes=30),
+            "clock_in_closes_at": shift.scheduled_end,
         }
         for shift in shifts
     ]
@@ -357,6 +378,7 @@ def my_schedule(request):
         {
             "cards": cards,
             "organization": organization,
+            "now": now,
             "local_today": local_today,
             "week_start": week_start,
             "weekly_minutes": weekly_minutes,

@@ -122,19 +122,23 @@ def my_attendance(request):
                 break_seconds += max(0, int((now - active_break.started_at).total_seconds()))
                 elapsed -= max(0, int((now - active_break.started_at).total_seconds()))
             worked_seconds = max(0, elapsed - completed_break_seconds)
-        can_clock_in = (
+        show_clock_in = (
             session is None
             and shift.status == Shift.Status.SCHEDULED
-            and now >= shift.scheduled_start - timedelta(minutes=30)
             and now < shift.scheduled_end
         )
+        clock_in_opens_at = shift.scheduled_start - timedelta(minutes=30)
+        can_clock_in = show_clock_in and now >= clock_in_opens_at
         cards.append(
             {
                 "shift": shift,
                 "session": session,
                 "timesheet": getattr(session, "timesheet", None) if session else None,
                 "state": state,
+                "show_clock_in": show_clock_in,
                 "can_clock_in": can_clock_in,
+                "clock_in_opens_at": clock_in_opens_at,
+                "clock_in_closes_at": shift.scheduled_end,
                 "last_activity": last_activity(session),
                 "breaks": breaks,
                 "worked_seconds": worked_seconds,
@@ -146,10 +150,23 @@ def my_attendance(request):
                 "break_duration_label": _duration_label(break_seconds),
             }
         )
+    has_open_session = any(card["session"] and not card["session"].clock_out_at for card in cards)
+    if has_open_session:
+        for card in cards:
+            if card["session"] is None:
+                card["show_clock_in"] = False
+                card["can_clock_in"] = False
     today_card = next((card for card in cards if card["shift"].work_date == today), None)
     active_card = next((card for card in cards if card["session"] and not card["session"].clock_out_at), None)
-    focus_card = active_card or today_card
-    upcoming_card = next((card for card in cards if card["shift"].work_date > today), None)
+    clockable_card = next((card for card in cards if card["can_clock_in"]), None)
+    upcoming_card = next(
+        (
+            card for card in cards
+            if card["shift"].work_date > today and card["shift"].status == Shift.Status.SCHEDULED
+        ),
+        None,
+    )
+    focus_card = active_card or clockable_card or today_card or upcoming_card
     weekly_minutes = Timesheet.objects.filter(
         organization=organization,
         employee=employee,

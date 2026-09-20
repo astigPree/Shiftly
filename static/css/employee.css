@@ -167,6 +167,35 @@
 .employee-actions .attendance-action-primary {
   min-width: 160px;
 }
+.employee-clock-in-control {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 16px;
+}
+.employee-clock-in-control form {
+  margin: 0;
+}
+.employee-clock-in-control button {
+  min-width: 160px;
+  min-height: 48px;
+}
+.employee-clock-in-control--schedule {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+.employee-clock-in-control--schedule button {
+  min-width: 128px;
+  min-height: 40px;
+}
+.employee-clock-in-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
 .completed-timesheet-link {
   padding: 12px;
   background: var(--color-blue-bg);
