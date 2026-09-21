@@ -2,7 +2,88 @@
 {% load humanize %}
 {% block title %}My pay | Shiftly{% endblock %}
 {% block app_content %}
-<div class="payroll-page payroll-page--employee"><header class="payroll-page-header"><div><p class="payroll-eyebrow">{{ organization.name }}</p><h1>My pay</h1><p class="muted">Finalized payroll statements and payslips.</p></div></header>
-  <section class="payroll-card">{% if page.object_list %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th scope="col">Pay period</th><th scope="col">Pay date</th><th scope="col">Gross</th><th scope="col">Deductions</th><th scope="col">Net pay</th><th scope="col">Payslip</th></tr></thead><tbody>{% for statement in page.object_list %}<tr><td><strong>{{ statement.run.period_start|date:"M j, Y" }} – {{ statement.run.period_end|date:"M j, Y" }}</strong></td><td>{{ statement.run.pay_date|date:"M j, Y" }}</td><td>{{ statement.run.currency }} {{ statement.gross_amount|floatformat:2|intcomma }}</td><td>{{ statement.run.currency }} {{ statement.deduction_amount|floatformat:2|intcomma }}</td><td><strong>{{ statement.run.currency }} {{ statement.net_amount|floatformat:2|intcomma }}</strong></td><td><a class="table-action-button" href="{% url 'payroll:my_statement_detail' statement.pk %}">View payslip</a></td></tr>{% endfor %}</tbody></table></div>{% if page.paginator.num_pages > 1 %}<footer class="payroll-table-footer"><span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span><nav class="payroll-pagination" aria-label="Payslip pages">{% if page.has_previous %}<a class="table-action-button" href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}{% if page.has_next %}<a class="table-action-button" href="?page={{ page.next_page_number }}">Next</a>{% endif %}</nav></footer>{% endif %}{% else %}<div class="payroll-empty-state"><h2>No payslips yet</h2><p>Your finalized pay statements will appear here. Only you can access your statements.</p><a class="button-secondary" href="{% url 'timesheets:my_list' %}">View timesheets</a></div>{% endif %}</section>
+<div class="payroll-page payroll-page--employee payroll-my-page">
+  <header class="payroll-page-header payroll-my-header">
+    <div>
+      <p class="payroll-eyebrow">{{ organization.name }}</p>
+      <h1>My pay</h1>
+      <p class="muted">Your finalized payroll statements and payslips.</p>
+    </div>
+  </header>
+
+  {% if not page.object_list %}
+  <section class="payroll-card payroll-my-empty" aria-labelledby="payroll-empty-title">
+    <span class="payroll-my-empty-icon">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+    <div class="payroll-my-empty-copy">
+      <h2 id="payroll-empty-title">No payslips yet</h2>
+      <p>Your finalized pay statements will appear here after your employer completes a payroll run. Only you can access your statements.</p>
+      <a class="payroll-my-empty-action" href="{% url 'timesheets:my_list' %}">View timesheets</a>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="payroll-my-summary" aria-label="Pay statement summary">
+    <article class="payroll-card payroll-my-stat">
+      <span class="payroll-my-stat-icon">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+      <div><span>Statements this year</span><strong>{{ statements_this_year }}</strong></div>
+    </article>
+    <article class="payroll-card payroll-my-stat">
+      <span class="payroll-my-stat-icon">{% include "components/icon.html" with icon_name="wallet" icon_class="icon" %}</span>
+      <div><span>Last net pay</span><strong>{% if latest_statement %}{{ latest_statement.run.currency }} {{ latest_statement.net_amount|floatformat:2|intcomma }}{% else %}&mdash;{% endif %}</strong></div>
+    </article>
+    <article class="payroll-card payroll-my-stat">
+      <span class="payroll-my-stat-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span>
+      <div><span>Last pay date</span><strong>{% if latest_statement %}{{ latest_statement.run.pay_date|date:"M j, Y" }}{% else %}&mdash;{% endif %}</strong></div>
+    </article>
+  </section>
+
+  {% if page.object_list %}
+  <section class="payroll-card payroll-my-history" aria-labelledby="payroll-history-title">
+    <header class="payroll-card-heading">
+      <div>
+        <h2 id="payroll-history-title">Payslip history</h2>
+        <p>Finalized statements, newest pay date first.</p>
+      </div>
+      <span class="payroll-my-count">Showing {{ page.start_index }}&ndash;{{ page.end_index }} of {{ page.paginator.count }}</span>
+    </header>
+
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable payslip history">
+      <table class="payroll-table payroll-my-table">
+        <thead>
+          <tr>
+            <th scope="col">Pay period</th>
+            <th scope="col">Pay date</th>
+            <th scope="col" class="payroll-my-money">Gross</th>
+            <th scope="col" class="payroll-my-money">Deductions</th>
+            <th scope="col" class="payroll-my-money">Net pay</th>
+            <th scope="col">Payslip</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for statement in page.object_list %}
+          <tr>
+            <td data-label="Pay period"><strong>{{ statement.run.period_start|date:"M j, Y" }} &ndash; {{ statement.run.period_end|date:"M j, Y" }}</strong></td>
+            <td data-label="Pay date">{{ statement.run.pay_date|date:"M j, Y" }}</td>
+            <td data-label="Gross" class="payroll-my-money">{{ statement.run.currency }} {{ statement.gross_amount|floatformat:2|intcomma }}</td>
+            <td data-label="Deductions" class="payroll-my-money">{{ statement.run.currency }} {{ statement.deduction_amount|floatformat:2|intcomma }}</td>
+            <td data-label="Net pay" class="payroll-my-money"><strong>{{ statement.run.currency }} {{ statement.net_amount|floatformat:2|intcomma }}</strong></td>
+            <td data-label="Payslip"><a class="table-action-button" href="{% url 'payroll:my_statement_detail' statement.pk %}">View payslip</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page.paginator.num_pages > 1 %}
+    <footer class="payroll-table-footer payroll-my-pagination">
+      <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      <nav class="payroll-pagination" aria-label="Payslip pages">
+        {% if page.has_previous %}<a class="table-action-button" href="?page={{ page.previous_page_number }}" aria-label="Previous page">Previous</a>{% endif %}
+        {% if page.has_next %}<a class="table-action-button" href="?page={{ page.next_page_number }}" aria-label="Next page">Next</a>{% endif %}
+      </nav>
+    </footer>
+    {% endif %}
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

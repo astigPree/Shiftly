@@ -767,3 +767,97 @@
   .payroll-card { box-shadow: none; break-inside: avoid; }
   .payroll-payslip { width: 100%; }
 }
+
+.payroll-my-page { gap: 20px; }
+.payroll-my-header { align-items: flex-end; }
+.payroll-my-header h1 { margin-bottom: 4px; }
+.payroll-my-header p { margin-bottom: 0; }
+.payroll-my-empty {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+  min-height: 220px;
+  padding: clamp(22px, 4vw, 42px);
+}
+.payroll-my-empty-icon {
+  display: grid;
+  width: 82px;
+  height: 82px;
+  place-items: center;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  border-radius: var(--radius-lg);
+}
+.payroll-my-empty-icon .icon { width: 38px; height: 38px; }
+.payroll-my-empty-copy { min-width: 0; }
+.payroll-my-empty-copy h2 { margin: 0 0 6px; color: var(--color-gray-900); font-size: var(--text-xl); }
+.payroll-my-empty-copy p { max-width: 760px; margin: 0; color: var(--color-text-muted); line-height: 1.5; }
+.payroll-my-empty-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 0 14px;
+  color: var(--color-primary-700);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  text-decoration: none;
+}
+.payroll-my-empty-action:hover { background: var(--color-primary-50); border-color: var(--color-primary-200); }
+.payroll-my-empty-action:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.payroll-my-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.payroll-my-stat {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 18px;
+}
+.payroll-my-stat-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+.payroll-my-stat-icon .icon { width: 22px; height: 22px; }
+.payroll-my-stat > div { display: grid; min-width: 0; gap: 5px; }
+.payroll-my-stat > div > span { color: var(--color-text-muted); font-size: var(--text-sm); }
+.payroll-my-stat strong { overflow-wrap: anywhere; color: var(--color-gray-900); font-size: clamp(19px, 2vw, 25px); line-height: 1.2; }
+.payroll-my-history { min-width: 0; }
+.payroll-my-history .payroll-card-heading { align-items: center; }
+.payroll-my-history .payroll-card-heading h2 { margin: 0 0 3px; font-size: var(--text-lg); }
+.payroll-my-history .payroll-card-heading p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.payroll-my-count { color: var(--color-text-muted); font-size: var(--text-sm); white-space: nowrap; }
+.payroll-my-table { min-width: 820px; }
+.payroll-my-table th.payroll-my-money,
+.payroll-my-table td.payroll-my-money { text-align: right; white-space: nowrap; }
+.payroll-my-table td.payroll-my-money strong { color: var(--color-gray-900); }
+.payroll-my-table td:last-child { width: 1%; white-space: nowrap; }
+.payroll-my-pagination { margin-top: 14px; }
+
+@media (max-width: 760px) {
+  .payroll-my-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .payroll-my-stat:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 560px) {
+  .payroll-my-empty { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 16px; min-height: 0; padding: 22px 18px; text-align: center; }
+  .payroll-my-empty-icon { width: 64px; height: 64px; }
+  .payroll-my-empty-icon .icon { width: 30px; height: 30px; }
+  .payroll-my-summary { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .payroll-my-stat:last-child { grid-column: auto; }
+  .payroll-my-stat { min-height: 84px; padding: 14px; }
+  .payroll-my-history { padding: 14px; }
+  .payroll-my-history .payroll-card-heading { align-items: flex-start; flex-direction: column; }
+  .payroll-my-count { white-space: normal; }
+  .payroll-my-pagination { align-items: flex-start; flex-direction: column; }
+}

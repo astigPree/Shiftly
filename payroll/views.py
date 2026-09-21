@@ -885,9 +885,20 @@ def my_statements(request):
         run__organization=employee.organization,
         run__status=PayrollRun.Status.FINALIZED,
     ).select_related("run").order_by("-run__pay_date", "-pk")
+    try:
+        current_year = timezone.localdate(ZoneInfo(employee.organization.timezone)).year
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        current_year = timezone.localdate().year
+    statements_this_year = statements.filter(run__pay_date__year=current_year).count()
+    latest_statement = statements.first()
     page = Paginator(statements, 20).get_page(request.GET.get("page"))
     record_event(organization=employee.organization, actor=request.user, action=AuditEvent.Action.PAYROLL_STATEMENT_ACCESSED, target_type="payroll_history", target_id=employee.pk, summary="Viewed employee payroll history.", metadata={"page": page.number})
-    return render(request, "payroll/my_statements.html", {"organization": employee.organization, "page": page})
+    return render(request, "payroll/my_statements.html", {
+        "organization": employee.organization,
+        "page": page,
+        "statements_this_year": statements_this_year,
+        "latest_statement": latest_statement,
+    })
 
 
 @employee_required
