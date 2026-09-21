@@ -4,8 +4,17 @@
 
 This document resolves the product decisions left open by the Shiftly project documents. It is the authoritative source for MVP behavior and acceptance. The Project Description defines product scope, the Tech Stack defines implementation constraints, and the Project Design Skill guides presentation. If a design example suggests a feature outside this document's MVP boundary, defer that feature.
 
-The MVP is a single-owner-per-organization attendance and timesheet product. It records attendance and produces reviewable work-minute records; it does not calculate wages or payroll.
+The core MVP is a single-owner-per-organization attendance and timesheet product. Its payable_minutes field remains a work-time quantity, not money. A separate Philippine payroll foundation now calculates employer-reviewed hourly run drafts, but it is not legally/accountingly approved for live payroll use; its current scope and release gates are recorded in SHIFTLY_PROJECT_TASKS.md.
 
+
+
+## Payroll foundation status and release gates
+
+The initial payroll implementation is limited to Philippine organizations using PHP and hourly-paid employees. Runs use inclusive calendar-date periods; attendance intervals are split using the employee's configured work-location timezone, falling back to the organization timezone. Effective rules and rates are selected by the employee-local work date. Employers must configure and provide review evidence for rule inputs.
+
+The implementation supports hourly base pay, configurable daily overtime premiums, ordinary-day night differential, reviewed rest-day/holiday premium inputs, manual earning/deduction/contribution lines, payroll review/finalization, off-cycle corrections, employee-only finalized payslips, and finalized CSV exports. It blocks finalization for unresolved payroll exceptions and preserves calculation inputs and preview history.
+
+Automatic Philippine withholding tax, SSS, PhilHealth, Pag-IBIG, statutory filings, legal/accounting approval, shadow payroll reconciliation, and payment transfers are not implemented. The application must not be represented as legally compliant payroll until the open Phase 11 requirements, reviewed reference scenarios, automated tests, shadow runs, and documented sign-off are complete. Reviewer names/source fields are review attestations and do not constitute legal sign-off.
 ## Accounts and organizations
 
 - An employer can sign up with an email and password. Successful signup creates one organization and makes that user its owner.

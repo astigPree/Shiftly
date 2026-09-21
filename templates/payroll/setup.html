@@ -1,0 +1,20 @@
+{% extends "layouts/employer.html" %}
+{% load form_tags %}
+{% block title %}Payroll settings | Shiftly{% endblock %}
+{% block app_content %}
+<div class="payroll-page payroll-page--narrow">
+  <a class="payroll-back-link" href="{% url 'payroll:run_list' %}">← Payroll</a>
+  <header class="payroll-page-header"><div><p class="payroll-eyebrow">Philippines · {{ organization.timezone }}</p><h1>Payroll settings</h1><p class="muted">Set the pay frequency and effective-dated rule inputs.</p></div></header>
+  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Organization payroll</h2><p>First release: Philippine jurisdiction, PHP, hourly-paid employees, and configurable period frequency. Employee work dates use the payroll profile timezone, falling back to the organization timezone.</p></div></header><div class="payroll-info-box"><strong>Currency</strong><span>Philippine peso (PHP) · fixed for this initial release</span></div><form method="post" class="payroll-form" novalidate>{% csrf_token %}<input type="hidden" name="action" value="settings">{% for field in settings_form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><button class="button-link" type="submit">Save settings</button></div></form></section>
+  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>{% if rule_form.instance.pk and rule_form.instance.reviewed %}Add rule version{% else %}Pay rules{% endif %}</h2><p>Rules are effective-dated and require official references plus reviewer details before they can be used to finalize a run.</p></div></header>
+    <div class="payroll-info-box"><strong>Initial Philippines rules</strong><span>Default inputs: 8-hour day, 1.25 ordinary overtime multiplier, 1.30 rest-day multiplier, and 10% night differential for 10:00 PM–6:00 AM. Confirm employee coverage, premium stacking, and current regional rules with a qualified payroll adviser. Defaults cannot be used for finalization until source and reviewer evidence are recorded.</span></div>
+    <form method="post" class="payroll-form" novalidate>{% csrf_token %}<input type="hidden" name="action" value="rules">
+      {% for field in rule_form %}{% include "components/form_field.html" with field=field %}{% endfor %}
+      <p class="form-help">Adding reviewer name and source references records a review attestation. It does not replace professional or legal approval.</p>
+      <button class="button-link" type="submit">Save rule version</button>
+    </form>
+  </section>
+  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Rule history</h2><p>Past reviewed versions remain available for finalized run snapshots.</p></div></header><div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th scope="col">Effective dates</th><th scope="col">Day length</th><th scope="col">Overtime</th><th scope="col">Night window</th><th scope="col">Night premium</th><th scope="col">Review</th></tr></thead><tbody>{% for rule in rule_history %}<tr><td>{{ rule.effective_from|date:"M j, Y" }} – {% if rule.effective_until %}{{ rule.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td><td>{{ rule.regular_day_minutes }} min</td><td>{{ rule.overtime_multiplier }}×</td><td>{{ rule.night_start|time:"g:i A" }}–{{ rule.night_end|time:"g:i A" }}</td><td>{{ rule.night_differential_rate|floatformat:2|add:"0" }} × base rate</td><td>{% if rule.reviewed %}<span class="payroll-status payroll-status--finalized">Reviewed</span><small>{{ rule.reviewed_by }}</small>{% else %}<span class="payroll-status payroll-status--draft">Needs review</span>{% endif %}</td></tr>{% empty %}<tr><td colspan="6">No rule versions saved.</td></tr>{% endfor %}</tbody></table></div></section>
+  <footer class="payroll-setup-links"><a class="button-secondary" href="{% url 'payroll:employee_list' %}">Employee pay profiles</a><a class="button-secondary" href="{% url 'payroll:holiday_calendar' %}">Holiday calendar</a></footer>
+</div>
+{% endblock %}

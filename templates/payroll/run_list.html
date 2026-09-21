@@ -1,0 +1,140 @@
+{% extends "layouts/employer.html" %}
+{% load humanize %}
+{% block title %}Payroll | Shiftly{% endblock %}
+{% block app_content %}
+<div class="payroll-page">
+  <header class="payroll-page-header payroll-overview-header">
+    <div>
+      <p class="payroll-eyebrow">{{ organization.name }} &middot; {{ organization.timezone }}</p>
+      <h1>Payroll</h1>
+      <p class="muted">Prepare, review, and keep a record of employee pay runs.</p>
+    </div>
+    {% if payroll_readiness.can_create_run %}
+      <a class="button-link" href="{% url 'payroll:run_create' %}">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}Create payroll run</a>
+    {% else %}
+      <button class="button-link payroll-button-disabled" type="button" disabled aria-describedby="payroll-readiness-summary" title="Complete payroll readiness before creating a run">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}Create payroll run</button>
+    {% endif %}
+  </header>
+
+  <aside class="payroll-notice" role="note" aria-label="Payroll calculation scope">
+    {% include "components/icon.html" with icon_name="info" icon_class="payroll-notice-icon" %}
+    <div><strong>Payroll calculation scope</strong><p>Shiftly calculates hourly pay and configured premiums. Philippine tax withholding and SSS, PhilHealth, and Pag-IBIG amounts require reviewed manual line items; Shiftly does not transfer money.</p></div>
+  </aside>
+
+  <section class="payroll-card payroll-readiness" aria-labelledby="payroll-readiness-title" id="payroll-readiness-summary">
+    <header class="payroll-readiness-header">
+      <span class="payroll-feature-icon">{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}</span>
+      <div class="payroll-readiness-heading"><h2 id="payroll-readiness-title">Payroll readiness</h2><p>Complete the required setup before creating a payroll run.</p></div>
+      <div class="payroll-readiness-progress">
+        <span>{{ payroll_readiness.complete_count }} of {{ payroll_readiness.total_count }} complete</span>
+        <div class="payroll-progress-track" role="progressbar" aria-label="Payroll setup progress" aria-valuemin="0" aria-valuemax="{{ payroll_readiness.total_count }}" aria-valuenow="{{ payroll_readiness.complete_count }}">
+          <span style="width: {{ payroll_readiness.progress_percent }}%"></span>
+        </div>
+      </div>
+    </header>
+    <div class="payroll-readiness-list">
+      {% for item in payroll_readiness.items %}
+      <div class="payroll-readiness-row{% if item.complete %} is-complete{% else %} needs-setup{% endif %}">
+        <span class="payroll-readiness-icon" aria-hidden="true">{% if item.complete %}{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}{% else %}{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}{% endif %}</span>
+        <div class="payroll-readiness-copy"><strong>{{ item.title }}</strong><span>{{ item.description }}</span></div>
+        <span class="payroll-readiness-badge">{% if item.complete %}Complete{% else %}Incomplete{% endif %}</span>
+        <span class="payroll-readiness-detail">{{ item.detail }}</span>
+        <span class="payroll-readiness-action">{% if not item.complete %}<a href="{% url item.url_name %}">Complete setup</a>{% else %}{% include "components/icon.html" with icon_name="chevron-right" icon_class="icon" %}{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <nav class="payroll-shortcuts payroll-shortcut-cards" aria-label="Payroll setup pages">
+    <a class="payroll-shortcut-card" href="{% url 'payroll:setup' %}">
+      <span class="payroll-shortcut-icon">{% include "components/icon.html" with icon_name="settings" icon_class="icon" %}</span>
+      <span class="payroll-shortcut-copy"><strong>Payroll settings</strong><small>Set currency, pay frequency, and reviewed rules.</small><span>{{ payroll_readiness.items.0.detail }}</span></span>
+      {% include "components/icon.html" with icon_name="chevron-right" icon_class="payroll-shortcut-arrow" %}
+    </a>
+    <a class="payroll-shortcut-card" href="{% url 'payroll:employee_list' %}">
+      <span class="payroll-shortcut-icon">{% include "components/icon.html" with icon_name="users" icon_class="icon" %}</span>
+      <span class="payroll-shortcut-copy"><strong>Employee pay profiles</strong><small>Manage work locations and hourly rates.</small><span>{{ payroll_readiness.items.1.detail }}</span></span>
+      {% include "components/icon.html" with icon_name="chevron-right" icon_class="payroll-shortcut-arrow" %}
+    </a>
+    <a class="payroll-shortcut-card" href="{% url 'payroll:holiday_calendar' %}">
+      <span class="payroll-shortcut-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span>
+      <span class="payroll-shortcut-copy"><strong>Holiday calendar</strong><small>Add and review regular and special holidays.</small><span>{{ payroll_readiness.items.2.detail }}</span></span>
+      {% include "components/icon.html" with icon_name="chevron-right" icon_class="payroll-shortcut-arrow" %}
+    </a>
+  </nav>
+
+  {% if summary_run_count %}
+  <section class="payroll-total-grid payroll-overview-totals" aria-label="Payroll run summary">
+    <article class="payroll-total-card"><span>Draft</span><strong>{{ summary_status_counts.DRAFT|default:0 }}</strong><small>Editable runs</small></article>
+    <article class="payroll-total-card"><span>Needs review</span><strong>{{ summary_status_counts.REVIEW|default:0 }}</strong><small>Awaiting review</small></article>
+    <article class="payroll-total-card"><span>Finalized</span><strong>{{ summary_status_counts.FINALIZED|default:0 }}</strong><small>Locked for audit</small></article>
+    <article class="payroll-total-card payroll-total-card--money"><span>Finalized net pay</span><strong>PHP {{ finalized_net|floatformat:2|intcomma }}</strong><small>Finalized runs in this view</small></article>
+    <p class="payroll-summary-scope">{{ summary_scope }}</p>
+  </section>
+  {% endif %}
+
+  <section class="payroll-card payroll-runs-card" aria-labelledby="payroll-runs-title">
+    <header class="payroll-runs-heading">
+      <div class="payroll-section-heading">
+        <span class="payroll-feature-icon">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+        <div><h2 id="payroll-runs-title">Payroll runs</h2><p>Drafts stay editable. Finalized runs and payslips are locked for audit.</p></div>
+      </div>
+      <nav class="payroll-period-shortcuts" aria-label="Quick payroll period filters">
+        <a href="{{ current_period_url }}"{% if selected_period == "current" %} aria-current="page"{% endif %}>Current period</a>
+        <a href="{{ previous_period_url }}"{% if selected_period == "previous" %} aria-current="page"{% endif %}>Previous period</a>
+      </nav>
+    </header>
+
+    <form method="get" class="payroll-filter payroll-run-filter" aria-label="Filter payroll runs">
+      <label class="payroll-filter__date" for="id_run_from">Period from<input id="id_run_from" type="date" name="from" value="{{ from_date }}"></label>
+      <label class="payroll-filter__date" for="id_run_to">Period to<input id="id_run_to" type="date" name="to" value="{{ to_date }}"></label>
+      <label for="id_run_employee">Employee<select id="id_run_employee" name="employee"><option value="">All employees</option>{% for employee in employees %}<option value="{{ employee.pk }}"{% if employee_id == employee.pk|stringformat:"s" %} selected{% endif %}>{{ employee.full_name }} &middot; {{ employee.employee_code }}</option>{% endfor %}</select></label>
+      <label for="id_run_status">Status<select id="id_run_status" name="status"><option value="">All runs</option>{% for value,label in status_choices %}<option value="{{ value }}"{% if selected_status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <div class="payroll-run-filter__actions">
+        <button class="button-link" type="submit">Apply filters</button>
+        <a class="button-secondary" href="{% url 'payroll:run_list' %}">Clear</a>
+      </div>
+    </form>
+
+    {% if page.object_list %}
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable payroll runs">
+      <table class="payroll-table payroll-run-table">
+        <thead><tr><th scope="col">Run / period</th><th scope="col">Pay date</th><th scope="col">Employees</th><th scope="col" class="payroll-money">Gross</th><th scope="col" class="payroll-money">Net</th><th scope="col">Status</th><th scope="col">Exceptions</th><th scope="col">Actions</th></tr></thead>
+        <tbody>{% for run in page.object_list %}
+          <tr>
+            <td><strong>{{ run.period_start|date:"M j, Y" }} &ndash; {{ run.period_end|date:"M j, Y" }}</strong><small>{{ run.reference }} &middot; {{ run.get_run_type_display }}</small></td>
+            <td>{{ run.pay_date|date:"M j, Y" }}</td>
+            <td>{{ run.employee_count }}</td>
+            <td class="payroll-money">PHP {{ run.gross_total|floatformat:2|intcomma }}</td>
+            <td class="payroll-money">PHP {{ run.net_total|floatformat:2|intcomma }}</td>
+            <td><span class="payroll-status payroll-status--{{ run.status|lower }}">{{ run.get_status_display }}</span></td>
+            <td>{% if run.unresolved_count %}<a class="payroll-exception-link" href="{% url 'payroll:run_detail' run.pk %}#payroll-exceptions-heading">{{ run.unresolved_count }} issue{{ run.unresolved_count|pluralize }}<span>Review</span></a>{% else %}<span class="muted">None</span>{% endif %}</td>
+            <td><a class="table-action-button" href="{% url 'payroll:run_detail' run.pk %}">View run</a></td>
+          </tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+    <footer class="payroll-table-footer"><span>Showing {{ results_start }}&ndash;{{ results_end }} of {{ page.paginator.count }} run{{ page.paginator.count|pluralize }}</span><nav class="payroll-pagination" aria-label="Payroll run pages">{% if page.has_previous %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if page.has_next %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.next_page_number }}">Next</a>{% endif %}</nav></footer>
+    {% else %}
+      {% if has_any_runs %}
+      <div class="payroll-empty-state payroll-empty-state--filtered">
+        <span class="payroll-empty-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="search" icon_class="icon" %}</span>
+        <div class="payroll-empty-copy"><h3>No payroll runs match these filters</h3><p>Try a wider period or remove one of the selected filters.</p></div>
+        <a class="button-secondary" href="{% url 'payroll:run_list' %}">Clear filters</a>
+      </div>
+      {% elif payroll_readiness.can_create_run %}
+      <div class="payroll-empty-state">
+        <span class="payroll-empty-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+        <div class="payroll-empty-copy"><h3>Ready for your first payroll run</h3><p>Create a draft to review approved hours, configured premiums, deductions, and exceptions before finalization.</p><p class="payroll-empty-hint">Use the <strong>Create payroll run</strong> button above to get started.</p></div>
+      </div>
+      {% else %}
+      <div class="payroll-empty-state payroll-empty-state--setup">
+        <span class="payroll-empty-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span>
+        <div class="payroll-empty-copy"><h3>Payroll setup isn't complete</h3><p>Finish the required payroll configuration before creating your first payroll run.</p></div>
+        <a class="button-link" href="{% url payroll_readiness.next_setup_url %}">Complete setup</a>
+      </div>
+      {% endif %}
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

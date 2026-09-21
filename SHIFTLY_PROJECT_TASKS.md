@@ -18,7 +18,7 @@ The attendance MVP is a lightweight, multi-organization attendance and timesheet
 
 ## Product scope
 
-Payroll is now an approved Shiftly feature. Phase 11 expands the earlier attendance-only scope and supersedes the previous exclusion of payroll rates, calculations, and payslips. Payroll rules and calculations are not implemented yet; every Phase 11 task is still open.
+Payroll is now an approved Shiftly feature. Phase 11 expands the earlier attendance-only scope and supersedes the previous exclusion of payroll rates, calculations, and payslips. The PH payroll foundation has been implemented in the application. Jurisdictional legal/accounting validation, statutory contribution calculations, tests, shadow payroll, and pilot sign-off remain open; Phase 11 shows the exact boundary.
 
 ### Included
 
@@ -32,11 +32,11 @@ Payroll is now an approved Shiftly feature. Phase 11 expands the earlier attenda
 - Daily/weekly reports, CSV export, and basic audit history.
 - Responsive, accessible Django-template UI.
 - PostgreSQL-backed deployment using the documented Django, Nginx, Gunicorn, systemd, and Ubuntu stack.
-- Payroll runs, employer review and approval, itemized employee payslips, and payroll exports using rules validated for each supported jurisdiction (planned; see Phase 11).
+- Philippines/PHP hourly payroll runs, employer review/finalization, itemized employee statements, and CSV export using employer-configured effective-dated rules (implemented foundation; legal validation remains open; see Phase 11).
 
 ### Explicitly outside the MVP
 
-Do not add these unless the product scope is deliberately revised: mobile or SPA clients, DRF/public API, recurring schedules or shift templates, leave management, departments/teams, notifications/reminders, automated approval rules, advanced attendance corrections, client billing, direct bank transfers or payment initiation, real-time WebSockets, Redis/Celery, or microservices. Payroll calculations, payslips, and payroll exports are now planned in Phase 11; direct movement of funds remains a separate scope decision.
+Do not add these unless the product scope is deliberately revised: mobile or SPA clients, DRF/public API, recurring schedules or shift templates, leave management, departments/teams, notifications/reminders, automated approval rules, advanced attendance corrections, client billing, direct bank transfers or payment initiation, real-time WebSockets, Redis/Celery, or microservices. The initial payroll foundation, payslips, and CSV exports are implemented in Phase 11; statutory automation and movement of funds remain outside the current release.
 
 ## Completion standard
 
@@ -46,7 +46,7 @@ The attendance MVP is ready when an employer can create an organization, add an 
 
 ## Phase 0 — Resolve product rules before implementation
 
-**Status: Complete for attendance and timesheets.** Their resolved behavior and end-to-end acceptance scenarios are recorded in [SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md](SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md). Payroll rules are not covered by that decision set yet and must be defined in Phase 11 before payroll implementation.
+**Status: Complete for attendance and timesheets.** Their resolved behavior and end-to-end acceptance scenarios are recorded in [SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md](SHIFTLY_MVP_ACCEPTANCE_CRITERIA.md). Payroll implementation exists; legal and accounting decisions still open are tracked in Phase 11.
 
 - [x] Confirm employer onboarding, single-owner organization ownership, employee invitation, and activation behavior.
 - [x] Define employee access provisioning, password reset, deactivation, and retention of attendance history.
@@ -208,88 +208,78 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [ ] Verify schedule, attendance, employee weekly hours, employer reports, and timesheet details display the overnight shift in the organization timezone and attribute it to the original work date.
 - [ ] Keep the attendance portion of this scenario focused on timestamps, state, and worked duration. Any night-differential amount or other pay treatment must follow the jurisdiction-approved rules defined and tested in Phase 11.
 
-## Phase 11 — Payroll feature (new approved scope)
+## Phase 11 - Payroll feature (approved scope)
 
-Payroll is a separate feature layer that consumes approved timesheets. The existing `payable_minutes` value is a time quantity; it is not a money amount. All monetary calculations must be server-side, reproducible from recorded inputs, and reviewed against the supported jurisdiction's current rules before use. No task below assumes that Shiftly will transfer funds directly.
+**Implementation status: payroll foundation implemented; not cleared for live payroll.** The current release supports one Philippine organization currency (PHP), hourly pay, employer-entered effective-dated rules, approved timesheets, reviewable runs, manual line items, final statements, and CSV export. It does not calculate Philippine tax withholding, SSS, PhilHealth, Pag-IBIG, or transfer money. Reviewer fields capture an application attestation, not legal/accounting sign-off.
 
-### 11.1 Define payroll scope and business rules
+### 11.1 Scope and business rules
 
-- [ ] Confirm the first supported payroll jurisdiction(s), legal employer setup, employee work location rules, and who is qualified to approve the payroll rules.
-- [ ] Research the current official labor, tax, social contribution, record-retention, and payslip requirements for each supported jurisdiction; record source links, effective dates, and an owner for updates.
-- [ ] Decide whether organizations can run payroll in multiple jurisdictions and currencies, or whether the first release supports one payroll jurisdiction and currency per organization.
-- [ ] Define pay frequency, payroll period boundaries, cutoff date, pay date, timezone rules, and treatment of late-approved timesheets.
-- [ ] Decide which worker classifications and pay bases are supported in the first release (for example hourly and salaried employees); explicitly defer unsupported classifications.
-- [ ] Define how approved timesheets map to regular payable hours, including rounding precision, minute-to-money conversion, unpaid breaks, and the employee's effective pay rate on the work date.
-- [ ] Define overtime eligibility, thresholds, rate multipliers, daily/weekly boundaries, rest-day and holiday rules, premium stacking order, and rounding behavior for each jurisdiction.
-- [ ] Define the authoritative holiday/rest-day calendar source and how jurisdiction, region, and employer-specific holidays are maintained for each payroll year.
-- [ ] Define night-differential eligibility, the local qualifying time window, premium rate, treatment of breaks, and how overnight work and daylight-saving changes are split across eligible time segments.
-- [ ] Define gross pay components, including base pay, overtime, night differential, holiday/rest-day premiums, allowances, reimbursements, bonuses, and retroactive adjustments; identify which components are taxable or pensionable by jurisdiction.
-- [ ] Define employee deductions and employer contributions, including statutory withholding/contributions and any supported voluntary deductions, advances, or loans, with effective dates, caps, and calculation order.
-- [ ] Define net-pay behavior for zero pay, negative deductions, over-deductions, corrections, and employees with no eligible approved timesheets.
-- [ ] Decide whether payroll is calculation-and-export only for the first release or includes a payment-provider/bank disbursement integration; require separate security, reconciliation, and authorization design before any direct fund movement.
-- [ ] Define who may prepare, review, approve, and finalize a payroll run, including whether the same person may prepare and approve it.
-- [ ] Define whether finalized payroll can be reopened; prefer correcting finalized runs through an auditable adjustment or off-cycle run rather than silently rewriting history.
-- [ ] Record all decisions in payroll acceptance criteria and update the Project Description, Tech Stack, data-flow/security documentation, and this task plan so they no longer describe payroll as excluded.
+- [x] Set the initial jurisdiction to the Philippines and currency to PHP; keep the first implementation to hourly employees and one payroll currency per organization.
+- [x] Add weekly, semi-monthly, and monthly calendar pay periods; retain the selected frequency on each run.
+- [x] Use inclusive calendar dates for payroll periods. Split worked intervals in each employee's configured work-location timezone and select effective rates/rules by that local work date. New profiles start with the employee's preferred timezone when available; otherwise they use the organization timezone.
+- [x] Make daily regular minutes, overtime/rest-day multipliers, night window, and night differential rate configurable and effective-dated. Require source references and reviewer details before a rule version can be used for finalization.
+- [x] Require an employer-entered work location, region, wage-order reference, and minimum-wage check before calculating an employee's time. Require an explicit night-differential eligibility confirmation before valuing night work.
+- [x] Define zero-pay as reviewable only after an explicit exception decision; block negative net pay and deductions greater than gross pay.
+- [x] Keep direct payment/disbursement outside the product; the current export is for employer reconciliation.
+- [x] Retain finalized runs and correct later changes through a linked off-cycle run rather than editing the finalized run.
+- [ ] Research and maintain the current official labor, tax, contribution, record-retention, and payslip rules with effective dates and a qualified owner.
+- [ ] Resolve jurisdiction-specific employee classifications, regional wage-order data, statutory pay bases, taxability, contribution caps, and mandatory filing requirements with a qualified Philippine payroll/accounting reviewer.
+- [x] Recalculate draft runs when late-approved timesheets become eligible; use a linked off-cycle run after finalization. Require unresolved pending timesheets to be decided before review.
+- [ ] Have a qualified reviewer confirm that per-employee local calendar dates are appropriate for payroll period boundaries when the organization and employee work timezones differ.
+- [ ] Obtain documented legal/accounting approval of the rule set before live payroll use.
 
-### 11.2 Payroll data, rates, and calculation engine
+### 11.2 Payroll data and calculation foundation
 
-- [ ] Add an organization-scoped employee pay profile with payroll jurisdiction, currency, pay basis, pay frequency, and only the personal/payroll identifiers required for the supported rules.
-- [ ] Build employer forms for organization payroll settings and employee pay profiles, with role restrictions, clear effective dates, and change summaries.
-- [ ] Add effective-dated pay-rate history so a rate change applies to the correct work dates and never changes a finalized payroll run.
-- [ ] Model jurisdictional tax, contribution, overtime, holiday, rest-day, night-differential, and deduction rules as versioned, effective-dated configuration rather than scattered constants.
-- [ ] Add payroll periods and payroll runs with explicit Draft, Review, Approved/Finalized, and Voided states, creator/reviewer timestamps, currency, and period boundaries.
-- [ ] Add per-employee payroll statements and itemized earning, premium, allowance, reimbursement, deduction, employer-contribution, gross, and net line items.
-- [ ] Snapshot the approved timesheets, effective pay profiles, rule versions, and calculation inputs used by each finalized run so its results can be reproduced later.
-- [ ] Use `Decimal` and explicit currency minor-unit rounding for all money; never use floating-point or browser-side arithmetic as the authoritative calculation.
-- [ ] Implement a pure server-side calculator with separately reviewable functions for base earnings, overtime, night differential, holiday/rest-day premiums, allowances, deductions, contributions, gross totals, and net totals.
-- [ ] Generate payroll only from eligible approved timesheets and surface pending, rejected, incomplete, or missing-clock records as exceptions instead of silently paying or omitting them.
-- [ ] Split overnight attendance intervals at local payroll-rule boundaries, including midnight, pay-period boundaries, night-differential windows, and daylight-saving transitions where applicable.
-- [ ] Define and implement idempotent run generation, duplicate-run prevention, transaction handling, and safe behavior when timesheets or pay profiles change during a draft run.
-- [ ] Prevent finalized runs and statements from changing when source timesheets, employee rates, or rule configuration are edited later.
-- [ ] Implement a correction path for post-finalization changes using linked adjustment lines and off-cycle/next-run treatment with a complete audit trail.
-- [ ] Add database constraints and indexes for unique employee/run statements, organization isolation, effective-dated rates, and payroll period queries.
+- [x] Add organization payroll settings, employee work/pay profiles, employee timezone, work-location fields, effective hourly-rate history, holidays, payroll runs, employee statements, itemized lines, time entries, exceptions, and immutable calculation snapshots.
+- [x] Use Decimal arithmetic and explicit PHP cent rounding on the server. The browser is not authoritative for money.
+- [x] Calculate base hourly pay, configured daily overtime premium, ordinary-day night differential, and reviewed non-stacking rest-day/holiday premiums from approved timesheets.
+- [x] Split overnight time by employee-local midnight and configured night-window boundaries. Apply rate/rule versions by employee-local work date and preserve the included UTC segments in calculation snapshots.
+- [x] Block finalization for missing profiles/rates/rules, unconfirmed night eligibility, incomplete or missing attendance/timesheets, pending timesheets, unresolved premium combinations, and other unreviewed exceptions. Rejected timesheets stay excluded and require an explicit recorded exclusion decision.
+- [x] Prevent duplicate regular periods and duplicate form submissions; recalculate drafts transactionally while preserving manual lines and prior preview history.
+- [x] Freeze finalized runs and their statements/lines/time entries. Prevent new effective rates or rule versions from changing dates already covered by finalized payroll.
+- [x] Lock an employee's payroll timezone after the first finalized statement so later timezone changes cannot remap already-paid time.
+- [ ] Add effective-dated work-location/timezone history so employee moves can be represented without permanently locking their payroll timezone.
+- [x] Provide a linked off-cycle adjustment run for post-finalization corrections.
+- [x] Add database constraints and indexes for payroll ownership, periods, statements, effective rates, rules, and idempotency.
+- [ ] Add reviewed reference calculations for ordinary hours, overtime, rest day, holiday, night differential, breaks, rate changes, and corrections.
+- [ ] Add overnight and boundary scenarios including a 10:00 PM-3:00 AM shift in the employee's work timezone, pay-period crossover, and applicable DST transitions.
 
-### 11.3 Employer payroll workflow
+### 11.3 Employer workflow
 
-- [ ] Build employer payroll navigation and an organization-scoped payroll run list with period, pay date, status, employee count, currency totals, and exceptions.
-- [ ] Apply the Project Design Skill to payroll workflows; provide responsive, accessible forms, review screens, status/exception states, and clear empty/loading/error feedback.
-- [ ] Build payroll period creation with clear cutoff/pay-date context, duplicate-period checks, and a preview of eligible timesheets and employees.
-- [ ] Build controlled draft earning/deduction adjustments for bonuses, allowances, reimbursements, advances, and corrections, requiring a category, amount, effective date, and reason.
-- [ ] Build a draft run preview with per-employee and organization totals, itemized earnings/deductions, source timesheet links, and visible calculation exceptions.
-- [ ] Let authorized employers resolve draft exceptions and recalculate before approval while preserving a trace of changes and prior previews.
-- [ ] Add a review/approval step showing the pay period, employees, gross, deductions, net, premiums, exceptions, and exports before finalization.
-- [ ] Enforce the approved employer role and organization ownership for creating, reviewing, approving, finalizing, voiding, and exporting payroll.
-- [ ] Require an explicit confirmation modal for finalizing or voiding a payroll run; make actions idempotent and show success only after the server commits.
-- [ ] If direct disbursement is approved, integrate only an approved provider; require explicit authorization, idempotency, secure beneficiary handling, payment-status reconciliation, and audited failure/retry/return handling.
-- [ ] Build a finalized payroll run detail page with immutable totals, source/rule snapshot details, approval history, and any later adjustment runs.
-- [ ] Provide an auditable correction/off-cycle workflow for late timesheets, rate changes, and payroll errors without altering finalized records.
-- [ ] Provide payroll history and filters by period, employee, status, and jurisdiction, with pagination for growing data.
+- [x] Add employer Payroll navigation, a filtered/paginated payroll run list, setup, employee pay profiles/rates, holiday calendar, run creation, run detail, review, finalization, void, and finalized CSV export.
+- [x] Show run totals, itemized employee lines, source timesheets, exceptions, prior previews, and review/finalization evidence.
+- [x] Add controlled manual earnings, deductions, employer contributions, allowances, reimbursements, and corrections with amount, effective date, and source/reason.
+- [x] Require exceptions to be corrected/recalculated or explicitly resolved with evidence before review; link manual premium lines to the exception they address.
+- [x] Use confirmation dialogs for finalization and voiding; retain actor, timestamp, reason, and audit history.
+- [x] Scope payroll pages and actions to the employer's organization. Pagination and filters are available for payroll runs and employee profiles.
+- [x] Show a live payroll-readiness checklist for reviewed rules, employee profiles/rates, and the current-year holiday calendar; add pay-frequency-aware period shortcuts, filtered run summaries, explicit exception links, and setup-aware empty states.
+- [ ] Add a pre-creation eligibility/cutoff preview and a more explicit payroll review step that supports separate preparer and reviewer accounts when the product's account model permits them.
+- [ ] Add automated tests for permissions, tenant boundaries, duplicate requests, concurrent run creation, reconciliation, and immutable finalized records.
 
-### 11.4 Employee payslips, exports, and reporting
+### 11.4 Employee statements, exports, and reporting
 
-- [ ] Build an employee payroll history and payslip detail page that exposes only that employee's own statements.
-- [ ] Show pay period, pay date, currency, rate basis, hours, each earning/premium, allowances, deductions, contributions where required, gross pay, and net pay with clear labels.
-- [ ] Generate a printable/downloadable payslip in the format required for each supported jurisdiction and preserve the finalized version.
-- [ ] Generate jurisdiction-required periodic and year-end payroll summaries or filing exports when those are part of the supported release scope.
-- [ ] Add employer payroll summaries and CSV exports with documented columns, currency totals, the same filters/authorization as the page, and formula-injection protection.
-- [ ] Decide and document any accounting or bank-file export formats before implementing them; do not expose unnecessary employee banking or tax identifiers.
-- [ ] Reconcile employee statement totals against run totals and show any difference as a blocking validation error.
+- [x] Add employee-only finalized payroll history and payslip detail. Employees can access only their own finalized statements.
+- [x] Show pay dates, periods, work time, rates, itemized earnings/deductions, employer contributions, gross, and net amounts.
+- [x] Provide a printable HTML payslip that can be printed or saved as PDF from the browser.
+- [x] Provide a finalized-run CSV export with payroll frequency, itemized totals, formula-injection protection, and organization-scoped access.
+- [x] Reconcile each statement's gross, deductions, employer contributions, and net totals against its itemized lines before review/finalization.
+- [ ] Implement jurisdiction-required payslip layout, periodic/year-end summaries, and filing exports after legal/accounting requirements are validated.
+- [ ] Define and implement approved accounting exports. No bank file, banking identifiers, or payment-provider workflow is included.
 
-### 11.5 Security, audit, testing, and rollout
+### 11.5 Security, audit, and rollout
 
-- [ ] Restrict pay profiles and payroll statements to authorized employers and the employee's own account; add cross-organization and cross-employee access checks.
-- [ ] Protect payroll identifiers and any optional banking data through data minimization, appropriate encryption, access controls, and secret-safe logging.
-- [ ] Audit pay-rate/rule changes, run creation and recalculation, approval/finalization, voiding, adjustments, and sensitive statement/export access.
-- [ ] Define payroll record retention, correction, export, backup, restore, and employee data access procedures for each supported jurisdiction.
-- [ ] Add calculator tests for base pay, effective-dated rates, currency rounding, unpaid breaks, overtime, night differential, holiday/rest-day premiums, deductions, caps, zero hours, and correction cases.
-- [ ] Create reviewed reference scenarios and independently reconcile expected totals with a qualified payroll/accounting reviewer before treating them as calculation truth.
-- [ ] Add end-to-end tests for a pay period, approved and excluded timesheets, employee payslip access, role restrictions, organization isolation, duplicate requests, concurrent run generation, and immutable finalized results.
-- [ ] Add overnight payroll tests for a 10:00 PM–3:00 AM shift, including the correct original work date, break deduction, local pay-period split, and configured night-differential window where applicable.
-- [ ] Add test coverage for daylight-saving transitions, period boundaries, pay-rate changes during a period, late approvals, rejected/incomplete timesheets, off-cycle runs, and exports.
-- [ ] Run a shadow payroll using copied/non-production data and compare every employee statement and total with the existing payroll process for at least two complete pay cycles.
-- [ ] Obtain documented legal/accounting sign-off for each jurisdiction and resolve all reconciliation differences before payroll is used to pay employees.
-- [ ] Pilot with a limited organization and an agreed rollback/correction plan; train employers and employees on payslips, review, and correction workflows.
-- [ ] Record payroll limitations, supported jurisdictions, effective rule dates, operator steps, and the boundary between calculation/export and actual money movement.
+- [x] Scope employer data by organization and employee statements by the signed-in employee.
+- [x] Audit payroll rule/profile changes, rates, run creation/recalculation/review/finalization/voiding, adjustments, exceptions, exports, and employee statement access.
+- [x] Keep payroll identifiers minimal; the current implementation does not collect tax IDs or banking details.
+- [ ] Document retention, correction, export, backup/restore, and payroll operator procedures for the Philippines.
+- [ ] Run automated payroll tests and independently reconcile reference scenarios with a qualified reviewer.
+- [ ] Run at least two shadow payroll cycles against the current payroll process, address differences, and obtain written legal/accounting sign-off before paying through these outputs.
+- [ ] Pilot with a limited organization, rollback/correction plan, and employer/employee training.
+- [x] Document the current limits: hourly PH/PHP foundation only, reviewer-configured rules, manual statutory items, printable HTML slips, CSV export, and no fund movement.
+
+Payroll is not ready to be treated as a legally compliant payroll product until the open research, validation, automated coverage, shadow reconciliation, and sign-off tasks above are complete.
+
+---
 
 ## Phase 12 — Production deployment and release
 

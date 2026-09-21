@@ -1,0 +1,77 @@
+{% extends "layouts/employer.html" %}
+{% load humanize static form_tags %}
+{% block title %}{{ run.reference }} | Payroll{% endblock %}
+{% block app_content %}
+<div class="payroll-page">
+  <a class="payroll-back-link" href="{% url 'payroll:run_list' %}">← Payroll runs</a>
+  <header class="payroll-page-header">
+    <div><p class="payroll-eyebrow">{{ run.reference }} · {{ run.get_run_type_display }}</p><h1>{{ run.period_start|date:"M j, Y" }} – {{ run.period_end|date:"M j, Y" }}</h1><p class="muted">Pay date {{ run.pay_date|date:"M j, Y" }} · Fallback timezone {{ organization.timezone }}; work dates use each employee's payroll timezone · {{ run.currency }}</p></div>
+    <div class="payroll-header-actions"><span class="payroll-status payroll-status--{{ run.status|lower }}">{{ run.get_status_display }}</span>{% if run.status == "FINALIZED" %}<a class="button-secondary" href="{% url 'payroll:run_export' run.pk %}">Export CSV</a>{% endif %}</div>
+  </header>
+
+  <div class="payroll-warning-box"><strong>Calculation scope</strong><span>Hourly base pay, configured daily overtime, reviewed rest-day/holiday premiums, and ordinary-day night differential are calculated from approved attendance. Tax withholding and statutory contributions remain manually reviewed line items. Night premium combinations that need manual review block finalization until a corresponding earning line is recorded. No money is transferred.</span></div>
+
+  <section class="payroll-total-grid" aria-label="Payroll totals">
+    <article class="payroll-total-card"><span>Employees</span><strong>{{ run.statements.count }}</strong><small>Statements in this run</small></article>
+    <article class="payroll-total-card"><span>Gross pay</span><strong>{{ run.currency }} {{ totals.gross|floatformat:2|intcomma }}</strong><small>Before employee deductions</small></article>
+    <article class="payroll-total-card"><span>Deductions</span><strong>{{ run.currency }} {{ totals.deductions|floatformat:2|intcomma }}</strong><small>Manual and reviewed line items</small></article>
+    <article class="payroll-total-card"><span>Net pay</span><strong>{{ run.currency }} {{ totals.net|floatformat:2|intcomma }}</strong><small>For employer reconciliation</small></article>
+  </section>
+
+  <section class="payroll-card" aria-labelledby="payroll-approval-heading">
+    <header class="payroll-section-heading"><div><h2 id="payroll-approval-heading">Run history</h2><p>Prepared, reviewed, finalized, and preview details are retained for audit.</p></div></header>
+    <div class="payroll-line-list">
+      <div class="payroll-line"><span><strong>Prepared</strong><small>{{ run.prepared_by.get_full_name|default:run.prepared_by.email }}</small></span><span>{{ run.created_at|date:"M j, Y · g:i A" }}</span></div>
+      {% if run.reviewed_at %}<div class="payroll-line"><span><strong>Submitted for review</strong><small>{{ run.reviewed_by.get_full_name|default:run.reviewed_by.email }}</small></span><span>{{ run.reviewed_at|date:"M j, Y · g:i A" }}</span></div>{% endif %}
+      {% if run.finalized_at %}<div class="payroll-line"><span><strong>Finalized</strong><small>{{ run.finalized_by.get_full_name|default:run.finalized_by.email }} · {{ run.review_note }}</small></span><span>{{ run.finalized_at|date:"M j, Y · g:i A" }}</span></div>{% endif %}
+      {% if run.void_reason %}<div class="payroll-line"><span><strong>Void reason</strong></span><span>{{ run.void_reason }}</span></div>{% endif %}
+    </div>
+    {% if preview_history %}<details class="payroll-exception-history"><summary>Calculation preview history (latest {{ preview_history|length }})</summary><ul>{% for preview in preview_history %}<li>Preview {{ preview.sequence }} · {{ preview.created_at|date:"M j, Y · g:i A" }} · {{ preview.created_by.get_full_name|default:preview.created_by.email }} · {{ preview.data.statements|length }} statements, {{ preview.data.exceptions|length }} exceptions</li>{% endfor %}</ul></details>{% endif %}
+  </section>
+
+  {% if exception_rows %}
+  <section class="payroll-card payroll-exceptions" aria-labelledby="payroll-exceptions-heading">
+    <header class="payroll-section-heading"><div><h2 id="payroll-exceptions-heading">Needs review <span class="payroll-count">{{ unresolved_exception_count }}</span></h2><p>Correct source records and recalculate. For a premium conflict, add and link a reviewed manual earning line before resolving it.</p></div></header>
+    <div class="payroll-exception-list">
+      {% for row in exception_rows %}{% with exception=row.exception form=row.form %}
+      <article class="payroll-exception">
+        <div><strong>{{ exception.code|title }}</strong><p>{{ exception.description }}</p>{% if exception.employee %}<small>{{ exception.employee.full_name }}{% if exception.work_date %} · {{ exception.work_date|date:"M j, Y" }}{% endif %}</small>{% endif %}{% if exception.timesheet %}<p><a class="table-action-button" href="{% url 'timesheets:detail' exception.timesheet.pk %}">View timesheet</a></p>{% endif %}{% if exception.employee %}<p><a href="{% url 'payroll:employee_profile' exception.employee.pk %}">View pay profile</a></p>{% endif %}</div>
+        {% if run.status == "DRAFT" and exception.code == "NO_ATTENDANCE" or run.status == "DRAFT" and exception.code == "NO_PAYROLL_TIME" or run.status == "DRAFT" and exception.code == "TIMESHEET_REJECTED" or run.status == "DRAFT" and exception.needs_manual_pay_line %}
+        <form method="post" class="payroll-exception-resolution" novalidate>{% csrf_token %}<input type="hidden" name="action" value="resolve_exception"><input type="hidden" name="exception_id" value="{{ exception.pk }}">
+          <label for="{{ form.resolution_note.id_for_label }}">{{ form.resolution_note.label }}</label>{{ form.resolution_note }}{% if form.resolution_note.errors %}<div class="field-error" role="alert">{{ form.resolution_note.errors }}</div>{% endif %}
+          {% if exception.needs_manual_pay_line %}<label for="{{ form.resolution_line.id_for_label }}">{{ form.resolution_line.label }}</label>{{ form.resolution_line }}{% if form.resolution_line.errors %}<div class="field-error" role="alert">{{ form.resolution_line.errors }}</div>{% endif %}<small class="form-help">{{ form.resolution_line.help_text }}</small>{% endif %}
+          <button class="table-action-button" type="submit">{% if exception.code == "TIMESHEET_REJECTED" %}Acknowledge exclusion{% else %}Record review{% endif %}</button>
+        </form>
+        {% endif %}
+      </article>
+      {% endwith %}{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="payroll-card" aria-labelledby="payroll-statements-heading">
+    <header class="payroll-section-heading"><div><h2 id="payroll-statements-heading">Employee statements</h2><p>Approved timesheets and the effective profile/rule inputs are snapshotted in this draft.</p></div>{% if run.status == "DRAFT" %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="recalculate"><button class="button-secondary" type="submit">Recalculate preview</button></form>{% endif %}</header>
+    {% if statements.object_list %}
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable employee payroll statements"><table class="payroll-table"><thead><tr><th scope="col">Employee</th><th scope="col">Hours</th><th scope="col">Gross</th><th scope="col">Deductions</th><th scope="col">Employer contributions</th><th scope="col">Net</th></tr></thead><tbody>
+      {% for statement in statements.object_list %}<tr><td><strong>{{ statement.employee.full_name }}</strong><small>#{{ statement.employee.employee_code }}</small></td><td>{% for entry in statement.time_entries.all %}{{ entry.payable_minutes }} min{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td><td>{{ run.currency }} {{ statement.gross_amount|floatformat:2|intcomma }}</td><td>{{ run.currency }} {{ statement.deduction_amount|floatformat:2|intcomma }}</td><td>{{ run.currency }} {{ statement.employer_contribution_amount|floatformat:2|intcomma }}</td><td><strong>{{ run.currency }} {{ statement.net_amount|floatformat:2|intcomma }}</strong></td></tr>
+      <tr class="payroll-lines-row"><td colspan="6"><details><summary>Review itemized lines and source timesheets</summary><div class="payroll-line-list">
+        {% for line in statement.lines.all %}<div class="payroll-line"><span><strong>{{ line.label }}</strong><small>{{ line.get_kind_display }} · {{ line.source }}{% if line.effective_date %} · {{ line.effective_date|date:"M j, Y" }}{% endif %}{% if line.note %} · {{ line.note }}{% endif %}</small></span><span>{{ run.currency }} {{ line.amount|floatformat:2|intcomma }}{% if run.status == "DRAFT" and line.source == "MANUAL" and not line.exception_resolutions.exists %}<form method="post" class="payroll-inline-form" data-payroll-confirm data-confirm-title="Remove this adjustment?" data-confirm-description="This manual payroll line will be removed from the draft." data-confirm-action="Remove adjustment">{% csrf_token %}<input type="hidden" name="action" value="remove_line"><input type="hidden" name="line_id" value="{{ line.pk }}"><button class="table-action-button" type="submit">Remove</button></form>{% endif %}</span></div>{% endfor %}
+        {% for entry in statement.time_entries.all %}<div class="payroll-line"><span><strong>Timesheet · {{ entry.work_date|date:"M j, Y" }}</strong><small>{{ entry.payable_minutes }} min payable · {{ entry.night_minutes }} night · {{ entry.overtime_minutes }} overtime</small></span><a class="table-action-button" href="{% url 'timesheets:detail' entry.timesheet.pk %}">View timesheet</a></div>{% endfor %}
+      </div></details></td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if statements.paginator.num_pages > 1 %}<footer class="payroll-table-footer"><span>Page {{ statements.number }} of {{ statements.paginator.num_pages }}</span><nav class="payroll-pagination" aria-label="Statement pages">{% if statements.has_previous %}<a class="table-action-button" href="?page={{ statements.previous_page_number }}">Previous</a>{% endif %}{% if statements.has_next %}<a class="table-action-button" href="?page={{ statements.next_page_number }}">Next</a>{% endif %}</nav></footer>{% endif %}
+    {% else %}<div class="payroll-empty-state"><h3>No employee statements in this draft</h3><p>For off-cycle runs, add employees and adjustment lines below. For regular runs, approve matching timesheets, complete employee pay profiles, and recalculate.</p></div>{% endif %}
+  </section>
+
+  {% if run.status == "DRAFT" %}<section class="payroll-card"><header class="payroll-card-heading"><div><h2>Add an itemized line</h2><p>Add a reviewed bonus, allowance, reimbursement, withholding, employee contribution, or employer contribution. Record the work/effective date and source.</p></div></header><form method="post" class="payroll-adjustment-form" novalidate>{% csrf_token %}<input type="hidden" name="action" value="adjustment">{% for field in adjustment_form %}{% include "components/form_field.html" with field=field %}{% endfor %}<button class="button-secondary" type="submit">Add line</button></form></section>{% endif %}
+
+  {% if run.status == "DRAFT" %}<div class="payroll-run-actions"><form method="post">{% csrf_token %}<input type="hidden" name="action" value="submit_review"><button class="button-link" type="submit"{% if unresolved_exception_count %} disabled aria-describedby="payroll-review-blocked"{% endif %}>Submit for review</button></form><button class="button-danger-outline" type="button" data-payroll-dialog-open="void-run-dialog">Void draft</button>{% if unresolved_exception_count %}<p id="payroll-review-blocked" class="form-help">Resolve the listed payroll exceptions before submitting for review.</p>{% endif %}</div>{% elif run.status == "REVIEW" %}<div class="payroll-run-actions"><button class="button-link" type="button" data-payroll-dialog-open="finalize-run-dialog">Finalize payroll</button><button class="button-danger-outline" type="button" data-payroll-dialog-open="void-run-dialog">Void run</button></div>{% endif %}
+
+  {% if exceptions %}<details class="payroll-card payroll-exception-history"><summary>Exception history ({{ exceptions|length }})</summary><ul>{% for exception in exceptions %}{% if exception.resolved_at %}<li>{{ exception.code }} · {{ exception.resolution_note }} · reviewed by {{ exception.resolved_by.get_full_name|default:exception.resolved_by.email }}{% if exception.resolution_line %} · linked line: {{ exception.resolution_line.label }}{% endif %}</li>{% elif exception.superseded_at %}<li>{{ exception.code }} · superseded after recalculation on {{ exception.superseded_at|date:"M j, Y · g:i A" }}</li>{% endif %}{% endfor %}</ul></details>{% endif %}
+
+  {% if run.status == "REVIEW" %}<dialog id="finalize-run-dialog" class="payroll-dialog" aria-labelledby="finalize-run-title"><form method="post">{% csrf_token %}<input type="hidden" name="action" value="finalize"><p class="payroll-eyebrow">Final payroll action</p><h2 id="finalize-run-title">Finalize this payroll run?</h2><p>Finalized amounts and employee payslips will be locked. Confirm the payroll review and record evidence.</p><div class="field form-field"><label for="id_review_note">{{ finalize_form.review_note.label }}</label>{{ finalize_form.review_note }}<small class="form-help">{{ finalize_form.review_note.help_text }}</small></div><div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-dialog-close>Keep reviewing</button><button class="button-link" type="submit">Finalize run</button></div></form></dialog>{% endif %}
+  {% if run.status == "DRAFT" or run.status == "REVIEW" %}<dialog id="void-run-dialog" class="payroll-dialog" aria-labelledby="void-run-title"><form method="post">{% csrf_token %}<input type="hidden" name="action" value="void"><p class="payroll-eyebrow">Payroll action</p><h2 id="void-run-title">Void this payroll run?</h2><p>The run and its audit history will be retained. This cannot be undone.</p><div class="field form-field"><label for="id_void_reason">Reason</label>{{ void_form.reason }}</div><div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-dialog-close>Cancel</button><button class="button-danger" type="submit">Void payroll run</button></div></form></dialog>{% endif %}
+  <dialog id="payroll-confirm-dialog" class="payroll-dialog" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description"><div><p class="payroll-eyebrow">Confirm action</p><h2 id="payroll-confirm-title">Continue?</h2><p id="payroll-confirm-description"></p><div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-confirm-cancel>Cancel</button><button class="button-danger" type="button" data-payroll-confirm-submit>Continue</button></div></div></dialog>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/payroll-confirmation.js' %}" defer></script>{% endblock %}

@@ -106,7 +106,7 @@ The employee needs to:
 
 # 4. MVP Scope
 
-The MVP focuses only on the core attendance workflow.
+The attendance MVP remains the core product. A separate Philippine payroll foundation has been added for hourly payroll runs, employer review, itemized statements, and CSV export; it is not yet approved for live payroll use.
 
 ## Employer Features
 
@@ -123,6 +123,8 @@ The MVP focuses only on the core attendance workflow.
 - Attendance reports
 - CSV export
 - Basic audit records
+- Payroll setup, employee pay profiles and effective hourly rates
+- Philippine/PHP hourly payroll runs, reviewable exceptions, manual pay lines, finalization, and CSV export (prototype foundation; see limitations below)
 
 ## Employee Features
 
@@ -136,6 +138,11 @@ The MVP focuses only on the core attendance workflow.
 - Live elapsed work timer
 - Weekly work-hour summary
 - Timesheet history
+- Finalized payroll history and printable payslip, when the employer publishes a run
+
+## Payroll release boundary
+
+The current payroll foundation is limited to hourly employees in the Philippines with PHP amounts. It calculates hourly base pay and configurable overtime, ordinary-day night differential, and reviewed rest-day/holiday premiums from approved timesheets. Rules and work-location eligibility must be entered and reviewed by the employer. Tax withholding, SSS, PhilHealth, Pag-IBIG, mandatory filings, legal/accounting sign-off, and payment transfers are not automated. Do not use payroll output as a legally approved amount due until the remaining payroll validation tasks in SHIFTLY_PROJECT_TASKS.md are complete.
 
 ---
 
@@ -343,16 +350,13 @@ Ideal early company size:
 - Supervisors
 - Multiple locations
 
-## Phase 4 — Payroll
+## Phase 4 - Payroll foundation (implemented, validation outstanding)
 
-- Hourly rates
-- Salary configuration
-- Overtime rates
-- Night differential
-- Holiday rates
-- Payroll periods
-- Payroll calculations
-- Payslip generation
+- Philippine/PHP hourly pay profiles and effective hourly rates
+- Configurable effective-dated overtime, rest-day, holiday, and night-differential rule inputs
+- Employer payroll runs, review exceptions, manual pay lines, finalization, off-cycle corrections, and CSV export
+- Employee payroll history and printable finalized statements
+- Automated statutory tax/contribution calculations, mandatory filing exports, legal/accounting sign-off, and direct payment remain future work.
 
 ## Phase 5 — Agency Operations
 
@@ -407,7 +411,7 @@ The MVP should avoid becoming a full HR system before the core attendance and ti
 
 # 15. Final Product Definition
 
-**Shiftly is a lightweight workforce attendance and timesheet management SaaS that converts employee schedules and attendance events into accurate, reviewable, payroll-ready work records.**
+**Shiftly is a workforce scheduling, attendance, and timesheet product with an initial employer-reviewed payroll foundation for hourly work records.**
 
 Long-term direction:
 

@@ -1,0 +1,26 @@
+{% extends "layouts/employer.html" %}
+{% load form_tags %}
+{% block title %}Create payroll run | Shiftly{% endblock %}
+{% block app_content %}
+<div class="payroll-page payroll-page--narrow">
+  <a class="payroll-back-link" href="{% url 'payroll:run_list' %}">&larr; Payroll</a>
+  <header class="payroll-page-header"><div><p class="payroll-eyebrow">Draft payroll</p><h1>Create payroll run</h1><p class="muted">Choose the dates for the attendance that belongs in this run.</p></div></header>
+  {% if not payroll_readiness.can_create_run %}
+  <aside class="payroll-warning-box payroll-form-readiness" role="note">
+    <span class="payroll-form-readiness-icon">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span>
+    <div><strong>{{ payroll_readiness.complete_count }} of {{ payroll_readiness.total_count }} readiness checks are complete.</strong><p>This creates a draft for review. Complete the remaining setup and resolve draft exceptions before submitting or finalizing payroll.</p>
+      <ul>{% for item in payroll_readiness.items %}{% if not item.complete %}<li><a href="{% url item.url_name %}">{{ item.title }}</a> &mdash; {{ item.detail }}</li>{% endif %}{% endfor %}</ul>
+    </div>
+  </aside>
+  {% endif %}
+  <section class="payroll-card">
+    <div class="payroll-warning-box"><strong>Review before using</strong><span>This release supports hourly pay in PHP, approved time, reviewed ordinary overtime and night-differential rules, plus manual itemized adjustments. Philippine withholding tax and statutory contribution tables are not calculated automatically. Shiftly does not transfer funds.</span></div>
+    <form method="post" action="{% url 'payroll:run_create_submit' %}" class="payroll-form" novalidate>
+      {% csrf_token %}{{ form.request_key }}
+      {% for field in form %}{% if field.name != "request_key" %}{% include "components/form_field.html" with field=field %}{% endif %}{% endfor %}
+      <p class="form-help">Regular period dates are inclusive calendar dates and follow the configured frequency. Each employee's worked time is split using the payroll timezone in their profile, falling back to the organization timezone. Late-approved time can be recalculated while the run is a draft; after finalization, use a linked off-cycle adjustment run.</p>
+      <div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:run_list' %}">Cancel</a><button class="button-link" type="submit">Create draft</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -25,6 +25,19 @@ class AuditEvent(models.Model):
         SHIFT_CANCELLED = "SHIFT_CANCELLED", _("Shift cancelled")
         TIMESHEET_APPROVED = "TIMESHEET_APPROVED", _("Timesheet approved")
         TIMESHEET_REJECTED = "TIMESHEET_REJECTED", _("Timesheet rejected")
+        PAYROLL_RULES_UPDATED = "PAYROLL_RULES_UPDATED", _("Payroll rules updated")
+        PAYROLL_PROFILE_UPDATED = "PAYROLL_PROFILE_UPDATED", _("Employee payroll profile updated")
+        PAYROLL_RATE_ADDED = "PAYROLL_RATE_ADDED", _("Employee pay rate added")
+        PAYROLL_RUN_CREATED = "PAYROLL_RUN_CREATED", _("Payroll run created")
+        PAYROLL_RUN_RECALCULATED = "PAYROLL_RUN_RECALCULATED", _("Payroll run recalculated")
+        PAYROLL_RUN_REVIEWED = "PAYROLL_RUN_REVIEWED", _("Payroll run submitted for review")
+        PAYROLL_RUN_FINALIZED = "PAYROLL_RUN_FINALIZED", _("Payroll run finalized")
+        PAYROLL_RUN_VOIDED = "PAYROLL_RUN_VOIDED", _("Payroll run voided")
+        PAYROLL_ADJUSTMENT_ADDED = "PAYROLL_ADJUSTMENT_ADDED", _("Payroll adjustment added")
+        PAYROLL_ADJUSTMENT_REMOVED = "PAYROLL_ADJUSTMENT_REMOVED", _("Payroll adjustment removed")
+        PAYROLL_EXCEPTION_RESOLVED = "PAYROLL_EXCEPTION_RESOLVED", _("Payroll exception resolved")
+        PAYROLL_EXPORT_ACCESSED = "PAYROLL_EXPORT_ACCESSED", _("Payroll export accessed")
+        PAYROLL_STATEMENT_ACCESSED = "PAYROLL_STATEMENT_ACCESSED", _("Payroll statement accessed")
 
     organization = models.ForeignKey(
         "organizations.Organization",

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file defines the official technical stack and implementation architecture for the Shiftly MVP.
+This file defines the technical stack and implementation architecture for the Shiftly attendance MVP and the approved internal payroll foundation.
 
 The stack is intentionally simple.
 
@@ -92,6 +92,8 @@ Microservices
 ```
 
 These may be introduced later only when they solve a proven product requirement.
+
+The payroll foundation uses the existing Django models, services, server-rendered templates, and vanilla CSS/JavaScript. External payroll providers, statutory filing integrations, and direct payment workflows are not implemented.
 
 ---
 
@@ -929,7 +931,7 @@ Introduce Celery + Redis later for:
 - Missing clock-out checks
 - Automated email
 - Large exports
-- Payroll generation
+- Large or scheduled payroll calculations and exports
 - Notification workflows
 - Scheduled reports
 

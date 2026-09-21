@@ -17,6 +17,7 @@
     <a class="nav-link{% if request.resolver_match.namespace == 'attendance' %} active{% endif %}" aria-label="Home" href="{% url 'attendance:my_attendance' %}">{% include "components/icon.html" with icon_name="home" icon_class="nav-icon" %}<span class="nav-label">Home</span></a>
     <a class="nav-link{% if request.resolver_match.namespace == 'schedules' %} active{% endif %}" aria-label="Schedule" href="{% url 'schedules:my_schedule' %}">{% include "components/icon.html" with icon_name="calendar" icon_class="nav-icon" %}<span class="nav-label">Schedule</span></a>
     <a class="nav-link{% if request.resolver_match.namespace == 'timesheets' %} active{% endif %}" aria-label="Timesheets" href="{% url 'timesheets:my_list' %}">{% include "components/icon.html" with icon_name="file" icon_class="nav-icon" %}<span class="nav-label">Timesheets</span></a>
+    <a class="nav-link{% if request.resolver_match.namespace == 'payroll' %} active{% endif %}" aria-label="Pay" href="{% url 'payroll:my_statements' %}">{% include "components/icon.html" with icon_name="file" icon_class="nav-icon" %}<span class="nav-label">Pay</span></a>
     <a class="nav-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'profile' %} active{% endif %}" aria-label="Profile" href="{% url 'accounts:profile' %}">{% include "components/icon.html" with icon_name="user" icon_class="nav-icon" %}<span class="nav-label">Profile</span></a>
   </nav>
   <main id="main-content" class="app-content employee-content">
