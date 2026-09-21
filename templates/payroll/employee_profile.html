@@ -2,9 +2,116 @@
 {% load form_tags %}
 {% block title %}Pay profile · {{ employee.full_name }} | Shiftly{% endblock %}
 {% block app_content %}
-<div class="payroll-page payroll-page--narrow"><a class="payroll-back-link" href="{% url 'payroll:employee_list' %}">← Employee pay profiles</a><header class="payroll-page-header"><div><p class="payroll-eyebrow">#{{ employee.employee_code }} · {{ employee.job_title|default:"Employee" }}</p><h1>{{ employee.full_name }}</h1><p class="muted">Hourly pay profile and rate history</p></div></header>
+<div class="payroll-page payroll-employee-profile-page">
+  <header class="payroll-profile-header">
+    <div class="payroll-profile-identity">
+      <a class="payroll-back-link" href="{% url 'payroll:employee_list' %}">&larr; Employee pay profiles</a>
+      <div class="payroll-profile-title-row">
+        <h1>{{ employee.full_name }}</h1>
+        <span class="payroll-status payroll-status--{{ profile_status }}">{{ profile_status_label }}</span>
+      </div>
+      <p class="payroll-profile-meta">#{{ employee.employee_code }} <span aria-hidden="true">&middot;</span> {{ employee.job_title|default:"Employee" }}</p>
+      <p class="muted">Hourly pay profile and effective rate history</p>
+      <p class="payroll-profile-status-detail payroll-profile-status-detail--{{ profile_status }}">{{ profile_status_detail }}</p>
+    </div>
+
+    <section class="payroll-profile-summary" aria-label="Employee payroll summary">
+      <article class="payroll-profile-summary-card">
+        <span class="payroll-profile-summary-icon">{% include "components/icon.html" with icon_name="wallet" icon_class="icon" %}</span>
+        <div><span class="payroll-profile-summary-label">Current hourly rate</span>
+          <strong>{% if current_rate %}{{ currency_symbol }}{{ current_rate.hourly_rate|floatformat:2 }} / hour{% else %}Not configured{% endif %}</strong>
+          <small>{% if current_rate %}Effective {{ current_rate.effective_from|date:"M j, Y" }}{% elif rates %}No rate is effective on {{ employee_work_date|date:"M j, Y" }}.{% else %}Add an hourly rate to get started.{% endif %}</small>
+        </div>
+      </article>
+      <article class="payroll-profile-summary-card">
+        <span class="payroll-profile-summary-icon">{% include "components/icon.html" with icon_name="building" icon_class="icon" %}</span>
+        <div><span class="payroll-profile-summary-label">Work location</span><strong>{{ profile_location_display }}</strong><small>Used for wage-order review.</small></div>
+      </article>
+      <article class="payroll-profile-summary-card">
+        <span class="payroll-profile-summary-icon">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span>
+        <div><span class="payroll-profile-summary-label">Work timezone</span><strong>{{ work_timezone }}</strong><small>Local date for payroll rules.</small></div>
+      </article>
+    </section>
+  </header>
+
   {% include "payroll/_subnav.html" %}
-  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Work and wage location</h2><p>Wage orders vary by work area. Record the source used to check this employee's rate and night-premium eligibility.</p></div></header><div class="payroll-warning-box"><strong>Review</strong><span>These confirmations are employer inputs. Shiftly does not determine legal worker classification or regional minimum wage.</span></div><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><button class="button-link" type="submit">Save profile</button></div></form></section>
-  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Hourly rate history</h2><p>Rates apply by local work date and cannot overwrite a finalized payroll run.</p></div><a class="button-secondary" href="{% url 'payroll:add_pay_rate' employee.pk %}">Add hourly rate</a></header><div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th scope="col">Hourly rate</th><th scope="col">Effective from</th><th scope="col">Effective until</th><th scope="col">Reason</th><th scope="col">Entered by</th></tr></thead><tbody>{% for rate in rates %}<tr><td>{{ rate.hourly_rate|floatformat:2 }} PHP</td><td>{{ rate.effective_from|date:"M j, Y" }}</td><td>{% if rate.effective_until %}{{ rate.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td><td>{{ rate.change_reason|default:"—" }}</td><td>{{ rate.created_by.get_full_name|default:rate.created_by.email }}</td></tr>{% empty %}<tr><td colspan="5">No hourly rate has been recorded.</td></tr>{% endfor %}</tbody></table></div></section>
+
+  <form method="post" class="payroll-profile-form" novalidate>
+    {% csrf_token %}
+    <div class="payroll-profile-form-layout">
+      <section class="payroll-card payroll-profile-card" aria-labelledby="work-details-title">
+        <header class="payroll-profile-card-heading">
+          <span class="payroll-profile-section-icon">{% include "components/icon.html" with icon_name="building" icon_class="icon" %}</span>
+          <div><h2 id="work-details-title">Work details</h2><p>Set where payroll rules and local work dates apply.</p></div>
+        </header>
+        <div class="payroll-profile-field-grid">
+          {% include "components/form_field.html" with field=form.work_location %}
+          {% include "components/form_field.html" with field=form.payroll_region %}
+          {% include "components/form_field.html" with field=form.payroll_timezone %}
+          {% include "components/form_field.html" with field=form.rest_day %}
+          {% include "components/form_field.html" with field=form.wage_order_reference full_width=True %}
+        </div>
+      </section>
+
+      <section class="payroll-card payroll-profile-card payroll-profile-review" aria-labelledby="payroll-review-title">
+        <header class="payroll-profile-card-heading">
+          <span class="payroll-profile-section-icon">{% include "components/icon.html" with icon_name="shield" icon_class="icon" %}</span>
+          <div><h2 id="payroll-review-title">Payroll review</h2><p>Record the employer's eligibility and classification checks.</p></div>
+        </header>
+        <div class="payroll-warning-box payroll-profile-disclaimer"><strong>Employer inputs</strong><span>Shiftly does not determine legal worker classification or regional minimum wage.</span></div>
+
+        <div class="payroll-profile-confirmations">
+          {% include "payroll/_profile_confirmation.html" with field=form.minimum_wage_confirmed %}
+          {% include "payroll/_profile_confirmation.html" with field=form.night_differential_eligible %}
+          {% include "payroll/_profile_confirmation.html" with field=form.rank_and_file %}
+        </div>
+
+        <div class="payroll-participation-row">
+          <div><strong>{{ form.active_for_payroll.label }}</strong><small id="{{ form.active_for_payroll.auto_id }}_helptext">{{ form.active_for_payroll.help_text }}</small>
+            {% if form.active_for_payroll.errors %}<div class="field-error" role="alert">{{ form.active_for_payroll.errors }}</div>{% endif %}
+          </div>
+          <label class="payroll-switch" for="{{ form.active_for_payroll.id_for_label }}" aria-label="{{ form.active_for_payroll.label }}">
+            {{ form.active_for_payroll|accessible_field }}<span class="payroll-switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+
+        <footer class="payroll-profile-form-actions">
+          <button class="button-link" type="submit">Save pay profile</button>
+        </footer>
+      </section>
+    </div>
+  </form>
+
+  <section class="payroll-card payroll-rate-history" aria-labelledby="rate-history-title">
+    <header class="payroll-card-heading">
+      <div><h2 id="rate-history-title">Hourly rate history</h2><p>Rates are effective-dated and retained for payroll history.</p></div>
+      {% if rates %}<a class="table-action-button" href="{% url 'payroll:add_pay_rate' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add hourly rate</a>{% endif %}
+    </header>
+
+    {% if rates %}
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable hourly rate history">
+      <table class="payroll-table payroll-rate-table">
+        <thead><tr><th scope="col">Hourly rate</th><th scope="col">Effective from</th><th scope="col">Effective until</th><th scope="col">Reason</th><th scope="col">Entered by</th></tr></thead>
+        <tbody>
+          {% for rate in rates %}
+          <tr{% if current_rate and rate.pk == current_rate.pk %} class="payroll-rate-current"{% endif %}>
+            <td><strong>{{ currency_symbol }}{{ rate.hourly_rate|floatformat:2 }} / hour</strong>{% if current_rate and rate.pk == current_rate.pk %}<span class="payroll-status payroll-status--finalized">Current</span>{% endif %}</td>
+            <td>{{ rate.effective_from|date:"M j, Y" }}</td>
+            <td>{% if current_rate and rate.pk == current_rate.pk %}Current{% elif rate.effective_until %}{{ rate.effective_until|date:"M j, Y" }}{% elif rate.effective_from > employee_work_date %}Scheduled{% else %}Not currently effective{% endif %}</td>
+            <td>{{ rate.change_reason|default:"—" }}</td>
+            <td>{{ rate.created_by.get_full_name|default:rate.created_by.email }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="payroll-rate-empty-state">
+      <span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
+      <div><h3>No hourly rate configured</h3><p>Add {{ employee.first_name }}'s first effective hourly rate before including them in payroll calculations.</p></div>
+      <a class="table-action-button" href="{% url 'payroll:add_pay_rate' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add hourly rate</a>
+    </div>
+    {% endif %}
+  </section>
 </div>
 {% endblock %}

@@ -560,6 +560,51 @@ def employee_profile(request, pk):
             employee=employee,
             payroll_timezone=preferred_timezone or organization.timezone,
         )
+
+    work_timezone = profile.payroll_timezone or organization.timezone
+    try:
+        employee_zone = ZoneInfo(work_timezone)
+        employee_work_date = timezone.localdate(employee_zone)
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        work_timezone = organization.timezone
+        try:
+            employee_zone = ZoneInfo(organization.timezone)
+            employee_work_date = timezone.localdate(employee_zone)
+        except (ZoneInfoNotFoundError, TypeError, ValueError):
+            employee_work_date = timezone.localdate()
+
+    current_rate = employee.pay_rates.filter(
+        effective_from__lte=employee_work_date,
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
+    ).order_by("-effective_from", "-pk").first()
+
+    missing_setup = []
+    if not profile.work_location.strip():
+        missing_setup.append("Work location")
+    if not profile.payroll_region.strip():
+        missing_setup.append("Payroll region")
+    if not profile.wage_order_reference.strip():
+        missing_setup.append("Wage order reference")
+    if not current_rate:
+        missing_setup.append("Hourly rate")
+
+    if employee.status != Employee.Status.ACTIVE:
+        profile_status, profile_status_label = "excluded", "Employee inactive"
+        profile_status_detail = "Inactive employees are not included in payroll runs."
+    elif not profile.active_for_payroll:
+        profile_status, profile_status_label = "excluded", "Excluded from payroll"
+        profile_status_detail = "Enable payroll participation to include this employee in eligible runs."
+    elif missing_setup:
+        profile_status, profile_status_label = "needs-setup", "Needs setup"
+        profile_status_detail = "Missing: " + ", ".join(missing_setup) + "."
+    elif not profile.minimum_wage_confirmed:
+        profile_status, profile_status_label = "needs-review", "Needs review"
+        profile_status_detail = "Confirm the hourly rate against the recorded wage order."
+    else:
+        profile_status, profile_status_label = "ready", "Payroll ready"
+        profile_status_detail = "Required work and wage details are configured."
+
     form = EmployeePayProfileForm(request.POST or None, instance=profile)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -571,7 +616,15 @@ def employee_profile(request, pk):
         "employee": employee,
         "profile": profile,
         "form": form,
-        "rates": employee.pay_rates.all(),
+        "rates": employee.pay_rates.select_related("created_by"),
+        "current_rate": current_rate,
+        "employee_work_date": employee_work_date,
+        "work_timezone": work_timezone,
+        "profile_status": profile_status,
+        "profile_status_label": profile_status_label,
+        "profile_status_detail": profile_status_detail,
+        "profile_location_display": profile.work_location or "Not set",
+        "currency_symbol": "₱",
     })
 
 

@@ -150,19 +150,36 @@ class EmployeePayProfileForm(forms.ModelForm):
         model = EmployeePayProfile
         fields = ["work_location", "payroll_region", "payroll_timezone", "wage_order_reference", "minimum_wage_confirmed", "night_differential_eligible", "rest_day", "rank_and_file", "active_for_payroll"]
         labels = {
+            "work_location": "Work location",
+            "payroll_region": "Payroll region",
             "minimum_wage_confirmed": "Hourly rate checked against the applicable wage order",
             "night_differential_eligible": "Eligibility for night differential confirmed",
             "rank_and_file": "Rank-and-file classification confirmed",
-            "active_for_payroll": "Include this employee in payroll setup",
             "payroll_timezone": "Work location timezone",
+            "rest_day": "Rest day",
+            "wage_order_reference": "Wage order reference",
+            "active_for_payroll": "Include this employee in payroll",
         }
         help_texts = {
-            "minimum_wage_confirmed": "Use the official wage order for the employee's actual work location; store its reference above.",
-            "night_differential_eligible": "Confirm statutory coverage with your payroll adviser. Unconfirmed night work blocks run review.",
-            "rank_and_file": "Record this classification only after checking the employee's actual role.",
-            "payroll_timezone": "Used to split overnight work and apply effective rules by local work date. Confirm this is the employee's actual work timezone. Blank uses the organization timezone.",
+            "work_location": "The employee's usual work location.",
+            "payroll_region": "The wage-order region for this work location.",
+            "payroll_timezone": "Used to apply payroll rules by the employee's local work date. Blank uses the organization timezone.",
+            "wage_order_reference": "Use the official wage order for this work location.",
+            "minimum_wage_confirmed": "Confirm against the official wage order recorded here.",
+            "night_differential_eligible": "Confirm coverage with your payroll adviser. Unconfirmed night work blocks run review.",
+            "rank_and_file": "Confirm only after checking the employee's actual role.",
+            "active_for_payroll": "When enabled, this employee can be included in eligible payroll runs.",
         }
-        widgets = {"work_location": forms.TextInput(attrs={"autocomplete": "organization"})}
+        widgets = {
+            "work_location": forms.TextInput(attrs={"autocomplete": "organization", "placeholder": "e.g. Cebu City"}),
+            "payroll_region": forms.TextInput(attrs={"placeholder": "e.g. Region VII"}),
+            "payroll_timezone": forms.TextInput(attrs={"placeholder": "e.g. Asia/Manila", "autocomplete": "off"}),
+            "wage_order_reference": forms.Textarea(attrs={"rows": 2, "placeholder": "Region, order number, year, or official URL"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["active_for_payroll"].widget.attrs.update({"role": "switch"})
 
     def clean(self):
         cleaned = super().clean()
@@ -185,6 +202,15 @@ class EmployeePayRateForm(forms.ModelForm):
         model = EmployeePayRate
         fields = ["hourly_rate", "effective_from", "change_reason"]
         widgets = {"effective_from": forms.DateInput(attrs={"type": "date"})}
+        labels = {
+            "hourly_rate": "Hourly rate (PHP per hour)",
+            "effective_from": "Effective from",
+            "change_reason": "Reason for rate change",
+        }
+        help_texts = {
+            "hourly_rate": "Enter the employee's gross base hourly rate in Philippine pesos.",
+            "effective_from": "The rate applies by the employee's local work date.",
+        }
 
     def __init__(self, *args, employee, actor, **kwargs):
         self.employee = employee

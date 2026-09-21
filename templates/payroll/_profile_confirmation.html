@@ -1,0 +1,9 @@
+{% load form_tags %}
+<label class="payroll-confirmation-row">
+  {{ field|accessible_field }}
+  <span class="payroll-confirmation-copy">
+    <strong>{{ field.label }}</strong>
+    <small id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>
+    {% if field.errors %}<small id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors|join:", " }}</small>{% endif %}
+  </span>
+</label>
