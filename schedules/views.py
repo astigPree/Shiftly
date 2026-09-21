@@ -42,9 +42,14 @@ def _shift_batch_fingerprint(*, organization, actor, form):
         "organization": organization.pk,
         "actor": actor.pk,
         "employees": sorted(employee.pk for employee in form.cleaned_data["employees"]),
-        "work_date": form.cleaned_data["work_date"].isoformat(),
-        "scheduled_start": form.cleaned_data["scheduled_start"].isoformat(),
-        "scheduled_end": form.cleaned_data["scheduled_end"].isoformat(),
+        "shift_intervals": [
+            {
+                "work_date": interval["work_date"].isoformat(),
+                "scheduled_start": interval["scheduled_start"].isoformat(),
+                "scheduled_end": interval["scheduled_end"].isoformat(),
+            }
+            for interval in form.cleaned_data["shift_intervals"]
+        ],
         "break_minutes": form.cleaned_data["scheduled_break_minutes"],
     }
     serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -259,8 +264,10 @@ def shift_create(request):
             and pending_reviews.get(review_token) == fingerprint
         )
         selected_employee_count = len(form.cleaned_data["employees"])
+        selected_date_count = len(form.cleaned_data["shift_intervals"])
+        planned_shift_count = selected_employee_count * selected_date_count
         create_single_shift = (
-            selected_employee_count == 1
+            planned_shift_count == 1
             and request.POST.get("batch_step") == "review"
         )
         if has_matching_review or create_single_shift:
@@ -274,16 +281,14 @@ def shift_create(request):
                 shifts = create_shifts(
                     organization=organization,
                     employees=form.cleaned_data["employees"],
-                    work_date=form.cleaned_data["work_date"],
-                    scheduled_start=form.cleaned_data["scheduled_start"],
-                    scheduled_end=form.cleaned_data["scheduled_end"],
+                    shift_intervals=form.cleaned_data["shift_intervals"],
                     scheduled_break_minutes=form.cleaned_data["scheduled_break_minutes"],
                     actor=request.user,
                 )
             except ValidationError as error:
                 form.add_error(None, error)
             else:
-                if selected_employee_count == 1:
+                if planned_shift_count == 1:
                     shift = shifts[0]
                     messages.success(
                         request,
@@ -292,8 +297,9 @@ def shift_create(request):
                     return redirect("schedules:detail", pk=shift.pk)
                 messages.success(
                     request,
-                    f"Scheduled shifts for {len(shifts)} employee"
-                    f"{'s' if len(shifts) != 1 else ''}.",
+                    f"Scheduled {len(shifts)} shifts for {selected_employee_count} "
+                    f"employee{'s' if selected_employee_count != 1 else ''} across "
+                    f"{selected_date_count} dates.",
                 )
                 return redirect("schedules:list")
         else:
@@ -314,8 +320,14 @@ def shift_create(request):
             "has_employees": has_employees,
             "employee_count": len(form.employee_options),
             "selected_employee_count": len(form.selected_employee_ids),
+            "selected_date_count": len(form.selected_work_dates),
+            "planned_shift_count": (
+                len(form.selected_employee_ids) * len(form.selected_work_dates)
+            ),
             "review_batch": review_batch,
             "review_token": review_token,
+            "max_bulk_shift_dates": form.max_bulk_shift_dates,
+            "max_bulk_shift_assignments": form.max_bulk_shift_assignments,
             "shift_is_overnight": (
                 review_batch
                 and form.cleaned_data["end_time"] < form.cleaned_data["start_time"]

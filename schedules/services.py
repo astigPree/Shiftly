@@ -81,14 +81,13 @@ def create_shift(*, organization, employee, work_date, scheduled_start, schedule
 
 @transaction.atomic
 def create_shifts(
-    *, organization, employees, work_date, scheduled_start, scheduled_end,
-    scheduled_break_minutes, actor,
+    *, organization, employees, shift_intervals, scheduled_break_minutes, actor,
 ):
-    """Create one independently tracked shift for each selected employee."""
+    """Create each selected employee's shifts for all requested work dates."""
     organization = Organization.objects.select_for_update().get(pk=organization.pk)
     employee_ids = {employee.pk for employee in employees}
-    if not employee_ids:
-        raise ValidationError("Select at least one active employee.")
+    if not employee_ids or not shift_intervals:
+        raise ValidationError("Select at least one employee and work date.")
     locked_employees = list(
         Employee.objects.select_for_update()
         .filter(
@@ -105,21 +104,23 @@ def create_shifts(
 
     created_shifts = []
     for employee in locked_employees:
-        try:
-            shift = create_shift(
-                organization=organization,
-                employee=employee,
-                work_date=work_date,
-                scheduled_start=scheduled_start,
-                scheduled_end=scheduled_end,
-                scheduled_break_minutes=scheduled_break_minutes,
-                actor=actor,
-            )
-        except ValidationError as error:
-            raise ValidationError(
-                f"{employee.full_name}: {' '.join(error.messages)}"
-            ) from error
-        created_shifts.append(shift)
+        for interval in sorted(shift_intervals, key=lambda item: item["work_date"]):
+            try:
+                shift = create_shift(
+                    organization=organization,
+                    employee=employee,
+                    work_date=interval["work_date"],
+                    scheduled_start=interval["scheduled_start"],
+                    scheduled_end=interval["scheduled_end"],
+                    scheduled_break_minutes=scheduled_break_minutes,
+                    actor=actor,
+                )
+            except ValidationError as error:
+                raise ValidationError(
+                    f"{employee.full_name} on {interval['work_date']}: "
+                    f"{' '.join(error.messages)}"
+                ) from error
+            created_shifts.append(shift)
     return created_shifts
 
 

@@ -50,7 +50,6 @@
                   <label class="employee-picker__option" data-employee-option data-name="{{ employee.full_name }}" data-employee-id="{{ employee.pk }}" data-search="{{ employee.full_name }} {{ employee.employee_code }} {{ employee.email }} {{ employee.job_title }}">
                     <input type="checkbox" value="{{ employee.pk }}" data-employee-checkbox{% if employee.is_selected %} checked{% endif %}>
                     <span class="employee-picker__option-copy"><strong>{{ employee.full_name }}</strong><small>{{ employee.employee_code }}{% if employee.job_title %} · {{ employee.job_title }}{% endif %}</small></span>
-                    {% if employee.schedule_conflict %}<span class="employee-picker__conflict">{{ employee.schedule_conflict }}</span>{% endif %}
                   </label>
                 {% empty %}
                   <p class="employee-picker__empty">No active employees are available.</p>
@@ -59,6 +58,28 @@
               </div>
               {% if form.employees.errors %}<div class="field-error" id="id_employees_errors" role="alert">{{ form.employees.errors }}</div>{% endif %}
               <small class="form-help">{{ employee_count }} active employee{{ employee_count|pluralize }} available. Select more than one to assign a shared shift.</small>
+            </div>
+          {% elif field.name == "work_dates" and is_create %}
+            <div class="field form-field form-field--full multi-date-picker{% if form.work_dates.errors %} form-field--invalid{% endif %}" data-multi-date-picker data-today="{{ form.calendar_today|date:'Y-m-d' }}" data-date-conflicts="{{ form.date_conflict_data }}" data-max-dates="{{ max_bulk_shift_dates }}" data-max-assignments="{{ max_bulk_shift_assignments }}">
+              <p class="multi-date-picker__label" id="work-date-picker-label">Work dates</p>
+              <p class="form-help" id="work-date-picker-help">Choose one or more calendar dates. Every selected employee will receive the same shift on each date, using {{ organization.timezone }}.</p>
+              <input type="hidden" name="{{ form.work_dates.html_name }}" id="work-date-selection" value="{{ form.work_dates.value|default:'' }}" data-work-date-selection-input>
+              <div class="multi-date-picker__calendar">
+                <div class="multi-date-picker__header">
+                  <button type="button" class="multi-date-picker__month-button" data-calendar-previous aria-label="Previous month">‹</button>
+                  <strong data-calendar-month aria-live="polite"></strong>
+                  <button type="button" class="multi-date-picker__month-button" data-calendar-next aria-label="Next month">›</button>
+                </div>
+                <div class="multi-date-picker__weekdays" data-calendar-weekdays aria-hidden="true"></div>
+                <div class="multi-date-picker__grid" id="work-date-calendar" role="grid" aria-labelledby="work-date-picker-label" aria-describedby="work-date-picker-help" data-calendar-grid></div>
+              </div>
+              <div class="multi-date-picker__selection-header">
+                <strong data-selected-date-count aria-live="polite">{{ selected_date_count }} dates selected</strong>
+                <button type="button" data-clear-dates{% if not selected_date_count %} disabled{% endif %}>Clear dates</button>
+              </div>
+              <div class="multi-date-picker__selected" data-selected-date-list aria-label="Selected work dates"></div>
+              <p class="multi-date-picker__status" data-date-picker-status aria-live="polite">A maximum of {{ max_bulk_shift_dates }} dates and {{ max_bulk_shift_assignments }} employee-date shifts can be scheduled at once.</p>
+              {% if form.work_dates.errors %}<div class="field-error" id="id_work_dates_errors" role="alert">{{ form.work_dates.errors }}</div>{% endif %}
             </div>
           {% elif field.name == "employee" %}
             {% include "components/form_field.html" with field=field full_width=True %}
@@ -80,14 +101,14 @@
           <div class="batch-review-dialog__content">
             <span class="batch-review-dialog__icon" aria-hidden="true">{% include "components/icon.html" with icon_name="users" %}</span>
             <p class="batch-review-dialog__eyebrow">Shift assignment review</p>
-            <h2 id="batch-review-title">Create {{ form.cleaned_data.employees|length }} shift{{ form.cleaned_data.employees|length|pluralize }}?</h2>
-            <p id="batch-review-description">Check the employees and shared shift details. Each person will receive an individual attendance and timesheet record.</p>
+            <h2 id="batch-review-title">Create {{ planned_shift_count }} shifts?</h2>
+            <p id="batch-review-description">This will create {{ planned_shift_count }} individual shifts for {{ form.cleaned_data.employees|length }} employee{{ form.cleaned_data.employees|length|pluralize }} across {{ form.cleaned_data.work_dates|length }} date{{ form.cleaned_data.work_dates|length|pluralize }}. Attendance and timesheets will be tracked separately.</p>
             <dl class="batch-review-dialog__details">
-              <div><dt>Work date</dt><dd>{{ form.cleaned_data.work_date|date:"D, M j, Y" }}</dd></div>
               <div><dt>Shift</dt><dd>{{ form.cleaned_data.start_time|time:"g:i A" }}–{{ form.cleaned_data.end_time|time:"g:i A" }}{% if shift_is_overnight %} (overnight){% endif %}</dd></div>
               <div><dt>Break allowance</dt><dd>{{ form.cleaned_data.scheduled_break_minutes }} min per employee</dd></div>
               <div><dt>Time zone</dt><dd>{{ organization.timezone }}</dd></div>
             </dl>
+            <ul class="batch-review-dialog__dates" aria-label="Selected work dates">{% for work_date in form.cleaned_data.work_dates %}<li>{{ work_date|date:"D, M j, Y" }}</li>{% endfor %}</ul>
             <ul class="batch-review-dialog__employees" aria-label="Employees receiving this shift">{% for employee in form.cleaned_data.employees %}<li><strong>{{ employee.full_name }}</strong><span>{{ employee.employee_code }}{% if employee.job_title %} · {{ employee.job_title }}{% endif %}</span></li>{% endfor %}</ul>
             <div class="batch-review-dialog__actions">
               <button class="batch-review-dialog__back" type="button" data-batch-review-back>Back to edit</button>
@@ -102,7 +123,7 @@
       </div>
       <div class="form-actions">
         <a class="form-cancel-link" href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">Cancel</a>
-        <button type="submit" data-batch-main-submit{% if is_create %}{% if not has_employees or not selected_employee_count %} disabled{% endif %}{% endif %}>{% if is_create %}{% if review_batch or selected_employee_count > 1 %}Review shifts{% elif selected_employee_count == 1 %}Create shift{% else %}Select employees{% endif %}{% else %}Save shift{% endif %}</button>
+        <button type="submit" data-batch-main-submit{% if is_create %}{% if not has_employees or not selected_employee_count or not selected_date_count %} disabled{% endif %}{% endif %}>{% if is_create %}{% if review_batch or planned_shift_count > 1 %}Review shifts{% elif planned_shift_count == 1 %}Create shift{% else %}Select employees and dates{% endif %}{% else %}Save shift{% endif %}</button>
       </div>
     </form>
   </section>

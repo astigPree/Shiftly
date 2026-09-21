@@ -4,6 +4,7 @@
   if (!form || !preview) return;
 
   const dateField = form.querySelector("#id_work_date");
+  const datesField = form.querySelector("[data-work-date-selection-input]");
   const startField = form.querySelector("#id_start_time");
   const endField = form.querySelector("#id_end_time");
   const title = preview.querySelector("[data-shift-preview-title]");
@@ -13,7 +14,7 @@
   const viewerTimezone = form.dataset.viewerTimezone || companyTimezone;
   const companyLabel = form.dataset.companyLabel || companyTimezone;
   const viewerLabel = form.dataset.viewerLabel || viewerTimezone;
-  if (!dateField || !startField || !endField || !title || !companyLine || !viewerLine) return;
+  if ((!dateField && !datesField) || !startField || !endField || !title || !companyLine || !viewerLine) return;
 
   const parseTime = (value) => {
     const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -23,6 +24,21 @@
   const parseDate = (value) => {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
     return match ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) } : null;
+  };
+
+  const getPreviewDate = () => {
+    if (dateField) return { date: parseDate(dateField.value), count: 1 };
+    try {
+      const values = JSON.parse(datesField?.value || "[]");
+      if (!Array.isArray(values)) return { date: null, count: 0 };
+      const dates = values.map(parseDate).filter(Boolean);
+      dates.sort((left, right) =>
+        Date.UTC(left.year, left.month - 1, left.day) - Date.UTC(right.year, right.month - 1, right.day),
+      );
+      return { date: dates[0] || null, count: dates.length };
+    } catch (error) {
+      return { date: null, count: 0 };
+    }
   };
 
   const getZonedParts = (instant, zone) => {
@@ -98,7 +114,7 @@
   const updatePreview = () => {
     const start = parseTime(startField.value);
     const end = parseTime(endField.value);
-    const date = parseDate(dateField.value);
+    const { date, count: selectedDateCount } = getPreviewDate();
     preview.classList.remove("shift-time-preview--overnight", "shift-time-preview--invalid");
     viewerLine.hidden = true;
     viewerLine.textContent = "";
@@ -123,14 +139,17 @@
     title.textContent = overnight ? "Overnight shift · ends the next day" : "Same-day shift";
 
     if (!date) {
-      companyLine.textContent = `Company time (${companyLabel}): ${formatWallTime(start)} → ${formatWallTime(end)}${overnight ? " · ends next day" : ""}. Enter a work date to see your local time.`;
+      companyLine.textContent = `Company time (${companyLabel}): ${formatWallTime(start)} → ${formatWallTime(end)}${overnight ? " · ends next day" : ""}. Select a work date to see the local time.`;
       return;
     }
 
     const endDate = overnight ? nextDate(date) : date;
     const startWallTime = { ...date, ...start };
     const endWallTime = { ...endDate, ...end };
-    companyLine.textContent = `Company time (${companyLabel}): ${formatDate(dateOnly(date))}, ${formatWallTime(start)} → ${formatDate(dateOnly(endDate))}, ${formatWallTime(end)} · ${companyTimezone}`;
+    const dateContext = selectedDateCount > 1
+      ? `First of ${selectedDateCount} selected dates · `
+      : "";
+    companyLine.textContent = `${dateContext}Company time (${companyLabel}): ${formatDate(dateOnly(date))}, ${formatWallTime(start)} → ${formatDate(dateOnly(endDate))}, ${formatWallTime(end)} · ${companyTimezone}`;
 
     if (viewerTimezone === companyTimezone) return;
 
@@ -152,7 +171,7 @@
     }
   };
 
-  [dateField, startField, endField].forEach((field) => {
+  [dateField, datesField, startField, endField].filter(Boolean).forEach((field) => {
     field.addEventListener("input", updatePreview);
     field.addEventListener("change", updatePreview);
   });
