@@ -4,6 +4,7 @@ from django.db import IntegrityError, transaction
 
 from audit.models import AuditEvent
 from audit.services import record_event
+from employees.models import Employee
 from organizations.models import Organization
 from .models import Shift
 
@@ -76,6 +77,50 @@ def create_shift(*, organization, employee, work_date, scheduled_start, schedule
         },
     )
     return shift
+
+
+@transaction.atomic
+def create_shifts(
+    *, organization, employees, work_date, scheduled_start, scheduled_end,
+    scheduled_break_minutes, actor,
+):
+    """Create one independently tracked shift for each selected employee."""
+    organization = Organization.objects.select_for_update().get(pk=organization.pk)
+    employee_ids = {employee.pk for employee in employees}
+    if not employee_ids:
+        raise ValidationError("Select at least one active employee.")
+    locked_employees = list(
+        Employee.objects.select_for_update()
+        .filter(
+            pk__in=employee_ids,
+            organization=organization,
+            status=Employee.Status.ACTIVE,
+        )
+        .order_by("pk")
+    )
+    if len(locked_employees) != len(employee_ids):
+        raise ValidationError(
+            "One or more selected employees are no longer active in this organization. Refresh and review the selection."
+        )
+
+    created_shifts = []
+    for employee in locked_employees:
+        try:
+            shift = create_shift(
+                organization=organization,
+                employee=employee,
+                work_date=work_date,
+                scheduled_start=scheduled_start,
+                scheduled_end=scheduled_end,
+                scheduled_break_minutes=scheduled_break_minutes,
+                actor=actor,
+            )
+        except ValidationError as error:
+            raise ValidationError(
+                f"{employee.full_name}: {' '.join(error.messages)}"
+            ) from error
+        created_shifts.append(shift)
+    return created_shifts
 
 
 @transaction.atomic

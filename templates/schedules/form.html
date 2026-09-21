@@ -8,22 +8,59 @@
     <span class="form-heading-icon">{% include "components/icon.html" with icon_name="calendar" %}</span>
     <div>
       <h1 id="shift-form-title">{% if is_create %}Schedule a shift{% else %}Edit shift{% endif %}</h1>
-      <p class="muted">Assign a date and working hours to an employee.</p>
+      <p class="muted">{% if is_create %}Assign the same shift to one or more employees.{% else %}Update this employee's shift details.{% endif %}</p>
     </div>
   </header>
 
   <section class="form-card form-card--wide" aria-label="Shift details">
     {% if not has_employees %}<div class="notice" role="status">There are no active employees to schedule. <a href="{% url 'employees:create' %}">Add an employee</a> first.</div>{% endif %}
     {% if form.non_field_errors %}<div class="error-list" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-    <form method="post" novalidate data-shift-form
+    <form method="post" novalidate data-shift-form{% if is_create %} data-batch-shift-form data-review-batch="{{ review_batch|yesno:'true,false' }}"{% endif %}
+          data-toast-loading-message="Reviewing the selected employees..."
           data-organization-timezone="{{ organization.timezone }}"
           data-viewer-timezone="{{ viewer_timezone }}"
           data-company-label="{{ company_timezone_label }}"
           data-viewer-label="{{ viewer_timezone_label }}">
       {% csrf_token %}
+      {% if is_create %}
+        <input type="hidden" name="batch_step" value="{% if review_batch %}create{% else %}review{% endif %}" data-batch-step>
+        <input type="hidden" name="review_token" value="{{ review_token }}">
+      {% endif %}
       <div class="form-grid">
         {% for field in form %}
-          {% if field.name == "employee" %}
+          {% if field.name == "employees" and is_create %}
+            <div class="field form-field form-field--full employee-picker{% if form.employees.errors %} form-field--invalid{% endif %}" data-employee-picker role="group" aria-label="Employees receiving this shift"{% if form.employees.errors %} aria-describedby="id_employees_errors"{% endif %}>
+              <label for="employee-search">Employees</label>
+              <p class="form-help" id="employee-picker-help">Search by name, code, email, or job title. Every selected employee receives this shift.</p>
+              <input type="hidden" name="{{ form.employees.html_name }}" id="{{ form.employees.id_for_label }}" value="{{ form.employees.value|default:'' }}" data-employee-selection-input>
+              <div class="employee-picker__search-row">
+                {% include "components/icon.html" with icon_name="search" icon_class="icon employee-picker__search-icon" %}
+                <input id="employee-search" type="search" placeholder="Search by name, code, email, or title" autocomplete="off" data-employee-search aria-controls="employee-options" aria-describedby="employee-picker-help employee-selection-count">
+              </div>
+              <div class="employee-picker__toolbar">
+                <span id="employee-selection-count" data-employee-selection-count aria-live="polite">{{ form.selected_employee_ids|length }} selected</span>
+                <div>
+                  <button type="button" data-select-visible>Select filtered</button>
+                  <button type="button" data-clear-selection>Clear selection</button>
+                </div>
+              </div>
+              <div class="employee-picker__selected" data-selected-employees aria-label="Selected employees"></div>
+              <div class="employee-picker__options" id="employee-options" role="group" aria-label="Active employees" data-employee-options>
+                {% for employee in form.employee_options %}
+                  <label class="employee-picker__option" data-employee-option data-name="{{ employee.full_name }}" data-employee-id="{{ employee.pk }}" data-search="{{ employee.full_name }} {{ employee.employee_code }} {{ employee.email }} {{ employee.job_title }}">
+                    <input type="checkbox" value="{{ employee.pk }}" data-employee-checkbox{% if employee.is_selected %} checked{% endif %}>
+                    <span class="employee-picker__option-copy"><strong>{{ employee.full_name }}</strong><small>{{ employee.employee_code }}{% if employee.job_title %} · {{ employee.job_title }}{% endif %}</small></span>
+                    {% if employee.schedule_conflict %}<span class="employee-picker__conflict">{{ employee.schedule_conflict }}</span>{% endif %}
+                  </label>
+                {% empty %}
+                  <p class="employee-picker__empty">No active employees are available.</p>
+                {% endfor %}
+                <p class="employee-picker__empty" data-no-employee-results hidden>No employees match your search.</p>
+              </div>
+              {% if form.employees.errors %}<div class="field-error" id="id_employees_errors" role="alert">{{ form.employees.errors }}</div>{% endif %}
+              <small class="form-help">{{ employee_count }} active employee{{ employee_count|pluralize }} available. Select more than one to assign a shared shift.</small>
+            </div>
+          {% elif field.name == "employee" %}
             {% include "components/form_field.html" with field=field full_width=True %}
           {% else %}
             {% include "components/form_field.html" with field=field %}
@@ -38,16 +75,37 @@
           <span data-shift-preview-viewer hidden></span>
         </div>
       </div>
+      {% if is_create and review_batch %}
+        <dialog class="batch-review-dialog" data-batch-review-dialog data-auto-open="true" aria-labelledby="batch-review-title" aria-describedby="batch-review-description">
+          <div class="batch-review-dialog__content">
+            <span class="batch-review-dialog__icon" aria-hidden="true">{% include "components/icon.html" with icon_name="users" %}</span>
+            <p class="batch-review-dialog__eyebrow">Shift assignment review</p>
+            <h2 id="batch-review-title">Create {{ form.cleaned_data.employees|length }} shift{{ form.cleaned_data.employees|length|pluralize }}?</h2>
+            <p id="batch-review-description">Check the employees and shared shift details. Each person will receive an individual attendance and timesheet record.</p>
+            <dl class="batch-review-dialog__details">
+              <div><dt>Work date</dt><dd>{{ form.cleaned_data.work_date|date:"D, M j, Y" }}</dd></div>
+              <div><dt>Shift</dt><dd>{{ form.cleaned_data.start_time|time:"g:i A" }}–{{ form.cleaned_data.end_time|time:"g:i A" }}{% if shift_is_overnight %} (overnight){% endif %}</dd></div>
+              <div><dt>Break allowance</dt><dd>{{ form.cleaned_data.scheduled_break_minutes }} min per employee</dd></div>
+              <div><dt>Time zone</dt><dd>{{ organization.timezone }}</dd></div>
+            </dl>
+            <ul class="batch-review-dialog__employees" aria-label="Employees receiving this shift">{% for employee in form.cleaned_data.employees %}<li><strong>{{ employee.full_name }}</strong><span>{{ employee.employee_code }}{% if employee.job_title %} · {{ employee.job_title }}{% endif %}</span></li>{% endfor %}</ul>
+            <div class="batch-review-dialog__actions">
+              <button class="batch-review-dialog__back" type="button" data-batch-review-back>Back to edit</button>
+              <button class="batch-review-dialog__confirm" type="button" data-batch-review-confirm>Create shifts</button>
+            </div>
+          </div>
+        </dialog>
+      {% endif %}
       <div class="form-callout" role="note">
         {% include "components/icon.html" with icon_name="info" %}
         <span>Times use {{ organization.timezone }}. During daylight-saving changes, ambiguous or non-existent local times cannot be used.</span>
       </div>
       <div class="form-actions">
         <a class="form-cancel-link" href="{% if is_create %}{% url 'schedules:list' %}{% else %}{% url 'schedules:detail' shift.pk %}{% endif %}">Cancel</a>
-        <button type="submit"{% if not has_employees %} disabled{% endif %}>{% if is_create %}Create shift{% else %}Save shift{% endif %}</button>
+        <button type="submit" data-batch-main-submit{% if is_create %}{% if not has_employees or not selected_employee_count %} disabled{% endif %}{% endif %}>{% if is_create %}{% if review_batch or selected_employee_count > 1 %}Review shifts{% elif selected_employee_count == 1 %}Create shift{% else %}Select employees{% endif %}{% else %}Save shift{% endif %}</button>
       </div>
     </form>
   </section>
 </section>
 {% endblock %}
-{% block scripts %}{{ block.super }}<script src="{% static 'js/shift-form-preview.js' %}" defer></script>{% endblock %}
+{% block scripts %}{{ block.super }}<script src="{% static 'js/shift-form-preview.js' %}" defer></script><script src="{% static 'js/batch-shift-form.js' %}" defer></script>{% endblock %}

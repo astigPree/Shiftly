@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from zoneinfo import ZoneInfo
 
 from django import forms
@@ -15,6 +16,12 @@ class ShiftForm(forms.Form):
         queryset=Employee.objects.none(),
         label="Employee",
         help_text="Choose an active employee in this organization.",
+    )
+    employees = forms.CharField(
+        required=False,
+        label="Employees",
+        help_text="Choose one or more active employees for this shift.",
+        widget=forms.HiddenInput(attrs={"data-employee-selection-input": ""}),
     )
     work_date = forms.DateField(
         label="Work date",
@@ -45,10 +52,38 @@ class ShiftForm(forms.Form):
             status=Employee.Status.ACTIVE,
         )
         if instance:
+            self.fields.pop("employees")
             employees = Employee.objects.filter(organization=organization).filter(
                 Q(status=Employee.Status.ACTIVE) | Q(pk=instance.employee_id)
             )
-        self.fields["employee"].queryset = employees.order_by("last_name", "first_name")
+            self.fields["employee"].queryset = employees.order_by("last_name", "first_name")
+        else:
+            self.fields.pop("employee")
+            self.employee_queryset = employees.order_by("last_name", "first_name", "pk")
+            self.employee_options = list(self.employee_queryset)
+            if self.is_bound:
+                try:
+                    selected = json.loads(self.data.get(self.add_prefix("employees"), ""))
+                    if not isinstance(selected, list):
+                        selected = []
+                except (TypeError, ValueError):
+                    selected = []
+            else:
+                selected = self.initial.get("employees", [])
+                if isinstance(selected, str):
+                    try:
+                        selected = json.loads(selected)
+                    except ValueError:
+                        selected = [selected]
+                    if not isinstance(selected, (list, tuple, set)):
+                        selected = [selected]
+                elif not isinstance(selected, (list, tuple, set)):
+                    selected = [selected]
+            self.selected_employee_ids = {str(value) for value in selected if value}
+            self.initial["employees"] = json.dumps(sorted(self.selected_employee_ids))
+            for option in self.employee_options:
+                option.is_selected = str(option.pk) in self.selected_employee_ids
+            self.employee_conflicts = {}
         if instance and not self.is_bound:
             self.initial.update(
                 {
@@ -67,12 +102,48 @@ class ShiftForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         employee = cleaned.get("employee")
+        if self.instance:
+            selected_employees = [employee] if employee else []
+        else:
+            raw_employee_ids = cleaned.get("employees", "")
+            try:
+                employee_ids = json.loads(raw_employee_ids or "[]")
+            except (TypeError, ValueError):
+                employee_ids = None
+            if not isinstance(employee_ids, list) or any(
+                not isinstance(value, (str, int)) for value in employee_ids
+            ):
+                self.add_error("employees", "Choose employees from the list.")
+                selected_employees = []
+            else:
+                employee_ids = list(dict.fromkeys(str(value) for value in employee_ids))
+                if not employee_ids:
+                    self.add_error("employees", "Select at least one employee.")
+                    selected_employees = []
+                else:
+                    employees_by_id = {
+                        str(person.pk): person
+                        for person in self.employee_queryset.filter(pk__in=employee_ids)
+                    }
+                    if len(employees_by_id) != len(employee_ids):
+                        self.add_error(
+                            "employees",
+                            "One or more selected employees are no longer active in this organization. Refresh the page and select them again.",
+                        )
+                        selected_employees = []
+                    else:
+                        selected_employees = [employees_by_id[value] for value in employee_ids]
+                        cleaned["employees"] = selected_employees
         work_date = cleaned.get("work_date")
         start_time = cleaned.get("start_time")
         end_time = cleaned.get("end_time")
         break_minutes = cleaned.get("scheduled_break_minutes")
-        if employee and employee.organization_id != self.organization.pk:
-            self.add_error("employee", "Choose an employee from your organization.")
+        employee_field = "employee" if self.instance else "employees"
+        if any(
+            selected.organization_id != self.organization.pk
+            for selected in selected_employees
+        ):
+            self.add_error(employee_field, "Choose employees from your organization.")
         if not all((work_date, start_time, end_time)):
             return cleaned
         if start_time == end_time:
@@ -100,11 +171,61 @@ class ShiftForm(forms.Form):
             else:
                 cleaned["scheduled_start"] = start_utc
                 cleaned["scheduled_end"] = end_utc
+                if not self.instance and selected_employees:
+                    conflicts = (
+                        Shift.objects.filter(
+                            organization=self.organization,
+                            employee__in=selected_employees,
+                        )
+                        .filter(
+                            Q(work_date=work_date)
+                            | Q(
+                                status=Shift.Status.SCHEDULED,
+                                scheduled_start__lt=end_utc,
+                                scheduled_end__gt=start_utc,
+                            )
+                        )
+                        .select_related("employee")
+                    )
+                    conflict_rows = list(conflicts)
+                    conflict_messages = {}
+                    for existing in conflict_rows:
+                        if existing.work_date == work_date:
+                            conflict_messages[existing.employee_id] = (
+                                "Already has a shift on this work date."
+                            )
+                    for existing in conflict_rows:
+                        if existing.employee_id not in conflict_messages:
+                            conflict_messages[existing.employee_id] = (
+                                "Overlaps another scheduled shift."
+                            )
+                    self.employee_conflicts = conflict_messages
+                    for option in self.employee_options:
+                        option.schedule_conflict = conflict_messages.get(option.pk, "")
+                    selected_conflicts = [
+                        f"{person.full_name}: {conflict_messages[person.pk]}"
+                        for person in selected_employees
+                        if person.pk in conflict_messages
+                    ]
+                    if selected_conflicts:
+                        conflict_summary = "; ".join(selected_conflicts[:4])
+                        if len(selected_conflicts) > 4:
+                            conflict_summary += (
+                                f"; and {len(selected_conflicts) - 4} more."
+                            )
+                        self.add_error(
+                            "employees",
+                            "Some selected employees cannot be scheduled. "
+                            + conflict_summary
+                            + " Remove them or change the shift details. No shifts were created.",
+                        )
         return cleaned
 
     def save(self, commit=True):
         if not self.is_valid():
             raise ValueError("Cannot save an invalid shift form.")
+        if self.instance is None:
+            raise ValueError("Use create_shifts() to save a new shift assignment.")
         shift = self.instance or Shift()
         shift.organization = self.organization
         shift.employee = self.cleaned_data["employee"]
