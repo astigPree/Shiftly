@@ -120,6 +120,14 @@ class PayrollRuleSet(models.Model):
     def reviewed(self):
         return bool(self.reviewed_by.strip() and self.reviewed_at and self.source_references.strip())
 
+    @property
+    def regular_day_hours(self):
+        return Decimal(self.regular_day_minutes) / Decimal("60")
+
+    @property
+    def night_differential_percent(self):
+        return self.night_differential_rate * Decimal("100")
+
     def __str__(self):
         return f"Payroll rules from {self.effective_from}"
 

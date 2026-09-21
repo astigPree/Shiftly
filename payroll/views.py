@@ -8,8 +8,9 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Case, Count, DateField, Exists, OuterRef, Q, Subquery, Sum, Value, When
 from django.http import HttpResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -352,7 +353,66 @@ def run_list(request):
 @require_GET
 def employee_payroll_list(request):
     organization = _organization(request)
-    employees = Employee.objects.filter(organization=organization).select_related("payroll_profile").prefetch_related("pay_rates")
+    try:
+        organization_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        organization_today = timezone.localdate()
+
+    profile_timezones = EmployeePayProfile.objects.filter(
+        employee__organization=organization,
+    ).exclude(payroll_timezone="").values_list("payroll_timezone", flat=True).distinct()
+    timezone_dates = []
+    for zone_name in profile_timezones:
+        try:
+            local_date = timezone.localdate(timezone=ZoneInfo(zone_name))
+        except (ZoneInfoNotFoundError, TypeError, ValueError):
+            local_date = organization_today
+        timezone_dates.append(When(payroll_profile__payroll_timezone=zone_name, then=Value(local_date)))
+    payroll_work_date = (
+        Case(*timezone_dates, default=Value(organization_today), output_field=DateField())
+        if timezone_dates else Value(organization_today, output_field=DateField())
+    )
+
+    current_rate_query = EmployeePayRate.objects.filter(
+        employee_id=OuterRef("pk"),
+        effective_from__lte=OuterRef("_payroll_work_date"),
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=OuterRef("_payroll_work_date"))
+    ).order_by("-effective_from", "-pk")
+    employees = Employee.objects.filter(organization=organization).select_related("payroll_profile").annotate(
+        _payroll_work_date=payroll_work_date,
+        _has_current_rate=Exists(current_rate_query),
+        _current_rate=Subquery(current_rate_query.values("hourly_rate")[:1]),
+        _current_rate_from=Subquery(current_rate_query.values("effective_from")[:1]),
+    )
+
+    required_profile_missing = (
+        Q(payroll_profile__isnull=True)
+        | Q(payroll_profile__work_location="")
+        | Q(payroll_profile__payroll_region="")
+        | Q(payroll_profile__wage_order_reference="")
+    )
+    payroll_enabled = Q(payroll_profile__isnull=True) | Q(payroll_profile__active_for_payroll=True)
+    active_employee = Q(status=Employee.Status.ACTIVE)
+    setup_query = active_employee & payroll_enabled & (required_profile_missing | Q(_has_current_rate=False))
+    review_query = (
+        active_employee & payroll_enabled & ~required_profile_missing
+        & Q(_has_current_rate=True) & Q(payroll_profile__minimum_wage_confirmed=False)
+    )
+    ready_query = (
+        active_employee & payroll_enabled & ~required_profile_missing
+        & Q(_has_current_rate=True) & Q(payroll_profile__minimum_wage_confirmed=True)
+    )
+    excluded_query = Q(status=Employee.Status.INACTIVE) | Q(payroll_profile__active_for_payroll=False)
+
+    summary = employees.aggregate(
+        total=Count("pk"),
+        ready=Count("pk", filter=ready_query),
+        needs_setup=Count("pk", filter=setup_query),
+        needs_review=Count("pk", filter=review_query),
+        excluded=Count("pk", filter=excluded_query),
+    )
+
     query = request.GET.get("q", "").strip()
     if query:
         employees = employees.filter(
@@ -361,19 +421,55 @@ def employee_payroll_list(request):
             | Q(employee_code__icontains=query)
             | Q(email__icontains=query)
         )
+    status = request.GET.get("status", "")
+    status_filters = {
+        "ready": ready_query,
+        "needs_setup": setup_query,
+        "missing_rate": active_employee & payroll_enabled & Q(_has_current_rate=False),
+        "missing_location": active_employee & payroll_enabled & (Q(payroll_profile__isnull=True) | Q(payroll_profile__work_location="")),
+        "needs_review": review_query,
+        "excluded": excluded_query,
+    }
+    if status not in ("", *status_filters.keys()):
+        status = ""
+    if status:
+        employees = employees.filter(status_filters[status])
     page = Paginator(employees.order_by("last_name", "first_name", "pk"), 30).get_page(request.GET.get("page"))
     rows = []
     for employee in page.object_list:
         profile = getattr(employee, "payroll_profile", None)
-        employee_zone = ZoneInfo(profile.payroll_timezone or organization.timezone) if profile else ZoneInfo(organization.timezone)
-        work_date = timezone.localdate(timezone=employee_zone)
-        rate = next((item for item in employee.pay_rates.all() if item.effective_from <= work_date and (item.effective_until is None or item.effective_until >= work_date)), None)
-        rows.append({"employee": employee, "profile": profile, "rate": rate})
+        if employee.status != Employee.Status.ACTIVE or (profile and not profile.active_for_payroll):
+            payroll_status, status_detail = "excluded", "Excluded from payroll"
+        elif not profile or not profile.work_location.strip() or not profile.payroll_region.strip() or not profile.wage_order_reference.strip() or not employee._has_current_rate:
+            payroll_status, status_detail = "needs-setup", "Add missing pay details"
+        elif not profile.minimum_wage_confirmed:
+            payroll_status, status_detail = "needs-review", "Confirm wage-order review"
+        else:
+            payroll_status, status_detail = "ready", "Pay profile complete"
+        rows.append({
+            "employee": employee,
+            "profile": profile,
+            "rate": employee._current_rate,
+            "rate_effective_from": employee._current_rate_from,
+            "payroll_status": payroll_status,
+            "status_detail": status_detail,
+        })
     return render(request, "payroll/employee_list.html", {
         "organization": organization,
         "rows": rows,
         "page": page,
         "query": query,
+        "selected_status": status,
+        "status_choices": [
+            ("", "All employees"),
+            ("ready", "Payroll ready"),
+            ("missing_rate", "Missing rate"),
+            ("missing_location", "Missing work location"),
+            ("needs_review", "Needs wage review"),
+            ("needs_setup", "Needs setup"),
+            ("excluded", "Excluded from payroll"),
+        ],
+        "summary": summary,
         "page_querystring": _page_querystring(request),
         "currency": PayrollSettings.objects.filter(organization=organization).values_list("currency", flat=True).first() or "PHP",
     })
@@ -383,6 +479,10 @@ def employee_payroll_list(request):
 @require_http_methods(["GET", "POST"])
 def setup(request):
     organization = _organization(request)
+    try:
+        organization_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        organization_today = timezone.localdate()
     settings_row = PayrollSettings.objects.filter(organization=organization).first()
     if settings_row is None:
         settings_row = PayrollSettings(organization=organization)
@@ -391,7 +491,7 @@ def setup(request):
     rule_instance = latest_rule if latest_rule and not add_version else PayrollRuleSet(
         organization=organization,
         created_by=request.user,
-        effective_from=timezone.localdate(timezone=ZoneInfo("Asia/Manila")) + timedelta(days=1 if latest_rule else 0),
+        effective_from=organization_today + timedelta(days=1 if latest_rule else 0),
         source_references=(
             "DOLE Labor Code, Book III: https://dole.gov.ph/book-3-conditions-of-employment/\n"
             "Confirm applicable work location, employee coverage, and current rules with a qualified payroll adviser before use."
@@ -524,15 +624,58 @@ def holiday_calendar(request):
             period_end__gte=holiday_date,
         ).exists():
             messages.error(request, "This date is part of finalized payroll. Use a linked off-cycle adjustment if its amount needs correction.")
-            return redirect("payroll:holiday_calendar")
+            return redirect(f"{reverse('payroll:holiday_calendar')}?year={holiday_date.year}")
         holiday = form.save()
         record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_RULES_UPDATED, target_type="payroll_holiday", target_id=holiday.pk, summary=f"Added {holiday.name} to the payroll calendar.", metadata={"date": holiday.date.isoformat(), "kind": holiday.kind, "reviewed": holiday.reviewed})
         messages.success(request, "Holiday saved. Payroll blocks finalization if the holiday's source and review details are missing.")
-        return redirect("payroll:holiday_calendar")
+        return redirect(f"{reverse('payroll:holiday_calendar')}?year={holiday.date.year}")
+
+    try:
+        organization_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        organization_today = timezone.localdate()
+    all_holidays = PayrollHoliday.objects.filter(organization=organization)
+    available_years = {date.year for date in all_holidays.dates("date", "year")}
+    available_years.add(organization_today.year)
+    raw_year = request.GET.get("year", str(organization_today.year))
+    selected_year = int(raw_year) if raw_year.isdigit() and 1900 <= int(raw_year) <= 2200 else organization_today.year
+    available_years.add(selected_year)
+    year_holidays = all_holidays.filter(date__year=selected_year)
+    holiday_count = year_holidays.count()
+    reviewed_count = year_holidays.exclude(reviewed_by="").exclude(
+        reviewed_at__isnull=True
+    ).exclude(source_reference="").count()
+
+    holidays = year_holidays
+    review_status = request.GET.get("review", "")
+    if review_status == "reviewed":
+        holidays = holidays.exclude(reviewed_by="").exclude(reviewed_at__isnull=True).exclude(source_reference="")
+    elif review_status == "needs_review":
+        holidays = holidays.filter(
+            Q(reviewed_by="") | Q(reviewed_at__isnull=True) | Q(source_reference="")
+        )
+    else:
+        review_status = ""
+    query = request.GET.get("q", "").strip()
+    if query:
+        holidays = holidays.filter(name__icontains=query)
+    page = Paginator(holidays.order_by("date", "name"), 20).get_page(request.GET.get("page"))
+    show_form = request.GET.get("add") == "1" or request.method == "POST"
     return render(request, "payroll/holiday_calendar.html", {
         "organization": organization,
         "form": form,
-        "holidays": PayrollHoliday.objects.filter(organization=organization),
+        "page": page,
+        "holidays": page.object_list,
+        "selected_year": selected_year,
+        "default_year": organization_today.year,
+        "year_choices": sorted(available_years, reverse=True),
+        "review_status": review_status,
+        "query": query,
+        "page_querystring": _page_querystring(request),
+        "show_form": show_form,
+        "holiday_count": holiday_count,
+        "reviewed_count": reviewed_count,
+        "needs_review_count": holiday_count - reviewed_count,
     })
 
 

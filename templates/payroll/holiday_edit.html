@@ -5,6 +5,7 @@
 <div class="payroll-page payroll-page--narrow">
   <a class="payroll-back-link" href="{% url 'payroll:holiday_calendar' %}">← Holiday calendar</a>
   <header class="payroll-page-header"><div><p class="payroll-eyebrow">{{ holiday.date|date:"M j, Y" }}</p><h1>Edit holiday</h1><p class="muted">Changes affect draft previews only. Finalized pay periods are locked.</p></div></header>
+  {% include "payroll/_subnav.html" %}
   <section class="payroll-card"><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:holiday_calendar' %}">Cancel</a><button class="button-link" type="submit">Save holiday</button></div></form></section>
 </div>
 {% endblock %}

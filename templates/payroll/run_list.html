@@ -16,6 +16,8 @@
     {% endif %}
   </header>
 
+  {% include "payroll/_subnav.html" %}
+
   <aside class="payroll-notice" role="note" aria-label="Payroll calculation scope">
     {% include "components/icon.html" with icon_name="info" icon_class="payroll-notice-icon" %}
     <div><strong>Payroll calculation scope</strong><p>Shiftly calculates hourly pay and configured premiums. Philippine tax withholding and SSS, PhilHealth, and Pag-IBIG amounts require reviewed manual line items; Shiftly does not transfer money.</p></div>

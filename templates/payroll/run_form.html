@@ -5,6 +5,7 @@
 <div class="payroll-page payroll-page--narrow">
   <a class="payroll-back-link" href="{% url 'payroll:run_list' %}">&larr; Payroll</a>
   <header class="payroll-page-header"><div><p class="payroll-eyebrow">Draft payroll</p><h1>Create payroll run</h1><p class="muted">Choose the dates for the attendance that belongs in this run.</p></div></header>
+  {% include "payroll/_subnav.html" %}
   {% if not payroll_readiness.can_create_run %}
   <aside class="payroll-warning-box payroll-form-readiness" role="note">
     <span class="payroll-form-readiness-icon">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span>

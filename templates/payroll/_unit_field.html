@@ -1,0 +1,7 @@
+{% load form_tags %}
+<div class="field form-field payroll-unit-field{% if field.errors %} form-field--invalid{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  <div class="payroll-unit-input">{{ field|accessible_field }}<span aria-hidden="true">{{ unit }}</span></div>
+  {% if field.help_text %}<small class="form-help" id="{{ field.auto_id }}_helptext">{{ field.help_text }}</small>{% endif %}
+  {% if field.errors %}<div id="{{ field.auto_id }}_errors" class="field-error" role="alert">{{ field.errors }}</div>{% endif %}
+</div>

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django import forms
 from django.utils import timezone
@@ -25,6 +26,24 @@ class PayrollSettingsForm(forms.ModelForm):
 
 
 class PayrollRuleSetForm(forms.ModelForm):
+    regular_day_minutes = forms.DecimalField(
+        label="Regular workday",
+        min_value=Decimal("0.25"),
+        max_value=Decimal("24"),
+        max_digits=4,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"step": "0.25", "inputmode": "decimal"}),
+        help_text="Enter hours. Use 15-minute increments.",
+    )
+    night_differential_rate = forms.DecimalField(
+        label="Night differential",
+        min_value=Decimal("0"),
+        max_value=Decimal("999.99"),
+        max_digits=6,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={"step": "0.01", "inputmode": "decimal"}),
+    )
+
     class Meta:
         model = PayrollRuleSet
         fields = [
@@ -39,29 +58,80 @@ class PayrollRuleSetForm(forms.ModelForm):
             "night_end": forms.TimeInput(attrs={"type": "time"}),
             "source_references": forms.Textarea(attrs={"rows": 3}),
         }
+        labels = {
+            "effective_from": "Effective from",
+            "effective_until": "Effective until",
+            "overtime_multiplier": "Ordinary overtime",
+            "rest_day_multiplier": "Rest-day work",
+            "rest_day_overtime_multiplier": "Rest-day overtime",
+            "night_start": "Night window starts",
+            "night_end": "Night window ends",
+            "source_references": "Source references",
+            "reviewed_by": "Reviewed by",
+        }
 
     def __init__(self, *args, organization, **kwargs):
         self.organization = organization
         super().__init__(*args, **kwargs)
+        self.initial["regular_day_minutes"] = (
+            Decimal(self.instance.regular_day_minutes) / Decimal("60")
+        )
+        self.initial["night_differential_rate"] = (
+            Decimal(self.instance.night_differential_rate) * Decimal("100")
+        )
+        self.fields["overtime_multiplier"].help_text = "Multiplier applied to eligible ordinary overtime."
+        self.fields["rest_day_multiplier"].help_text = "Multiplier applied to eligible work on the employee's rest day."
+        self.fields["rest_day_overtime_multiplier"].help_text = "Multiplier applied to eligible rest-day overtime."
+        self.fields["night_start"].help_text = "Start of the configured local night window."
+        self.fields["night_end"].help_text = "End of the configured local night window."
 
     def clean(self):
         cleaned = super().clean()
         start, end = cleaned.get("effective_from"), cleaned.get("effective_until")
         if start and end and end < start:
             self.add_error("effective_until", "End date must be on or after the effective date.")
+        workday_hours = cleaned.get("regular_day_minutes")
+        if workday_hours is not None and (workday_hours * 60) % 15:
+            self.add_error("regular_day_minutes", "Choose a workday length in 15-minute increments.")
         if self.instance.pk and self.instance.reviewed:
             original = PayrollRuleSet.objects.get(pk=self.instance.pk)
-            changed = any(
-                self.cleaned_data.get(field) != getattr(original, field)
-                for field in self.Meta.fields
-                if field != "reviewed_by"
-            )
+            changed = False
+            for field in self.Meta.fields:
+                if field == "reviewed_by":
+                    continue
+                submitted = cleaned.get(field)
+                stored = getattr(original, field)
+                if field == "regular_day_minutes":
+                    stored = Decimal(stored) / Decimal("60")
+                elif field == "night_differential_rate":
+                    stored = Decimal(stored) * Decimal("100")
+                if submitted != stored:
+                    changed = True
+                    break
             if changed:
                 raise forms.ValidationError("Reviewed payroll rules are locked. Add a new effective-dated version.")
         return cleaned
 
+    def _post_clean(self):
+        # The form presents hours and percentages, while the model stores minutes
+        # and fractional rates. Convert before ModelForm validates the instance,
+        # then restore the display values used by save().
+        display_workday = self.cleaned_data.get("regular_day_minutes")
+        display_night_rate = self.cleaned_data.get("night_differential_rate")
+        if display_workday is not None:
+            self.cleaned_data["regular_day_minutes"] = int(display_workday * Decimal("60"))
+        if display_night_rate is not None:
+            self.cleaned_data["night_differential_rate"] = display_night_rate / Decimal("100")
+        super()._post_clean()
+        if display_workday is not None:
+            self.cleaned_data["regular_day_minutes"] = display_workday
+        if display_night_rate is not None:
+            self.cleaned_data["night_differential_rate"] = display_night_rate
+
     def save(self, commit=True, *, actor=None):
         rule = super().save(commit=False)
+        rule.regular_day_minutes = int(self.cleaned_data["regular_day_minutes"] * Decimal("60"))
+        rule.night_differential_rate = self.cleaned_data["night_differential_rate"] / Decimal("100")
         rule.organization = self.organization
         if actor and self.cleaned_data.get("reviewed_by") and self.cleaned_data.get("source_references"):
             if rule.reviewed_at is None:
@@ -135,11 +205,23 @@ class PayrollHolidayForm(forms.ModelForm):
         model = PayrollHoliday
         fields = ["date", "name", "kind", "worked_multiplier", "overtime_multiplier", "source_reference", "reviewed_by"]
         widgets = {"date": forms.DateInput(attrs={"type": "date"})}
+        labels = {
+            "date": "Date",
+            "name": "Holiday name",
+            "kind": "Classification",
+            "worked_multiplier": "Worked rate",
+            "overtime_multiplier": "Overtime rate",
+            "source_reference": "Source reference",
+            "reviewed_by": "Reviewed by",
+        }
 
     def __init__(self, *args, organization, actor, **kwargs):
         self.organization = organization
         self.actor = actor
         super().__init__(*args, **kwargs)
+        self.fields["worked_multiplier"].help_text = "Multiplier for eligible hours worked on this holiday."
+        self.fields["overtime_multiplier"].help_text = "Multiplier for eligible overtime on this holiday."
+        self.fields["source_reference"].help_text = "Use the official holiday proclamation or other approved source."
 
     def clean(self):
         cleaned = super().clean()

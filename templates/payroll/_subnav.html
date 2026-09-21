@@ -1,0 +1,14 @@
+<nav class="payroll-subnav" aria-label="Payroll pages">
+  <a class="{% if request.resolver_match.url_name == 'run_list' %}is-active{% endif %}" href="{% url 'payroll:run_list' %}"{% if request.resolver_match.url_name == 'run_list' %} aria-current="page"{% endif %}>
+    {% include "components/icon.html" with icon_name="wallet" icon_class="payroll-subnav__icon" %}<span>Overview</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'employee_list' or request.resolver_match.url_name == 'employee_profile' or request.resolver_match.url_name == 'add_pay_rate' %}is-active{% endif %}" href="{% url 'payroll:employee_list' %}"{% if request.resolver_match.url_name == 'employee_list' or request.resolver_match.url_name == 'employee_profile' or request.resolver_match.url_name == 'add_pay_rate' %} aria-current="page"{% endif %}>
+    {% include "components/icon.html" with icon_name="users" icon_class="payroll-subnav__icon" %}<span>Pay profiles</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'holiday_calendar' or request.resolver_match.url_name == 'holiday_edit' %}is-active{% endif %}" href="{% url 'payroll:holiday_calendar' %}"{% if request.resolver_match.url_name == 'holiday_calendar' or request.resolver_match.url_name == 'holiday_edit' %} aria-current="page"{% endif %}>
+    {% include "components/icon.html" with icon_name="calendar" icon_class="payroll-subnav__icon" %}<span>Holidays</span>
+  </a>
+  <a class="{% if request.resolver_match.url_name == 'setup' %}is-active{% endif %}" href="{% url 'payroll:setup' %}"{% if request.resolver_match.url_name == 'setup' %} aria-current="page"{% endif %}>
+    {% include "components/icon.html" with icon_name="settings" icon_class="payroll-subnav__icon" %}<span>Settings</span>
+  </a>
+</nav>

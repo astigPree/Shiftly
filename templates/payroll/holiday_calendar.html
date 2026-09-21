@@ -1,10 +1,67 @@
 {% extends "layouts/employer.html" %}
 {% load form_tags %}
-{% block title %}Payroll holidays | Shiftly{% endblock %}
+{% block title %}Holiday calendar | Shiftly{% endblock %}
 {% block app_content %}
-<div class="payroll-page"><a class="payroll-back-link" href="{% url 'payroll:run_list' %}">← Payroll</a><header class="payroll-page-header"><div><p class="payroll-eyebrow">Annual payroll calendar</p><h1>Holiday calendar</h1><p class="muted">Add official holidays and their reviewed multipliers for the work location.</p></div></header>
-  <div class="payroll-warning-box"><strong>Holiday setup</strong><span>Use the official holiday proclamation and adviser-approved rates. Regional/local holidays and a holiday that overlaps an employee rest day may need additional review.</span></div>
-  <div class="payroll-two-column"><section class="payroll-card"><header class="payroll-card-heading"><div><h2>Add holiday</h2><p>One calendar entry per organization and date.</p></div></header><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<button class="button-link" type="submit">Save holiday</button></form></section>
-  <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Saved dates</h2><p>Unreviewed dates block payroll finalization if employees worked them.</p></div></header><div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th scope="col">Date</th><th scope="col">Holiday</th><th scope="col">Type</th><th scope="col">Multipliers</th><th scope="col">Review</th><th scope="col">Actions</th></tr></thead><tbody>{% for holiday in holidays %}<tr><td>{{ holiday.date|date:"M j, Y" }}</td><td><strong>{{ holiday.name }}</strong></td><td>{{ holiday.get_kind_display }}</td><td>{{ holiday.worked_multiplier }}× / {{ holiday.overtime_multiplier }}× OT</td><td>{% if holiday.reviewed %}<span class="payroll-status payroll-status--finalized">Reviewed</span><small>{{ holiday.reviewed_by }}</small>{% else %}<span class="payroll-status payroll-status--needs-review">Needs review</span>{% endif %}</td><td><a class="table-action-button" href="{% url 'payroll:holiday_edit' holiday.pk %}">Edit</a></td></tr>{% empty %}<tr><td colspan="6">No holidays added for this organization.</td></tr>{% endfor %}</tbody></table></div></section></div>
+<div class="payroll-page payroll-holiday-page">
+  <header class="payroll-page-header">
+    <div><p class="payroll-eyebrow">Annual payroll calendar</p><h1>Holiday calendar</h1><p class="muted">Review holiday dates and multipliers used in payroll calculations.</p></div>
+  </header>
+  {% include "payroll/_subnav.html" %}
+
+  <section class="payroll-holiday-summary" aria-label="Holiday review summary for {{ selected_year }}">
+    <article class="payroll-holiday-metric"><span class="payroll-holiday-metric__icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span><div><strong>{{ holiday_count }}</strong><span>Holidays</span><small>Added for {{ selected_year }}</small></div></article>
+    <article class="payroll-holiday-metric payroll-holiday-metric--reviewed"><span class="payroll-holiday-metric__icon">{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}</span><div><strong>{{ reviewed_count }}</strong><span>Reviewed</span><small>Source and reviewer recorded</small></div></article>
+    <article class="payroll-holiday-metric payroll-holiday-metric--needs-review"><span class="payroll-holiday-metric__icon">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span><div><strong>{{ needs_review_count }}</strong><span>Need review</span><small>May block finalization if worked</small></div></article>
+  </section>
+
+  <div class="payroll-warning-box payroll-holiday-warning"><strong>Use official sources</strong><span>Use the official holiday proclamation and reviewed rates. Regional holidays or dates that overlap an employee rest day may need additional review.</span></div>
+
+  <form method="get" class="payroll-filter payroll-holiday-filter" aria-label="Filter holiday dates">
+    <label for="id_holiday_year"><span>Year</span><select id="id_holiday_year" name="year">{% for year in year_choices %}<option value="{{ year }}"{% if selected_year == year %} selected{% endif %}>{{ year }}</option>{% endfor %}</select></label>
+    <label for="id_holiday_review"><span>Review status</span><select id="id_holiday_review" name="review"><option value=""{% if not review_status %} selected{% endif %}>All dates</option><option value="reviewed"{% if review_status == "reviewed" %} selected{% endif %}>Reviewed</option><option value="needs_review"{% if review_status == "needs_review" %} selected{% endif %}>Needs review</option></select></label>
+    <label class="payroll-holiday-search" for="id_holiday_search"><span>Search holidays</span><input id="id_holiday_search" type="search" name="q" value="{{ query }}" placeholder="Holiday name"></label>
+    <button class="button-link" type="submit">Apply filters</button>
+    {% if show_form %}<input type="hidden" name="add" value="1">{% endif %}
+    {% if review_status or query or selected_year != default_year %}<a class="button-secondary" href="{% url 'payroll:holiday_calendar' %}?year={{ default_year }}{% if show_form %}&amp;add=1{% endif %}">Clear filters</a>{% endif %}
+    <a class="button-link payroll-add-holiday-link" href="?year={{ selected_year }}{% if review_status %}&amp;review={{ review_status }}{% endif %}{% if query %}&amp;q={{ query|urlencode }}{% endif %}&amp;add=1"{% if show_form %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %} Add holiday</a>
+  </form>
+
+  {% if show_form %}
+  <section class="payroll-card payroll-holiday-form-card" aria-labelledby="add-holiday-title">
+    <header class="payroll-card-heading"><div><h2 id="add-holiday-title">Add holiday</h2><p>Enter the date, classification, reviewed pay rates, and official source.</p></div></header>
+    <form method="post" action="?year={{ selected_year }}&amp;add=1" class="payroll-holiday-form" novalidate>
+      {% csrf_token %}
+      {% include "components/form_field.html" with field=form.date %}
+      {% include "components/form_field.html" with field=form.name %}
+      {% include "components/form_field.html" with field=form.kind %}
+      {% include "payroll/_unit_field.html" with field=form.worked_multiplier unit="×" %}
+      {% include "payroll/_unit_field.html" with field=form.overtime_multiplier unit="×" %}
+      {% include "components/form_field.html" with field=form.source_reference %}
+      {% include "components/form_field.html" with field=form.reviewed_by %}
+      <div class="payroll-form-actions"><a href="?year={{ selected_year }}" class="button-secondary">Cancel</a><button class="button-link" type="submit">Save holiday</button></div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="payroll-card payroll-holiday-table-card" aria-labelledby="saved-holidays-title">
+    <header class="payroll-card-heading"><div><h2 id="saved-holidays-title">Saved dates</h2><p>Review each holiday before using it in a finalized payroll run.</p></div><span class="payroll-result-count">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} dates</span></header>
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable holiday dates">
+      <table class="payroll-table payroll-holiday-table">
+        <thead><tr><th scope="col">Date</th><th scope="col">Holiday</th><th scope="col">Type</th><th scope="col">Worked rate</th><th scope="col">Overtime rate</th><th scope="col">Review</th><th scope="col">Actions</th></tr></thead>
+        <tbody>{% for holiday in holidays %}
+          <tr>
+            <td>{{ holiday.date|date:"M j, Y" }}</td>
+            <td><strong>{{ holiday.name }}</strong></td>
+            <td>{{ holiday.get_kind_display }}</td>
+            <td>{{ holiday.worked_multiplier|floatformat:"-2" }}×</td>
+            <td>{{ holiday.overtime_multiplier|floatformat:"-2" }}×</td>
+            <td>{% if holiday.reviewed %}<span class="payroll-status payroll-status--finalized">Reviewed</span><small>{{ holiday.reviewed_by }}</small>{% else %}<span class="payroll-status payroll-status--needs-review">Needs review</span><small>May block finalization if worked</small>{% endif %}</td>
+            <td><a class="table-action-button" href="{% url 'payroll:holiday_edit' holiday.pk %}">Edit</a></td>
+          </tr>
+        {% empty %}<tr><td colspan="7" class="payroll-table-empty">No holidays match these filters for {{ selected_year }}.</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <footer class="payroll-table-footer"><span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span><nav class="payroll-pagination" aria-label="Holiday pages">{% if page.has_previous %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.previous_page_number }}">Previous</a>{% endif %}{% if page.has_next %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.next_page_number }}">Next</a>{% endif %}</nav></footer>
+  </section>
 </div>
 {% endblock %}

@@ -9,6 +9,8 @@
     <div class="payroll-header-actions"><span class="payroll-status payroll-status--{{ run.status|lower }}">{{ run.get_status_display }}</span>{% if run.status == "FINALIZED" %}<a class="button-secondary" href="{% url 'payroll:run_export' run.pk %}">Export CSV</a>{% endif %}</div>
   </header>
 
+  {% include "payroll/_subnav.html" %}
+
   <div class="payroll-warning-box"><strong>Calculation scope</strong><span>Hourly base pay, configured daily overtime, reviewed rest-day/holiday premiums, and ordinary-day night differential are calculated from approved attendance. Tax withholding and statutory contributions remain manually reviewed line items. Night premium combinations that need manual review block finalization until a corresponding earning line is recorded. No money is transferred.</span></div>
 
   <section class="payroll-total-grid" aria-label="Payroll totals">
