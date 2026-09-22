@@ -609,6 +609,29 @@
 .payroll-holiday-form .payroll-form-actions a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; color: var(--color-gray-700); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); text-decoration: none; }
 .payroll-holiday-form .payroll-form-actions button { min-width: 140px; }
 .payroll-holiday-table-card .payroll-card-heading { align-items: center; }
+.payroll-rule-profile-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); gap: 16px; align-items: start; }
+.payroll-rule-profile-list { display: grid; gap: 8px; }
+.payroll-rule-profile-row { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; color: var(--color-gray-800); background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); text-decoration: none; }
+.payroll-rule-profile-row:hover,
+.payroll-rule-profile-row.is-selected { border-color: var(--color-brand); background: var(--color-primary-50); }
+.payroll-rule-profile-row > span { display: grid; gap: 2px; min-width: 0; }
+.payroll-rule-profile-row > span:last-child { justify-items: end; }
+.payroll-rule-profile-row small { color: var(--color-text-muted); font-size: var(--text-xs); }
+.payroll-rule-profile-form { display: grid; gap: 9px; padding: 14px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-rule-profile-form .field { margin: 0; }
+.payroll-rule-profile-form input:not([type="checkbox"]),
+.payroll-rule-profile-form select { width: 100%; min-width: 0; }
+.payroll-inline-check { display: flex; align-items: center; gap: 8px; color: var(--color-gray-700); font-size: var(--text-sm); }
+.payroll-inline-check input { width: 16px; height: 16px; }
+.payroll-bulk-assignment-fields { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(140px, .8fr)) auto; align-items: end; gap: 10px; margin: 0 0 14px; padding: 12px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-bulk-assignment-fields > strong { align-self: center; color: var(--color-gray-800); font-size: var(--text-sm); }
+.payroll-bulk-assignment-fields .field { min-width: 0; margin: 0; }
+.payroll-bulk-assignment-fields .field input,
+.payroll-bulk-assignment-fields .field select { width: 100%; min-width: 0; }
+.payroll-rule-assignment-card { display: grid; gap: 14px; }
+.payroll-assignment-form { display: grid; gap: 12px; }
+.payroll-assignment-form > .button-link { justify-self: end; min-height: 42px; }
+.payroll-assignment-table { min-width: 680px; }
 
 .payroll-exceptions { border-color: var(--color-warning-border); }
 .payroll-exception-list { display: grid; gap: 10px; }
@@ -652,6 +675,8 @@
   .payroll-config-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payroll-config-fields > button { justify-self: end; }
   .payroll-rule-review-grid { grid-template-columns: 1fr; }
+  .payroll-rule-profile-layout { grid-template-columns: 1fr; }
+  .payroll-bulk-assignment-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payroll-employee-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payroll-employee-filter { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) auto auto; }
   .payroll-holiday-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -721,6 +746,8 @@
   .payroll-rule-grid,
   .payroll-holiday-form { grid-template-columns: minmax(0, 1fr); }
   .payroll-config-fields > button { width: 100%; justify-self: stretch; }
+  .payroll-bulk-assignment-fields { grid-template-columns: minmax(0, 1fr); }
+  .payroll-bulk-assignment-fields > button { width: 100%; }
   .payroll-night-window { grid-template-columns: minmax(0, 1fr); }
   .payroll-employee-summary,
   .payroll-holiday-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

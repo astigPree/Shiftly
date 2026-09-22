@@ -25,6 +25,8 @@ from .models import (
     PayrollHoliday,
     PayrollLine,
     PayrollCalculationSnapshot,
+    PayrollRuleAssignment,
+    PayrollRuleProfile,
     PayrollRuleSet,
     PayrollRun,
     PayrollSettings,
@@ -50,11 +52,59 @@ def _owner_organization(actor, organization_id=None):
     return organization
 
 
-def effective_rule_set(organization, work_date):
-    return PayrollRuleSet.objects.filter(
+def resolve_rule_profile(organization, work_date, employee=None):
+    """Resolve the employee override or organization default for a local work date."""
+    if employee is not None:
+        assignments = list(PayrollRuleAssignment.objects.filter(
+            organization=organization,
+            employee=employee,
+            effective_from__lte=work_date,
+        ).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)
+        ).select_related("rule_profile").order_by("-effective_from", "-pk")[:2])
+        if len(assignments) > 1:
+            raise ValidationError(
+                f"{employee.full_name} has overlapping payroll rule assignments on {work_date}."
+            )
+        if assignments:
+            assignment = assignments[0]
+            if not assignment.rule_profile.active:
+                raise ValidationError(
+                    f"Payroll rule profile {assignment.rule_profile.name} is inactive for {employee.full_name}."
+                )
+            return assignment.rule_profile, assignment
+
+    default_profile = PayrollRuleProfile.objects.filter(
+        organization=organization, is_default=True, active=True,
+    ).first()
+    return default_profile, None
+
+
+def resolve_effective_rule(organization, work_date, employee=None):
+    profile, assignment = resolve_rule_profile(organization, work_date, employee=employee)
+    if profile is not None:
+        rule = PayrollRuleSet.objects.filter(
+            rule_profile=profile,
+            effective_from__lte=work_date,
+        ).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)
+        ).order_by("-effective_from", "-pk").first()
+        return rule, profile, assignment
+
+    # Keep legacy rows readable if a database was upgraded without the data
+    # migration completing. New rows always use a named rule profile.
+    rule = PayrollRuleSet.objects.filter(
         organization=organization,
+        rule_profile__isnull=True,
         effective_from__lte=work_date,
-    ).filter(Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)).order_by("-effective_from").first()
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)
+    ).order_by("-effective_from", "-pk").first()
+    return rule, None, None
+
+
+def effective_rule_set(organization, work_date, employee=None):
+    return resolve_effective_rule(organization, work_date, employee=employee)[0]
 
 
 def effective_pay_rate(employee, work_date):
@@ -128,7 +178,7 @@ def _offset_transition_boundaries(start, end, zone):
     return boundaries
 
 
-def split_worked_segments(session, breaks, *, zone_name, organization, rule_set, period_start=None, period_end=None):
+def split_worked_segments(session, breaks, *, zone_name, organization, rule_set, employee=None, period_start=None, period_end=None):
     """Split worked intervals at local midnight and night-window boundaries."""
     zone = ZoneInfo(zone_name)
     chunks = []
@@ -138,12 +188,12 @@ def split_worked_segments(session, breaks, *, zone_name, organization, rule_set,
         offset_boundaries = _offset_transition_boundaries(cursor, interval_end, zone)
         while cursor < interval_end:
             local = cursor.astimezone(zone)
-            current_rule = effective_rule_set(organization, local.date()) or rule_set
+            current_rule = effective_rule_set(organization, local.date(), employee=employee) or rule_set
             next_date = local.date() + timedelta(days=1)
             boundaries = [boundary for boundary in offset_boundaries if boundary > cursor]
             boundaries.extend(_local_wall_boundaries(next_date, time.min, zone))
             for candidate_day in (local.date(), next_date):
-                boundary_rule = effective_rule_set(organization, candidate_day) or current_rule
+                boundary_rule = effective_rule_set(organization, candidate_day, employee=employee) or current_rule
                 for wall_time in (boundary_rule.night_start, boundary_rule.night_end):
                     boundaries.extend(_local_wall_boundaries(candidate_day, wall_time, zone))
             future = [boundary for boundary in boundaries if cursor < boundary < interval_end]
@@ -446,7 +496,7 @@ def calculate_payroll_run(run, *, actor):
         all_segments = []
         try:
             payroll_start_date = timesheet.attendance_session.clock_in_at.astimezone(payroll_zone).date()
-            broad_rule = effective_rule_set(organization, payroll_start_date) or PayrollRuleSet.objects.filter(
+            broad_rule = effective_rule_set(organization, payroll_start_date, employee=timesheet.employee) or PayrollRuleSet.objects.filter(
                 organization=organization,
                 effective_from__lte=run.period_end,
             ).filter(Q(effective_until__isnull=True) | Q(effective_until__gte=run.period_start)).order_by("-effective_from").first()
@@ -458,6 +508,7 @@ def calculate_payroll_run(run, *, actor):
                 zone_name=payroll_timezone,
                 organization=organization,
                 rule_set=broad_rule,
+                employee=timesheet.employee,
                 period_start=run.period_start,
                 period_end=run.period_end,
             )
@@ -479,15 +530,29 @@ def calculate_payroll_run(run, *, actor):
             if segment["work_date"].isoformat() in previously_paid_dates:
                 _add_exception(run, code="TIME_ALREADY_FINALIZED", description=f"{timesheet.employee.full_name} already has finalized payroll for {segment['work_date']}.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
-            rule = effective_rule_set(organization, segment["work_date"])
+            try:
+                rule, rule_profile, rule_assignment = resolve_effective_rule(
+                    organization, segment["work_date"], employee=timesheet.employee
+                )
+            except ValidationError as error:
+                _add_exception(run, code="PAYROLL_RULE_ASSIGNMENT_CONFLICT", description=f"{timesheet.employee.full_name}: {error}", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
+                continue
             if not rule or not rule.reviewed:
-                _add_exception(run, code="PAYROLL_RULES_NOT_REVIEWED", description=f"Review the effective payroll rules for {segment['work_date']} before running payroll.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
+                code = "PAYROLL_RULE_PROFILE_MISSING" if not rule_profile else "PAYROLL_RULES_NOT_REVIEWED"
+                description = (
+                    f"Assign a default or employee payroll rule profile covering {segment['work_date']}."
+                    if not rule_profile else
+                    f"Review the effective payroll rules for {segment['work_date']} before running payroll."
+                )
+                _add_exception(run, code=code, description=description, employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
             rate = effective_pay_rate(timesheet.employee, segment["work_date"])
             if not rate:
                 _add_exception(run, code="PAY_RATE_MISSING", description=f"Add an effective hourly rate for {timesheet.employee.full_name} on {segment['work_date']}.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
             segment["rule"] = rule
+            segment["rule_profile"] = rule_profile
+            segment["rule_assignment"] = rule_assignment
             segment["rate"] = rate.hourly_rate
             segment["timesheet"] = timesheet
             segment["profile"] = profile
@@ -578,7 +643,15 @@ def calculate_payroll_run(run, *, actor):
             session = timesheet.attendance_session
             for item in segments:
                 rule = item["rule"]
+                rule_profile = item.get("rule_profile")
+                rule_assignment = item.get("rule_assignment")
                 rule_versions[str(rule.pk)] = {
+                    "profile_id": rule_profile.pk if rule_profile else None,
+                    "profile_code": rule_profile.code if rule_profile else None,
+                    "profile_name": rule_profile.name if rule_profile else None,
+                    "assignment_id": rule_assignment.pk if rule_assignment else None,
+                    "assignment_effective_from": rule_assignment.effective_from.isoformat() if rule_assignment else None,
+                    "assignment_effective_until": rule_assignment.effective_until.isoformat() if rule_assignment and rule_assignment.effective_until else None,
                     "effective_from": rule.effective_from.isoformat(),
                     "effective_until": rule.effective_until.isoformat() if rule.effective_until else None,
                     "regular_day_minutes": rule.regular_day_minutes,
@@ -621,6 +694,8 @@ def calculate_payroll_run(run, *, actor):
                     "overtime_seconds": str(item.get("overtime_seconds", Decimal("0"))),
                     "hourly_rate": str(item["rate"]),
                     "rule_set_id": item["rule"].pk,
+                    "rule_profile_id": item["rule_profile"].pk if item.get("rule_profile") else None,
+                    "rule_assignment_id": item["rule_assignment"].pk if item.get("rule_assignment") else None,
                 } for item in segments],
             })
         statement.snapshot = {
@@ -690,9 +765,17 @@ def calculate_payroll_run(run, *, actor):
                         "overtime_seconds": str(item.get("overtime_seconds", Decimal("0"))),
                         "hourly_rate": str(item["rate"]),
                         "rule_set_id": item["rule"].pk,
+                        "rule_profile_id": item["rule_profile"].pk if item.get("rule_profile") else None,
+                        "rule_assignment_id": item["rule_assignment"].pk if item.get("rule_assignment") else None,
                     } for item in segments],
                     "source_payable_minutes": timesheet.payable_minutes,
                     "work_timezone": profile.payroll_timezone or organization.timezone,
+                    "rule_profiles": [{
+                        "id": item["rule_profile"].pk,
+                        "code": item["rule_profile"].code,
+                        "name": item["rule_profile"].name,
+                        "assignment_id": item["rule_assignment"].pk if item.get("rule_assignment") else None,
+                    } for item in segments if item.get("rule_profile")],
                 },
             )
         _refresh_statement(statement)

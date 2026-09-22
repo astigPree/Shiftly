@@ -37,7 +37,7 @@
   {% include "payroll/_subnav.html" %}
 
   <form method="post" class="payroll-profile-form" novalidate>
-    {% csrf_token %}
+    {% csrf_token %}<input type="hidden" name="action" value="profile">
     <div class="payroll-profile-form-layout">
       <section class="payroll-card payroll-profile-card" aria-labelledby="work-details-title">
         <header class="payroll-profile-card-heading">
@@ -81,6 +81,37 @@
       </section>
     </div>
   </form>
+
+  <section class="payroll-card payroll-rule-assignment-card" aria-labelledby="rule-assignment-title">
+    <header class="payroll-card-heading">
+      <div><h2 id="rule-assignment-title">Payroll rule profile</h2><p>Employees inherit the organization default unless a dated override is assigned here.</p></div>
+      <span class="payroll-status payroll-status--{% if current_rule_assignment %}finalized{% else %}needs-review{% endif %}">{% if current_rule_assignment %}{{ current_rule_assignment.rule_profile.name }}{% else %}Inherited default{% endif %}</span>
+    </header>
+    <div class="payroll-info-box"><strong>Current resolution</strong><span>{% if current_rule_assignment %}This employee uses an explicit assignment from {{ current_rule_assignment.effective_from|date:"M j, Y" }}.{% elif default_rule_profile %}No employee override is active; payroll uses the organization's default profile.{% else %}Create an organization default profile in Payroll settings before running payroll.{% endif %}</span></div>
+    <form method="post" class="payroll-assignment-form" novalidate>
+      {% csrf_token %}<input type="hidden" name="action" value="assignment">
+      <div class="payroll-profile-field-grid">
+        {% include "components/form_field.html" with field=assignment_form.rule_profile %}
+        {% include "components/form_field.html" with field=assignment_form.effective_from %}
+        {% include "components/form_field.html" with field=assignment_form.effective_until %}
+        {% include "components/form_field.html" with field=assignment_form.reason full_width=True %}
+      </div>
+      <button class="button-link" type="submit">Assign rule profile</button>
+    </form>
+    {% if rule_assignments %}
+    <div class="payroll-table-wrap" tabindex="0" aria-label="Payroll rule assignment history">
+      <table class="payroll-table payroll-assignment-table">
+        <thead><tr><th scope="col">Profile</th><th scope="col">Effective period</th><th scope="col">Reason</th><th scope="col">Assigned by</th></tr></thead>
+        <tbody>{% for assignment in rule_assignments %}<tr>
+          <td><strong>{{ assignment.rule_profile.name }}</strong><small>{{ assignment.rule_profile.code }}</small></td>
+          <td>{{ assignment.effective_from|date:"M j, Y" }} – {% if assignment.effective_until %}{{ assignment.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td>
+          <td>{{ assignment.reason|default:"—" }}</td>
+          <td>{{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.email }}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
 
   <section class="payroll-card payroll-rate-history" aria-labelledby="rate-history-title">
     <header class="payroll-card-heading">

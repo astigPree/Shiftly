@@ -244,6 +244,30 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [ ] Add reviewed reference calculations for ordinary hours, overtime, rest day, holiday, night differential, breaks, rate changes, and corrections.
 - [ ] Add overnight and boundary scenarios including a 10:00 PM-3:00 AM shift in the employee's work timezone, pay-period crossover, and applicable DST transitions.
 
+### 11.2.1 Payroll rule profiles and employee assignment
+
+**Problem to solve:** employees in one organization may share the same payroll rules, follow a different rule set because of location or agreement, or move between rule sets over time. Copying rule values onto every employee would create drift, make reviews difficult, and make historical payroll harder to reproduce.
+
+**Recommended design:** keep rule values reusable in named, organization-scoped profiles. An employee receives one effective-dated assignment to a profile, while employees without an override inherit the organization's default profile. A profile owns its own non-overlapping effective-dated rule versions. Employee eligibility facts (work location, wage region, rest day, wage-order confirmation, and night-differential eligibility) remain on `EmployeePayProfile`; they do not silently choose a rule profile.
+
+- [x] Add a reusable `PayrollRuleProfile` model with organization, unique code, name, description, active state, and an organization default flag; enforce at most one default profile per organization.
+- [x] Associate `PayrollRuleSet` versions with a rule profile. Replace organization/date uniqueness and overlap checks with profile/date checks while retaining effective dates, reviewed source evidence, immutable reviewed versions, and tenant ownership.
+- [x] Add an effective-dated `PayrollRuleAssignment` model with organization, employee, rule profile, inclusive effective-from/effective-until dates, assigned-by, reason, and audit timestamps. Prevent overlapping assignments for the same employee and require organization/employee/profile consistency.
+- [x] Define deterministic resolution for an employee-local work date: matching employee assignment first, organization default profile second, then the matching rule version inside that profile. If no version exists, more than one candidate matches, or the default is missing, create a blocking payroll exception instead of guessing.
+- [x] Keep assignment and rule-version dates inclusive and validate date ranges. Allow an assignment to span future versions, but require a matching reviewed version on every worked date included in a run; report gaps before finalization.
+- [x] Snapshot the resolved profile, assignment, rule-version identifier, effective dates, inputs, and source/reviewer evidence on payroll time entries/statements. Later assignments or rule edits must not change a draft preview's finalized snapshot or a finalized run.
+- [x] Prevent rule-profile/version changes that cover finalized payroll periods. Route corrections through a linked off-cycle run and preserve the prior assignment and rule evidence in the audit log.
+- [x] Migrate existing organization-wide rule versions into an `Organization default` profile and let existing employees inherit it, preserving current payroll behavior. Provide a data check for organizations with no usable default profile.
+- [ ] Add payroll readiness checks for missing default profiles, missing employee assignments where an override is required, assignment overlaps, rule-version gaps, unreviewed versions, and ambiguous matches. Show the affected employees and local work dates.
+- [x] Add a Payroll settings **Rule profiles** area showing profile status, default/inherited state, version history, review state, and employee count. Add an employee pay-profile control showing the current inherited or assigned profile and its assignment history.
+- [x] Add bulk assignment for selected employees with an effective date, optional end date, reason, and conflict validation before saving.
+- [x] Show the resolved rule profile and version on run previews and statement detail so an employer can explain why two employees with the same shift received different treatment.
+- [x] Add audit events for profile creation, version creation, assignment/bulk-assignment changes, inheritance changes, conflict resolution, and payroll resolution failures.
+- [ ] Add tests for default inheritance, employee overrides, same-profile reuse, non-overlapping date boundaries, profile changes, overnight work/timezone resolution, missing and ambiguous matches, migration compatibility, tenant isolation, duplicate requests, and finalized-run immutability.
+- [ ] Add reviewed reference scenarios for two employees sharing one profile, employees on different profiles, a dated transfer between profiles, an assignment ending at midnight, and a 10:00 PM-3:00 AM shift crossing the assignment or rule-version boundary.
+
+**Resolution precedence to document in the employer UI:** employee assignment → organization default profile → blocking exception when no reviewed rule version can be resolved. Work location or payroll region may be added as a future assignment scope after the employee-level model is stable; it should not silently override an explicit employee assignment.
+
 ### 11.3 Employer workflow
 
 - [x] Add employer Payroll navigation, a filtered/paginated payroll run list, setup, employee pay profiles/rates, holiday calendar, run creation, run detail, review, finalization, void, and finalized CSV export.
@@ -313,7 +337,8 @@ Payroll is not ready to be treated as a legally compliant payroll product until 
 - [ ] Reports and CSV exports match the selected filters and contain only the current organization's records.
 - [ ] Sensitive administrative and timesheet review actions have useful audit history.
 - [ ] Role and tenant isolation tests pass, as do attendance-service and calculation tests.
-- [ ] Employee pay profiles and payroll rules are effective-dated, jurisdiction-approved, and changes cannot rewrite finalized payroll.
+- [ ] Employee pay profiles, reusable payroll rule profiles, and employee assignments are effective-dated, jurisdiction-approved, and changes cannot rewrite finalized payroll.
+- [ ] Employees can inherit the organization default rule profile or use a non-overlapping dated override; payroll explains and snapshots the resolved profile and rule version for every statement.
 - [ ] Payroll runs include only eligible approved timesheets and show itemized regular pay, applicable premiums, deductions, gross, net, and exceptions.
 - [ ] Overnight work is split and valued using the approved local payroll rules, including night differential only where configured and legally validated.
 - [ ] Employers can review, approve, finalize, and audit reproducible payroll runs; corrections use an adjustment/off-cycle process.

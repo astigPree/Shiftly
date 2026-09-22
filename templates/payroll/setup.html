@@ -12,6 +12,31 @@
   </header>
   {% include "payroll/_subnav.html" %}
 
+  <section class="payroll-card payroll-rule-profiles-card" aria-labelledby="rule-profiles-title">
+    <header class="payroll-card-heading">
+      <div><h2 id="rule-profiles-title">Payroll rule profiles</h2><p>Reuse reviewed rules across employees, then assign dated overrides when someone follows a different policy.</p></div>
+    </header>
+    <div class="payroll-rule-profile-layout">
+      <div class="payroll-rule-profile-list">
+        {% for profile in rule_profiles %}
+        <a class="payroll-rule-profile-row{% if selected_rule_profile and profile.pk == selected_rule_profile.pk %} is-selected{% endif %}" href="?profile={{ profile.pk }}">
+          <span><strong>{{ profile.name }}</strong><small>{{ profile.code }} · {{ profile.employee_count }} assigned employee{{ profile.employee_count|pluralize }}</small></span>
+          <span>{% if profile.is_default %}<span class="payroll-status payroll-status--finalized">Default</span>{% endif %}<small>{{ profile.version_count }} version{{ profile.version_count|pluralize }}</small></span>
+        </a>
+        {% empty %}<p class="muted">No rule profiles exist yet. Create one to start configuring rules.</p>{% endfor %}
+      </div>
+      <form method="post" class="payroll-rule-profile-form" novalidate>
+        {% csrf_token %}<input type="hidden" name="action" value="profile">
+        {% include "components/form_field.html" with field=profile_form.code %}
+        {% include "components/form_field.html" with field=profile_form.name %}
+        {% include "components/form_field.html" with field=profile_form.description %}
+        <div class="payroll-inline-check">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label></div>
+        <div class="payroll-inline-check">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label></div>
+        <button class="button-secondary" type="submit">Create profile</button>
+      </form>
+    </div>
+  </section>
+
   <section class="payroll-card payroll-config-card" aria-labelledby="payroll-config-title">
     <header class="payroll-card-heading">
       <div><h2 id="payroll-config-title">Payroll configuration</h2><p>Basic payroll setup for your organization. These settings apply across payroll runs.</p></div>
@@ -28,10 +53,10 @@
   </section>
 
   <form method="post" class="payroll-rule-form" novalidate>
-    {% csrf_token %}<input type="hidden" name="action" value="rules">
+    {% csrf_token %}<input type="hidden" name="action" value="rules"><input type="hidden" name="rule_profile" value="{% if selected_rule_profile %}{{ selected_rule_profile.pk }}{% endif %}">
     <section class="payroll-card payroll-rule-card" aria-labelledby="payroll-rules-title">
       <header class="payroll-card-heading">
-        <div><h2 id="payroll-rules-title">Pay rules</h2><p>Set the effective period and premium values used by payroll calculations.</p></div>
+        <div><h2 id="payroll-rules-title">Pay rules{% if selected_rule_profile %} · {{ selected_rule_profile.name }}{% endif %}</h2><p>Set the effective period and premium values used by payroll calculations.</p></div>
       </header>
       <div class="payroll-info-box"><strong>Initial Philippines rules</strong><span>Confirm employee coverage, premium stacking, and current regional rules with a qualified payroll adviser before using these values to finalize a run.</span></div>
       <div class="payroll-rule-grid">

@@ -12,6 +12,8 @@ from .models import (
     PayrollHoliday,
     PayrollLine,
     PayrollException,
+    PayrollRuleAssignment,
+    PayrollRuleProfile,
     PayrollRuleSet,
     PayrollRun,
     PayrollSettings,
@@ -143,6 +145,130 @@ class PayrollRuleSetForm(forms.ModelForm):
             rule.save()
             self.save_m2m()
         return rule
+
+
+class PayrollRuleProfileForm(forms.ModelForm):
+    class Meta:
+        model = PayrollRuleProfile
+        fields = ["code", "name", "description", "is_default", "active"]
+        labels = {
+            "code": "Profile code",
+            "name": "Profile name",
+            "description": "Description",
+            "is_default": "Use as organization default",
+            "active": "Available for assignments",
+        }
+        help_texts = {
+            "code": "A short stable identifier, such as standard or union-a.",
+            "description": "Describe which employees or agreement this profile covers.",
+            "is_default": "Employees without an explicit assignment inherit this profile.",
+            "active": "Inactive profiles cannot be newly assigned.",
+        }
+        widgets = {
+            "description": forms.TextInput(attrs={"placeholder": "e.g. Standard hourly employees"}),
+        }
+
+    def __init__(self, *args, organization, actor, **kwargs):
+        self.organization = organization
+        self.actor = actor
+        super().__init__(*args, **kwargs)
+
+    def clean_code(self):
+        return self.cleaned_data["code"].strip().lower()
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("is_default") and not cleaned.get("active"):
+            self.add_error("active", "The organization default profile must remain available for assignments.")
+        return cleaned
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        profile.organization = self.organization
+        if not profile.pk:
+            profile.created_by = self.actor
+        if commit:
+            profile.save()
+        return profile
+
+
+class PayrollRuleAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = PayrollRuleAssignment
+        fields = ["rule_profile", "effective_from", "effective_until", "reason"]
+        labels = {
+            "rule_profile": "Payroll rule profile",
+            "effective_from": "Effective from",
+            "effective_until": "Effective until",
+            "reason": "Assignment reason",
+        }
+        help_texts = {
+            "rule_profile": "The employee uses this profile for matching local work dates.",
+            "effective_from": "Dates are inclusive and use the employee's work timezone calendar.",
+            "effective_until": "Leave blank for an open-ended assignment.",
+            "reason": "Optional note for the audit history, such as a location or agreement change.",
+        }
+        widgets = {
+            "effective_from": forms.DateInput(attrs={"type": "date"}),
+            "effective_until": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, organization, employee, actor, **kwargs):
+        self.organization = organization
+        self.employee = employee
+        self.actor = actor
+        super().__init__(*args, **kwargs)
+        self.fields["rule_profile"].queryset = PayrollRuleProfile.objects.filter(
+            organization=organization, active=True,
+        ).order_by("-is_default", "name")
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("effective_from"), cleaned.get("effective_until")
+        if start and end and end < start:
+            self.add_error("effective_until", "End date must be on or after the effective date.")
+        if start and PayrollStatement.objects.filter(
+            employee=self.employee,
+            run__status=PayrollRun.Status.FINALIZED,
+            run__period_end__gte=start,
+        ).exists():
+            self.add_error("effective_from", "This assignment could change finalized payroll. Use an off-cycle adjustment for a correction.")
+        return cleaned
+
+    def save(self, commit=True):
+        assignment = super().save(commit=False)
+        assignment.organization = self.organization
+        assignment.employee = self.employee
+        assignment.assigned_by = self.actor
+        if commit:
+            assignment.save()
+        return assignment
+
+
+class PayrollBulkRuleAssignmentForm(forms.Form):
+    employees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.none(),
+        widget=forms.MultipleHiddenInput,
+        required=True,
+    )
+    rule_profile = forms.ModelChoiceField(queryset=PayrollRuleProfile.objects.none(), label="Payroll rule profile")
+    effective_from = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Effective from")
+    effective_until = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}), label="Effective until", required=False)
+    reason = forms.CharField(max_length=255, required=False, label="Assignment reason")
+
+    def __init__(self, *args, organization, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["employees"].queryset = Employee.objects.filter(organization=organization)
+        self.fields["rule_profile"].queryset = PayrollRuleProfile.objects.filter(
+            organization=organization, active=True,
+        ).order_by("-is_default", "name")
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("effective_from"), cleaned.get("effective_until")
+        if start and end and end < start:
+            self.add_error("effective_until", "End date must be on or after the effective date.")
+        return cleaned
 
 
 class EmployeePayProfileForm(forms.ModelForm):

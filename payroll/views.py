@@ -27,7 +27,10 @@ from .forms import (
     FinalizePayrollForm,
     PayrollAdjustmentForm,
     PayrollExceptionResolutionForm,
+    PayrollBulkRuleAssignmentForm,
     PayrollHolidayForm,
+    PayrollRuleAssignmentForm,
+    PayrollRuleProfileForm,
     PayrollRuleSetForm,
     PayrollRunForm,
     PayrollSettingsForm,
@@ -39,6 +42,8 @@ from .models import (
     PayrollException,
     PayrollHoliday,
     PayrollLine,
+    PayrollRuleAssignment,
+    PayrollRuleProfile,
     PayrollRuleSet,
     PayrollRun,
     PayrollSettings,
@@ -83,6 +88,35 @@ def _page_querystring(request):
     return params.urlencode()
 
 
+def _ensure_default_rule_profile(organization, actor):
+    profile = PayrollRuleProfile.objects.filter(organization=organization, is_default=True).first()
+    if profile:
+        return profile
+    return PayrollRuleProfile.objects.create(
+        organization=organization,
+        code="default",
+        name="Organization default",
+        description="Default payroll rules inherited by employees without an override.",
+        is_default=True,
+        active=True,
+        created_by=actor,
+    )
+
+
+def _statement_rule_profile_summary(statement):
+    versions = (statement.snapshot or {}).get("rule_versions", {}).values()
+    summaries = []
+    seen = set()
+    for version in versions:
+        name = version.get("profile_name") or "Legacy organization rules"
+        assignment_id = version.get("assignment_id")
+        label = f"{name} (employee override)" if assignment_id else f"{name} (inherited)"
+        if label not in seen:
+            seen.add(label)
+            summaries.append(label)
+    return ", ".join(summaries) or "No resolved rule profile recorded"
+
+
 def _period_bounds(reference_date, frequency, period):
     """Return the current or previous payroll period for the configured frequency."""
     if frequency == PayrollSettings.Frequency.WEEKLY:
@@ -119,17 +153,22 @@ def _payroll_readiness(organization):
         organization_today = timezone.localdate()
 
     settings_row = PayrollSettings.objects.filter(organization=organization).first()
+    default_rule_profile = PayrollRuleProfile.objects.filter(
+        organization=organization, is_default=True, active=True,
+    ).first()
     effective_rule = PayrollRuleSet.objects.filter(
-        organization=organization,
+        rule_profile=default_rule_profile,
         effective_from__lte=organization_today,
     ).filter(
         Q(effective_until__isnull=True) | Q(effective_until__gte=organization_today)
-    ).order_by("-effective_from", "-pk").first()
-    settings_complete = bool(settings_row and effective_rule and effective_rule.reviewed)
+    ).order_by("-effective_from", "-pk").first() if default_rule_profile else None
+    settings_complete = bool(settings_row and default_rule_profile and effective_rule and effective_rule.reviewed)
     if not settings_row:
         settings_detail = "Choose a pay frequency and configure reviewed pay rules."
+    elif not default_rule_profile:
+        settings_detail = f"{settings_row.currency} - Create an organization default rule profile"
     elif not effective_rule:
-        settings_detail = f"{settings_row.currency} · No rule is effective today"
+        settings_detail = f"{settings_row.currency} - No default rule is effective today"
     elif not effective_rule.reviewed:
         settings_detail = f"{settings_row.currency} · Pay rules need review"
     else:
@@ -350,9 +389,57 @@ def run_list(request):
 
 
 @employer_required
-@require_GET
+@require_http_methods(["GET", "POST"])
 def employee_payroll_list(request):
     organization = _organization(request)
+    bulk_form = PayrollBulkRuleAssignmentForm(
+        request.POST if request.method == "POST" and request.POST.get("action") == "bulk_assignment" else None,
+        organization=organization,
+    )
+    if request.method == "POST" and request.POST.get("action") == "bulk_assignment" and bulk_form.is_valid():
+        employees_to_assign = list(bulk_form.cleaned_data["employees"])
+        start = bulk_form.cleaned_data["effective_from"]
+        end = bulk_form.cleaned_data["effective_until"]
+        profile = bulk_form.cleaned_data["rule_profile"]
+        try:
+            with transaction.atomic():
+                for employee in employees_to_assign:
+                    prior = PayrollRuleAssignment.objects.select_for_update().filter(
+                        employee=employee,
+                        effective_from__lt=start,
+                        effective_until__isnull=True,
+                    ).order_by("-effective_from").first()
+                    if prior:
+                        prior.effective_until = start - timedelta(days=1)
+                        prior.save(update_fields=["effective_until"])
+                    assignment = PayrollRuleAssignment(
+                        organization=organization,
+                        employee=employee,
+                        rule_profile=profile,
+                        effective_from=start,
+                        effective_until=end,
+                        reason=bulk_form.cleaned_data["reason"].strip(),
+                        assigned_by=request.user,
+                    )
+                    assignment.save()
+            record_event(
+                organization=organization,
+                actor=request.user,
+                action=AuditEvent.Action.PAYROLL_RULES_UPDATED,
+                target_type="payroll_rule_assignment_bulk",
+                target_id=profile.pk,
+                summary=f"Assigned {profile.name} to {len(employees_to_assign)} employees.",
+                metadata={
+                    "employee_ids": [employee.pk for employee in employees_to_assign],
+                    "profile": profile.code,
+                    "effective_from": start.isoformat(),
+                    "effective_until": end.isoformat() if end else None,
+                },
+            )
+            messages.success(request, f"Assigned {profile.name} to {len(employees_to_assign)} employees.")
+            return redirect("payroll:employee_list")
+        except ValidationError as error:
+            _message_error(request, error)
     try:
         organization_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
     except (ZoneInfoNotFoundError, TypeError, ValueError):
@@ -379,7 +466,12 @@ def employee_payroll_list(request):
     ).filter(
         Q(effective_until__isnull=True) | Q(effective_until__gte=OuterRef("_payroll_work_date"))
     ).order_by("-effective_from", "-pk")
-    employees = Employee.objects.filter(organization=organization).select_related("payroll_profile").annotate(
+    default_rule_profile = PayrollRuleProfile.objects.filter(
+        organization=organization, is_default=True, active=True,
+    ).first()
+    employees = Employee.objects.filter(organization=organization).select_related("payroll_profile").prefetch_related(
+        "payroll_rule_assignments__rule_profile",
+    ).annotate(
         _payroll_work_date=payroll_work_date,
         _has_current_rate=Exists(current_rate_query),
         _current_rate=Subquery(current_rate_query.values("hourly_rate")[:1]),
@@ -438,6 +530,11 @@ def employee_payroll_list(request):
     rows = []
     for employee in page.object_list:
         profile = getattr(employee, "payroll_profile", None)
+        assignment = next((item for item in employee.payroll_rule_assignments.all() if (
+            item.effective_from <= employee._payroll_work_date
+            and (item.effective_until is None or item.effective_until >= employee._payroll_work_date)
+        )), None)
+        resolved_rule_profile = assignment.rule_profile if assignment else default_rule_profile
         if employee.status != Employee.Status.ACTIVE or (profile and not profile.active_for_payroll):
             payroll_status, status_detail = "excluded", "Excluded from payroll"
         elif not profile or not profile.work_location.strip() or not profile.payroll_region.strip() or not profile.wage_order_reference.strip() or not employee._has_current_rate:
@@ -453,6 +550,8 @@ def employee_payroll_list(request):
             "rate_effective_from": employee._current_rate_from,
             "payroll_status": payroll_status,
             "status_detail": status_detail,
+            "rule_profile": resolved_rule_profile,
+            "rule_profile_source": "Assigned override" if assignment else "Inherited default",
         })
     return render(request, "payroll/employee_list.html", {
         "organization": organization,
@@ -470,6 +569,7 @@ def employee_payroll_list(request):
             ("excluded", "Excluded from payroll"),
         ],
         "summary": summary,
+        "bulk_assignment_form": bulk_form,
         "page_querystring": _page_querystring(request),
         "currency": PayrollSettings.objects.filter(organization=organization).values_list("currency", flat=True).first() or "PHP",
     })
@@ -486,7 +586,20 @@ def setup(request):
     settings_row = PayrollSettings.objects.filter(organization=organization).first()
     if settings_row is None:
         settings_row = PayrollSettings(organization=organization)
-    latest_rule = PayrollRuleSet.objects.filter(organization=organization).order_by("-effective_from").first()
+    profiles = PayrollRuleProfile.objects.filter(organization=organization).annotate(
+        version_count=Count("rule_versions", distinct=True), employee_count=Count("employee_assignments", distinct=True),
+    )
+    selected_profile_id = request.POST.get("rule_profile") if request.method == "POST" else request.GET.get("profile")
+    if selected_profile_id and selected_profile_id.isdigit():
+        selected_rule_profile = profiles.filter(pk=selected_profile_id).first()
+    else:
+        selected_rule_profile = profiles.filter(is_default=True).first()
+    latest_rule = PayrollRuleSet.objects.filter(
+        organization=organization,
+        rule_profile=selected_rule_profile,
+    ).order_by("-effective_from").first() if selected_rule_profile else PayrollRuleSet.objects.filter(
+        organization=organization, rule_profile__isnull=True,
+    ).order_by("-effective_from").first()
     add_version = request.GET.get("new_rules") == "1" or bool(latest_rule and latest_rule.reviewed)
     rule_instance = latest_rule if latest_rule and not add_version else PayrollRuleSet(
         organization=organization,
@@ -509,17 +622,41 @@ def setup(request):
         organization=organization,
         prefix="rules",
     )
+    profile_form = PayrollRuleProfileForm(
+        request.POST if action == "profile" else None,
+        organization=organization,
+        actor=request.user,
+        prefix="profile",
+    )
     if action == "settings" and request.method == "POST" and settings_form.is_valid():
         settings_form.save()
         record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_RULES_UPDATED, target_type="payroll_settings", target_id=settings_row.pk, summary="Updated payroll currency and frequency.", metadata={"currency": settings_row.currency, "frequency": settings_row.frequency})
         messages.success(request, "Payroll settings saved.")
         return redirect("payroll:setup")
+    if action == "profile" and request.method == "POST" and profile_form.is_valid():
+        try:
+            profile = profile_form.save()
+            record_event(
+                organization=organization,
+                actor=request.user,
+                action=AuditEvent.Action.PAYROLL_RULES_UPDATED,
+                target_type="payroll_rule_profile",
+                target_id=profile.pk,
+                summary=f"Created payroll rule profile {profile.name}.",
+                metadata={"code": profile.code, "is_default": profile.is_default},
+            )
+            messages.success(request, f"Payroll rule profile {profile.name} was created.")
+            return redirect(f"{reverse('payroll:setup')}?profile={profile.pk}")
+        except ValidationError as error:
+            _message_error(request, error)
     if action == "rules" and request.method == "POST" and rule_form.is_valid():
         try:
             with transaction.atomic():
+                selected_rule_profile = selected_rule_profile or _ensure_default_rule_profile(organization, request.user)
                 new_rule = rule_form.save(commit=False, actor=request.user)
                 new_rule.created_by = request.user
                 new_rule.organization = organization
+                new_rule.rule_profile = selected_rule_profile
                 if new_rule.pk is None:
                     if PayrollRun.objects.filter(
                         organization=organization,
@@ -543,7 +680,10 @@ def setup(request):
         "organization": organization,
         "settings_form": settings_form,
         "rule_form": rule_form,
-        "rule_history": PayrollRuleSet.objects.filter(organization=organization),
+        "profile_form": profile_form,
+        "rule_profiles": profiles,
+        "selected_rule_profile": selected_rule_profile,
+        "rule_history": PayrollRuleSet.objects.filter(organization=organization, rule_profile=selected_rule_profile) if selected_rule_profile else PayrollRuleSet.objects.filter(organization=organization, rule_profile__isnull=True),
         "settings": settings_row,
     })
 
@@ -605,8 +745,49 @@ def employee_profile(request, pk):
         profile_status, profile_status_label = "ready", "Payroll ready"
         profile_status_detail = "Required work and wage details are configured."
 
-    form = EmployeePayProfileForm(request.POST or None, instance=profile)
-    if request.method == "POST" and form.is_valid():
+    action = request.POST.get("action", "profile") if request.method == "POST" else ""
+    form = EmployeePayProfileForm(
+        request.POST if request.method == "POST" and action != "assignment" else None,
+        instance=profile,
+    )
+    assignment_form = PayrollRuleAssignmentForm(
+        request.POST if request.method == "POST" and action == "assignment" else None,
+        organization=organization,
+        employee=employee,
+        actor=request.user,
+    )
+    if request.method == "POST" and action == "assignment" and assignment_form.is_valid():
+        try:
+            with transaction.atomic():
+                assignment = assignment_form.save(commit=False)
+                prior = PayrollRuleAssignment.objects.select_for_update().filter(
+                    employee=employee,
+                    effective_from__lt=assignment.effective_from,
+                    effective_until__isnull=True,
+                ).order_by("-effective_from").first()
+                if prior:
+                    prior.effective_until = assignment.effective_from - timedelta(days=1)
+                    prior.save(update_fields=["effective_until"])
+                assignment.save()
+            record_event(
+                organization=organization,
+                actor=request.user,
+                action=AuditEvent.Action.PAYROLL_RULES_UPDATED,
+                target_type="payroll_rule_assignment",
+                target_id=assignment.pk,
+                summary=f"Assigned {assignment.rule_profile.name} to {employee.employee_code}.",
+                metadata={
+                    "employee": employee.employee_code,
+                    "profile": assignment.rule_profile.code,
+                    "effective_from": assignment.effective_from.isoformat(),
+                    "effective_until": assignment.effective_until.isoformat() if assignment.effective_until else None,
+                },
+            )
+            messages.success(request, "Payroll rule profile assignment saved.")
+            return redirect("payroll:employee_profile", pk=employee.pk)
+        except ValidationError as error:
+            _message_error(request, error)
+    if request.method == "POST" and action != "assignment" and form.is_valid():
         form.save()
         record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_PROFILE_UPDATED, target_type="employee_pay_profile", target_id=profile.pk, summary=f"Updated payroll profile for {employee.employee_code}.", metadata={"region": profile.payroll_region, "timezone": profile.payroll_timezone, "minimum_wage_confirmed": profile.minimum_wage_confirmed})
         messages.success(request, "Employee payroll profile saved.")
@@ -624,6 +805,15 @@ def employee_profile(request, pk):
         "profile_status_label": profile_status_label,
         "profile_status_detail": profile_status_detail,
         "profile_location_display": profile.work_location or "Not set",
+        "rule_profiles": PayrollRuleProfile.objects.filter(organization=organization, active=True).order_by("-is_default", "name"),
+        "default_rule_profile": PayrollRuleProfile.objects.filter(organization=organization, is_default=True, active=True).first(),
+        "rule_assignments": employee.payroll_rule_assignments.select_related("rule_profile", "assigned_by"),
+        "current_rule_assignment": employee.payroll_rule_assignments.filter(
+            effective_from__lte=employee_work_date,
+        ).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
+        ).select_related("rule_profile").first(),
+        "assignment_form": assignment_form,
         "currency_symbol": "₱",
     })
 
@@ -872,6 +1062,8 @@ def run_detail(request, pk):
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
     statement_page = Paginator(statement_query, 30).get_page(request.GET.get("page"))
+    for statement in statement_page.object_list:
+        statement.rule_profile_summary = _statement_rule_profile_summary(statement)
     exceptions = list(run.exceptions.select_related("employee", "timesheet", "resolution_line").order_by("superseded_at", "resolved_at", "employee__last_name", "pk"))
     exception_rows = [{
         "exception": item,
@@ -909,7 +1101,7 @@ def run_export(request, pk):
     response["Content-Disposition"] = f'attachment; filename="{run.reference.lower()}-payroll.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(["Employee code", "Employee", "Period start", "Period end", "Pay date", "Pay frequency", "Currency", "Basic pay", "Overtime premium", "Night differential", "Other earnings", "Employee deductions", "Employer contributions", "Gross pay", "Net pay"])
+    writer.writerow(["Employee code", "Employee", "Rule profiles", "Period start", "Period end", "Pay date", "Pay frequency", "Currency", "Basic pay", "Overtime premium", "Night differential", "Other earnings", "Employee deductions", "Employer contributions", "Gross pay", "Net pay"])
     for statement in run.statements.select_related("employee").prefetch_related("lines"):
         grouped = {kind: Decimal("0.00") for kind in PayrollLine.Kind.values}
         for line in statement.lines.all():
@@ -918,7 +1110,7 @@ def run_export(request, pk):
         overtime = sum((line.amount for line in statement.lines.all() if line.code == "OVERTIME_PREMIUM"), Decimal("0.00"))
         night = sum((line.amount for line in statement.lines.all() if line.code == "NIGHT_DIFFERENTIAL"), Decimal("0.00"))
         writer.writerow([
-            _csv_cell(statement.employee.employee_code), _csv_cell(statement.employee.full_name),
+            _csv_cell(statement.employee.employee_code), _csv_cell(statement.employee.full_name), _csv_cell(_statement_rule_profile_summary(statement)),
             run.period_start.isoformat(), run.period_end.isoformat(), run.pay_date.isoformat(), run.get_pay_frequency_display(), run.currency,
             f"{basic:.2f}", f"{overtime:.2f}", f"{night:.2f}",
             f"{grouped[PayrollLine.Kind.EARNING] - basic - overtime - night:.2f}",
@@ -965,5 +1157,6 @@ def my_statement_detail(request, pk):
         run__organization=employee.organization,
         run__status=PayrollRun.Status.FINALIZED,
     )
+    statement.rule_profile_summary = _statement_rule_profile_summary(statement)
     record_event(organization=employee.organization, actor=request.user, action=AuditEvent.Action.PAYROLL_STATEMENT_ACCESSED, target_type="payroll_statement", target_id=statement.pk, summary=f"Viewed finalized payslip for {statement.run.reference}.")
     return render(request, "payroll/statement.html", {"organization": employee.organization, "statement": statement, "printable": True})

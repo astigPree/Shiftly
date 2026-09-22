@@ -21,24 +21,37 @@
     {% if query or selected_status %}<a class="button-secondary" href="{% url 'payroll:employee_list' %}">Clear</a>{% endif %}
   </form>
 
+  <form method="post" class="payroll-bulk-assignment-form" novalidate>
+    {% csrf_token %}<input type="hidden" name="action" value="bulk_assignment">
   <section class="payroll-card payroll-employee-table-card" aria-labelledby="payroll-employees-title">
     <header class="payroll-card-heading"><div><h2 id="payroll-employees-title">Employee readiness</h2><p>Rate values shown here are the current effective hourly rate.</p></div><span class="payroll-result-count">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} employees</span></header>
+    <div class="payroll-bulk-assignment-fields">
+      <strong>Assign a rule profile to selected employees</strong>
+      {% if bulk_assignment_form.errors %}<div class="field-error" role="alert">Select at least one employee and enter a valid assignment period.</div>{% endif %}
+      {% include "components/form_field.html" with field=bulk_assignment_form.rule_profile %}
+      {% include "components/form_field.html" with field=bulk_assignment_form.effective_from %}
+      {% include "components/form_field.html" with field=bulk_assignment_form.effective_until %}
+      {% include "components/form_field.html" with field=bulk_assignment_form.reason %}
+      <button class="button-secondary" type="submit">Assign selected</button>
+    </div>
     <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable employee payroll readiness table">
       <table class="payroll-table payroll-employee-table">
-        <thead><tr><th scope="col">Employee</th><th scope="col">Work location</th><th scope="col">Wage region</th><th scope="col">Current rate</th><th scope="col">Payroll status</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Select</th><th scope="col">Employee</th><th scope="col">Work location</th><th scope="col">Wage region</th><th scope="col">Current rate</th><th scope="col">Payroll status</th><th scope="col">Actions</th></tr></thead>
         <tbody>{% for row in rows %}
           <tr>
-            <td><strong>{{ row.employee.full_name }}</strong><small>#{{ row.employee.employee_code }} · {{ row.employee.job_title|default:"Employee" }}</small></td>
+            <td><input type="checkbox" name="employees" value="{{ row.employee.pk }}" aria-label="Select {{ row.employee.full_name }}"></td>
+            <td><strong>{{ row.employee.full_name }}</strong><small>#{{ row.employee.employee_code }} &middot; {{ row.employee.job_title|default:"Employee" }}</small>{% if row.rule_profile %}<small>{{ row.rule_profile.name }} &middot; {{ row.rule_profile_source }}</small>{% else %}<small class="muted">No rule profile</small>{% endif %}</td>
             <td>{% if row.profile and row.profile.work_location %}{{ row.profile.work_location }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
             <td>{% if row.profile and row.profile.payroll_region %}{{ row.profile.payroll_region }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
             <td>{% if row.rate %}<strong>{{ currency }} {{ row.rate|floatformat:2 }} / hour</strong><small>Effective {{ row.rate_effective_from|date:"M j, Y" }}</small>{% else %}<span class="muted">Not set</span>{% endif %}</td>
             <td><span class="payroll-status payroll-status--{{ row.payroll_status }}">{{ row.status_detail }}</span></td>
             <td><a class="table-action-button" href="{% url 'payroll:employee_profile' row.employee.pk %}">Manage pay</a></td>
           </tr>
-        {% empty %}<tr><td colspan="6" class="payroll-table-empty">No employees match these filters. Adjust the search or status.</td></tr>{% endfor %}</tbody>
+        {% empty %}<tr><td colspan="7" class="payroll-table-empty">No employees match these filters. Adjust the search or status.</td></tr>{% endfor %}</tbody>
       </table>
     </div>
     <footer class="payroll-table-footer"><span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span><nav class="payroll-pagination" aria-label="Employee pay profile pages">{% if page.has_previous %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.previous_page_number }}">Previous</a>{% endif %}{% if page.has_next %}<a class="table-action-button" href="?{% if page_querystring %}{{ page_querystring }}&amp;{% endif %}page={{ page.next_page_number }}">Next</a>{% endif %}</nav></footer>
   </section>
+  </form>
 </div>
 {% endblock %}

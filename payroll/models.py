@@ -38,11 +38,67 @@ class PayrollSettings(models.Model):
         return f"{self.organization.name} payroll settings"
 
 
+class PayrollRuleProfile(models.Model):
+    """Reusable named payroll policy used by one or more employees."""
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_rule_profiles"
+    )
+    code = models.SlugField(max_length=40)
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=255, blank=True)
+    is_default = models.BooleanField(default=False)
+    active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_rule_profiles_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_default", "name", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "code"], name="payroll_rule_profile_org_code_unique"),
+            models.UniqueConstraint(
+                fields=["organization"], condition=Q(is_default=True),
+                name="payroll_rule_profile_one_default",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        self.code = (self.code or "").strip().lower()
+        self.name = (self.name or "").strip()
+        if not self.code:
+            raise ValidationError({"code": "Enter a profile code."})
+        if not self.name:
+            raise ValidationError({"name": "Enter a profile name."})
+        if self.is_default and not self.active:
+            raise ValidationError({"active": "The organization default profile must remain active."})
+        if self.organization_id and self.is_default:
+            conflict = type(self).objects.filter(
+                organization_id=self.organization_id, is_default=True,
+            ).exclude(pk=self.pk)
+            if conflict.exists():
+                raise ValidationError({"is_default": "This organization already has a default payroll rule profile."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+
 class PayrollRuleSet(models.Model):
     """Effective-dated rules supplied and reviewed by the employer's payroll adviser."""
 
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_rule_sets"
+    )
+    rule_profile = models.ForeignKey(
+        PayrollRuleProfile, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="rule_versions",
+        help_text="Reusable payroll rule profile. Legacy rows are migrated to the organization default profile.",
     )
     effective_from = models.DateField()
     effective_until = models.DateField(null=True, blank=True)
@@ -67,7 +123,7 @@ class PayrollRuleSet(models.Model):
     class Meta:
         ordering = ["-effective_from", "-pk"]
         constraints = [
-            models.UniqueConstraint(fields=["organization", "effective_from"], name="payroll_rule_org_effective_unique"),
+            models.UniqueConstraint(fields=["rule_profile", "effective_from"], name="payroll_rule_profile_effective_unique"),
             models.CheckConstraint(check=Q(regular_day_minutes__gt=0), name="payroll_rule_day_minutes_positive"),
             models.CheckConstraint(check=Q(overtime_multiplier__gte=1), name="payroll_rule_ot_multiplier_valid"),
             models.CheckConstraint(check=Q(rest_day_multiplier__gte=1), name="payroll_rule_rest_multiplier_valid"),
@@ -82,12 +138,15 @@ class PayrollRuleSet(models.Model):
 
     def clean(self):
         super().clean()
+        if self.rule_profile_id and self.organization_id and self.rule_profile.organization_id != self.organization_id:
+            raise ValidationError({"rule_profile": "The rule profile must belong to the same organization."})
         if self.night_start and self.night_end and self.night_start == self.night_end:
             raise ValidationError({"night_end": "Night differential start and end times must be different."})
         if self.effective_from and self.effective_until and self.effective_until < self.effective_from:
             raise ValidationError({"effective_until": "End date must be on or after the effective date."})
-        if self.organization_id and self.effective_from:
-            overlaps = type(self).objects.filter(organization_id=self.organization_id).exclude(pk=self.pk).filter(
+        if self.effective_from and (self.rule_profile_id or self.organization_id):
+            scope = {"rule_profile_id": self.rule_profile_id} if self.rule_profile_id else {"organization_id": self.organization_id, "rule_profile__isnull": True}
+            overlaps = type(self).objects.filter(**scope).exclude(pk=self.pk).filter(
                 Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
             )
             if self.effective_until:
@@ -102,7 +161,7 @@ class PayrollRuleSet(models.Model):
                 field for field in (
                     "effective_from", "effective_until", "regular_day_minutes", "overtime_multiplier",
                     "rest_day_multiplier", "rest_day_overtime_multiplier", "night_start", "night_end",
-                    "night_differential_rate", "source_references", "reviewed_by", "reviewed_at",
+                    "night_differential_rate", "source_references", "reviewed_by", "reviewed_at", "rule_profile_id",
                 ) if getattr(previous, field) != getattr(self, field)
             ]
             may_close = (
@@ -129,7 +188,8 @@ class PayrollRuleSet(models.Model):
         return self.night_differential_rate * Decimal("100")
 
     def __str__(self):
-        return f"Payroll rules from {self.effective_from}"
+        profile = f" for {self.rule_profile.name}" if self.rule_profile_id else ""
+        return f"Payroll rules from {self.effective_from}{profile}"
 
 
 class EmployeePayProfile(models.Model):
@@ -177,6 +237,66 @@ class EmployeePayProfile(models.Model):
 
     def __str__(self):
         return f"Payroll profile for {self.employee.full_name}"
+
+
+class PayrollRuleAssignment(models.Model):
+    """An employee-specific, effective-dated override of the organization default profile."""
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_rule_assignments"
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT, related_name="payroll_rule_assignments"
+    )
+    rule_profile = models.ForeignKey(
+        PayrollRuleProfile, on_delete=models.PROTECT, related_name="employee_assignments"
+    )
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    reason = models.CharField(max_length=255, blank=True)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_rule_assignments_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "effective_from"], name="payroll_rule_assignment_emp_from_unique"),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_rule_assignment_dates_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "employee", "effective_from"], name="payrule_assign_emp_idx"),
+            models.Index(fields=["rule_profile", "effective_from"], name="payrule_assign_profile_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.effective_from and self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.rule_profile_id and self.organization_id and self.rule_profile.organization_id != self.organization_id:
+            raise ValidationError({"rule_profile": "The rule profile must belong to the same organization."})
+        if self.employee_id and self.effective_from:
+            overlaps = type(self).objects.filter(
+                employee_id=self.employee_id,
+                effective_from__lte=(self.effective_until or self.effective_from),
+            ).exclude(pk=self.pk).filter(
+                Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+            )
+            if overlaps.exists():
+                raise ValidationError({"effective_from": "Assignment dates cannot overlap another assignment for this employee."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.rule_profile.name} from {self.effective_from}"
 
 
 class EmployeePayRate(models.Model):
