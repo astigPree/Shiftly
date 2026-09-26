@@ -96,6 +96,7 @@ small {
 }
 .field {
   display: grid;
+  align-content: start;
   gap: var(--space-2);
   margin: 18px 0;
 }
@@ -302,12 +303,12 @@ th {
   background: var(--color-neutral-bg);
 }
 .status-scheduled,
-.status-on_break,
-.status-pending {
+.status-on_break {
   color: var(--color-blue-text);
   background: var(--color-blue-bg);
 }
 .status-late,
+.status-pending,
 .status-needs_review {
   color: var(--color-amber-text);
   background: var(--color-amber-bg);
@@ -322,11 +323,11 @@ th {
   background: var(--color-neutral-bg);
 }
 .status-scheduled::before,
-.status-on_break::before,
-.status-pending::before {
+.status-on_break::before {
   background: var(--color-blue-dot);
 }
 .status-late::before,
+.status-pending::before,
 .status-needs_review::before {
   background: var(--color-amber-dot);
 }

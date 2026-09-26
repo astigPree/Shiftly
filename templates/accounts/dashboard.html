@@ -60,7 +60,7 @@
       </div>
     </div>
     <div class="overview-panel-actions">
-      <span class="overview-updated">Updated {{ updated_at|date:"g:i A" }}</span>
+      <span class="overview-updated">Updated {{ updated_at|timezone:organization.timezone|date:"g:i A" }}</span>
       <a class="overview-refresh" href="{% url 'accounts:home' %}" aria-label="Refresh overview" title="Refresh overview">
         {% include "components/icon.html" with icon_name="refresh" icon_class="icon" %}
       </a>

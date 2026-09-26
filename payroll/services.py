@@ -1,6 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone as datetime_timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import uuid
 from zoneinfo import ZoneInfo
 
@@ -33,6 +33,7 @@ from .models import (
     PayrollStatement,
     PayrollTimeEntry,
 )
+from .statutory import assert_statutory_reviewed
 
 
 CENT = Decimal("0.01")
@@ -489,6 +490,9 @@ def calculate_payroll_run(run, *, actor):
         if not profile or not profile.active_for_payroll:
             _add_exception(run, code="PAY_PROFILE_MISSING", description=f"{timesheet.employee.full_name} needs an active payroll profile.", employee=timesheet.employee, timesheet=timesheet, work_date=local_start_date)
             continue
+        if not profile.rank_and_file:
+            _add_exception(run, code="PAY_CLASSIFICATION_UNCONFIRMED", description=f"Review {timesheet.employee.full_name}'s work classification. Automatic hourly premiums currently require confirmed rank-and-file coverage.", employee=timesheet.employee, timesheet=timesheet, work_date=local_start_date)
+            continue
         if not profile.work_location or not profile.payroll_region or not profile.minimum_wage_confirmed or not profile.wage_order_reference:
             _add_exception(run, code="WORK_LOCATION_MISSING", description=f"Add {timesheet.employee.full_name}'s work location and wage-order reference, then confirm the effective rate was checked against it.", employee=timesheet.employee, timesheet=timesheet, work_date=local_start_date)
             continue
@@ -564,7 +568,7 @@ def calculate_payroll_run(run, *, actor):
             employee_bucket["worked_dates"].update(segment["work_date"] for segment in available_segments)
 
     if not grouped:
-        _add_exception(run, code="NO_PAYROLL_TIME", description="No approved, eligible worked time was found for this period. Review the period before confirming a zero-pay run.")
+        _add_exception(run, code="NO_PAYROLL_TIME", description="No approved, eligible worked time was found for this period. Review the period or add reviewed adjustment lines for the included employees.")
 
     for employee_id, bucket in grouped.items():
         employee = Employee.objects.get(pk=employee_id, organization=organization)
@@ -798,9 +802,16 @@ def add_adjustment(*, run, actor, employee, kind, label, amount, effective_date,
         raise ValidationError("Choose an employee in this organization.")
     if kind not in PayrollLine.Kind.values:
         raise ValidationError("Choose a valid adjustment type.")
-    amount = Decimal(amount)
-    if amount <= 0:
-        raise ValidationError("Adjustment amount must be greater than zero.")
+    try:
+        amount = Decimal(amount)
+        if not amount.is_finite() or amount <= 0 or amount > Decimal('999999999999.99'):
+            raise ValueError
+        if amount != _money(amount):
+            raise ValueError
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValidationError("Enter a positive adjustment amount with at most two decimal places.")
+    if not label.strip() or not note.strip():
+        raise ValidationError("Add a line item label and its reason/source.")
     if effective_date < run.period_start or effective_date > run.period_end:
         raise ValidationError("The adjustment date must fall within this payroll run's period.")
     statement, _ = PayrollStatement.objects.get_or_create(run=run, employee=employee)
@@ -876,10 +887,11 @@ def submit_for_review(*, run, actor):
         raise ValidationError("Only a draft payroll run can be submitted for review.")
     if run.exceptions.filter(resolved_at__isnull=True, superseded_at__isnull=True).exists():
         raise ValidationError("Resolve all payroll exceptions before submitting this run for review.")
-    if run.run_type == PayrollRun.RunType.OFF_CYCLE and not run.statements.exists():
+    if not run.statements.exists():
         raise ValidationError("A payroll run needs at least one employee statement.")
     for statement in run.statements.all():
         _assert_statement_reconciles(statement)
+        assert_statutory_reviewed(statement)
     if not PayrollSettings.objects.filter(organization=organization).exists():
         raise ValidationError("Complete payroll settings before submitting a run.")
     run.status = PayrollRun.Status.REVIEW
@@ -887,6 +899,22 @@ def submit_for_review(*, run, actor):
     run.reviewed_at = timezone.now()
     run.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
     record_event(organization=organization, actor=actor, action=AuditEvent.Action.PAYROLL_RUN_REVIEWED, target_type="payroll_run", target_id=run.pk, summary=f"Submitted payroll run {run.reference} for review.")
+    return run
+
+
+@transaction.atomic
+def return_payroll_to_draft(*, run, actor):
+    organization = _owner_organization(actor, run.organization_id)
+    run = PayrollRun.objects.select_for_update().get(pk=run.pk, organization=organization)
+    if run.status != PayrollRun.Status.REVIEW:
+        raise ValidationError('Only a run in review can be returned to draft.')
+    run.status = PayrollRun.Status.DRAFT
+    run.reviewed_by = None
+    run.reviewed_at = None
+    run.save(update_fields=['status', 'reviewed_by', 'reviewed_at', 'updated_at'])
+    record_event(organization=organization, actor=actor, action=AuditEvent.Action.PAYROLL_RUN_REOPENED,
+        target_type='payroll_run', target_id=run.pk,
+        summary=f'Returned payroll run {run.reference} to draft for corrections.')
     return run
 
 
@@ -900,10 +928,11 @@ def finalize_payroll_run(*, run, actor, review_note):
         raise ValidationError("This run has unresolved payroll exceptions.")
     if not review_note.strip():
         raise ValidationError("Record who checked the payroll calculations and the review evidence.")
-    if run.run_type == PayrollRun.RunType.OFF_CYCLE and not run.statements.exists():
+    if not run.statements.exists():
         raise ValidationError("A payroll run needs at least one employee statement.")
     for statement in run.statements.all():
         _assert_statement_reconciles(statement)
+        assert_statutory_reviewed(statement)
     run.status = PayrollRun.Status.FINALIZED
     run.finalized_by = actor
     run.finalized_at = timezone.now()

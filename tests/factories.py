@@ -71,3 +71,15 @@ def payroll_setup(org, emp, rate="100.0000"):
     EmployeePayRate.objects.create(employee=emp, hourly_rate=Decimal(rate), effective_from=date(2026, 1, 1),
         change_reason="Initial test rate", created_by=org.owner)
     return profile, rule
+
+
+def review_statutory(run):
+    """Explicit synthetic zero case, only for tests not exercising contributions."""
+    from payroll.statutory import AGENCIES, record_statutory_review
+    for statement in run.statements.all():
+        for agency, _ in AGENCIES:
+            record_statutory_review(statement=statement, actor=run.organization.owner,
+                agency=agency, registration='REGISTERED', employee_treatment='ZERO',
+                employer_treatment='NOT_APPLICABLE' if agency == 'WITHHOLDING' else 'ZERO',
+                source_reference='TEST-ONLY synthetic calculation, not a statutory rate',
+                review_note='Explicit zero-amount fixture for this isolated scenario.')

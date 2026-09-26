@@ -458,7 +458,7 @@ th[aria-sort] .schedule-sort-link span {
 .schedule-row-menu-popover button {
   display: flex;
   width: 100%;
-  min-height: 38px;
+  min-height: 44px;
   align-items: center;
   padding: 0 10px;
   color: var(--color-gray-700);
@@ -484,6 +484,21 @@ th[aria-sort] .schedule-sort-link span {
 
 .schedule-row-menu-popover form {
   margin: 0;
+}
+
+.schedule-row-menu-popover--floating {
+  position: fixed;
+  inset: auto;
+  z-index: 30;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  margin: 0;
+  overflow-y: auto;
+}
+
+.schedule-row-menu-popover[popover]:not(:popover-open) {
+  display: none;
 }
 
 .schedule-table-footer {

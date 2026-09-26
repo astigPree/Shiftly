@@ -1,5 +1,5 @@
 {% extends "layouts/employer.html" %}
-{% load tz %}
+{% load tz static %}
 {% block title %}Schedules | Shiftly{% endblock %}
 {% block app_content %}
 <div class="schedules-page">
@@ -124,3 +124,4 @@
   </section>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/schedule-row-menu.js' %}" defer></script>{% endblock %}

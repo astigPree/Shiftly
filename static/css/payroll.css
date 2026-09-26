@@ -5,6 +5,25 @@
   gap: 20px;
 }
 
+/* Grid children must shrink so wide tables scroll inside their own wrapper. */
+.payroll-page > *,
+.payroll-bulk-assignment-form {
+  min-width: 0;
+}
+
+.payroll-statutory-review { margin-top: 12px; white-space: normal; }
+.payroll-statutory-review > summary { min-height: 44px; padding-block: 10px; cursor: pointer; font-weight: 600; }
+.payroll-statutory-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-block: 16px; }
+.payroll-statutory-items article { padding: 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-statutory-items header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.payroll-statutory-items p, .payroll-statutory-items dd { overflow-wrap: anywhere; }
+.payroll-statutory-items dl { margin-block: 8px; }
+.payroll-statutory-items dd { margin: 0 0 8px; }
+.payroll-statutory-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; padding: 16px; background: var(--color-gray-50); border-radius: var(--radius-md); }
+.payroll-statutory-form .field { min-width: 0; margin: 0; }
+.payroll-statutory-form .field-error, .payroll-statutory-form .payroll-form-actions { grid-column: 1 / -1; }
+.payroll-statutory-form input, .payroll-statutory-form select, .payroll-statutory-form textarea { width: 100%; min-width: 0; }
+
 .payroll-page--narrow,
 .payroll-page--employee {
   width: min(100%, 1040px);
@@ -389,7 +408,7 @@
 .payroll-run-filter__actions .button-secondary { color: var(--color-gray-700); background: var(--color-surface); }
 .payroll-run-filter__actions .button-secondary:hover { color: var(--color-primary-700); background: var(--color-primary-50); border-color: var(--color-primary-200); }
 .payroll-empty-state {
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: stretch;
   align-items: center;
   gap: 12px;
@@ -401,6 +420,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
+.payroll-runs-card .payroll-empty-state { grid-template-columns: 42px minmax(0, 1fr) auto; }
 .payroll-empty-state--filtered { min-height: 0; }
 .payroll-empty-icon { width: 40px; height: 40px; margin: 0; }
 .payroll-empty-icon .icon { width: 20px; height: 20px; }
@@ -618,13 +638,20 @@
 .payroll-rule-profile-row > span:last-child { justify-items: end; }
 .payroll-rule-profile-row small { color: var(--color-text-muted); font-size: var(--text-xs); }
 .payroll-rule-profile-form { display: grid; gap: 9px; padding: 14px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-rule-profile-create { min-width: 0; }
+.payroll-rule-profile-create > summary { display: flex; align-items: center; min-height: 44px; padding: 10px 14px; color: var(--color-primary); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); cursor: pointer; font-weight: 600; }
+.payroll-rule-profile-create > summary::before { content: "+"; margin-right: 8px; }
+.payroll-rule-profile-create[open] > summary::before { content: "−"; }
+.payroll-rule-profile-create[open] > summary { margin-bottom: 10px; }
 .payroll-rule-profile-form .field { margin: 0; }
 .payroll-rule-profile-form input:not([type="checkbox"]),
 .payroll-rule-profile-form select { width: 100%; min-width: 0; }
 .payroll-inline-check { display: flex; align-items: center; gap: 8px; color: var(--color-gray-700); font-size: var(--text-sm); }
 .payroll-inline-check input { width: 16px; height: 16px; }
 .payroll-bulk-assignment-fields { display: grid; grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(140px, .8fr)) auto; align-items: end; gap: 10px; margin: 0 0 14px; padding: 12px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
-.payroll-bulk-assignment-fields > strong { align-self: center; color: var(--color-gray-800); font-size: var(--text-sm); }
+.payroll-bulk-assignment-fields > strong,
+.payroll-bulk-assignment-fields > .field-error { grid-column: 1 / -1; }
+.payroll-bulk-assignment-fields > strong { color: var(--color-gray-800); font-size: var(--text-sm); }
 .payroll-bulk-assignment-fields .field { min-width: 0; margin: 0; }
 .payroll-bulk-assignment-fields .field input,
 .payroll-bulk-assignment-fields .field select { width: 100%; min-width: 0; }
@@ -719,7 +746,13 @@
   .payroll-form > .form-field:has(textarea) { grid-column: 1; }
   .payroll-form-actions { grid-column: 1; }
   .payroll-adjustment-form { align-items: stretch; flex-direction: column; }
-  .payroll-adjustment-form .field { width: 100%; }
+  .payroll-adjustment-form .field { flex: 0 0 auto; min-width: 0; width: 100%; }
+  .payroll-warning-box:has(> strong),
+  .payroll-info-box:has(> strong) { flex-direction: column; gap: 4px; }
+  .payroll-run-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .payroll-run-actions > form { flex: 1 1 180px; }
+  .payroll-run-actions > form > button { width: 100%; }
+  .payroll-run-actions > .form-help { flex-basis: 100%; margin: 0; }
   .payroll-exception { grid-template-columns: 1fr; }
   .payroll-exception-resolution { grid-template-columns: 1fr; }
   .payroll-exception-resolution label { grid-column: 1; }
@@ -774,10 +807,11 @@
   .payroll-result-count { font-size: var(--text-xs); }
   .payroll-subnav a { padding-inline: 11px; }
   .payroll-empty-state { padding: 20px 12px; }
-  .payroll-empty-state { grid-template-columns: 36px minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .payroll-empty-state { gap: 10px; padding: 12px; }
+  .payroll-runs-card .payroll-empty-state { grid-template-columns: 36px minmax(0, 1fr); }
   .payroll-empty-icon { width: 36px; height: 36px; }
-  .payroll-empty-state > .button-link,
-  .payroll-empty-state > .button-secondary { grid-column: 2; justify-self: start; }
+  .payroll-runs-card .payroll-empty-state > .button-link,
+  .payroll-runs-card .payroll-empty-state > .button-secondary { grid-column: 2; justify-self: start; }
 }
 
 .payroll-profile-header {

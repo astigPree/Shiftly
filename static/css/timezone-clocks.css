@@ -117,16 +117,28 @@
 
   .employee-topbar .timezone-clocks {
     flex: 1 1 auto;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .employee-topbar .timezone-clock {
-    max-width: 74px;
+    max-width: 160px;
     flex: 1 1 0;
   }
 
   .employee-topbar .timezone-clock__label {
-    max-width: 62px;
+    max-width: 100%;
+    font-size: 10px;
+    white-space: normal;
+  }
+
+  .employee-topbar .timezone-clock__time {
+    font-size: 12px;
+  }
+
+  .employee-topbar .timezone-clock__meta {
+    display: block;
+    max-width: 100%;
+    font-size: 9px;
   }
 
   .employee-topbar .account-menu {

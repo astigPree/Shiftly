@@ -25,15 +25,18 @@
         </a>
         {% empty %}<p class="muted">No rule profiles exist yet. Create one to start configuring rules.</p>{% endfor %}
       </div>
-      <form method="post" class="payroll-rule-profile-form" novalidate>
-        {% csrf_token %}<input type="hidden" name="action" value="profile">
-        {% include "components/form_field.html" with field=profile_form.code %}
-        {% include "components/form_field.html" with field=profile_form.name %}
-        {% include "components/form_field.html" with field=profile_form.description %}
-        <div class="payroll-inline-check">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label></div>
-        <div class="payroll-inline-check">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label></div>
-        <button class="button-secondary" type="submit">Create profile</button>
-      </form>
+      <details class="payroll-rule-profile-create"{% if profile_form.errors or not rule_profiles %} open{% endif %}>
+        <summary>Create rule profile</summary>
+        <form method="post" class="payroll-rule-profile-form" novalidate>
+          {% csrf_token %}<input type="hidden" name="action" value="profile">
+          {% include "components/form_field.html" with field=profile_form.code %}
+          {% include "components/form_field.html" with field=profile_form.name %}
+          {% include "components/form_field.html" with field=profile_form.description %}
+          <div class="payroll-inline-check">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label></div>
+          <div class="payroll-inline-check">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label></div>
+          <button class="button-secondary" type="submit">Create profile</button>
+        </form>
+      </details>
     </div>
   </section>
 

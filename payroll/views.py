@@ -20,6 +20,7 @@ from accounts.permissions import employee_required, employer_required, organizat
 from audit.models import AuditEvent
 from audit.services import record_event
 from employees.models import Employee
+from .statutory import record_statutory_review, statutory_review_rows
 
 from .forms import (
     EmployeePayProfileForm,
@@ -34,6 +35,7 @@ from .forms import (
     PayrollRuleSetForm,
     PayrollRunForm,
     PayrollSettingsForm,
+    StatutoryReviewForm,
     VoidPayrollForm,
 )
 from .models import (
@@ -57,6 +59,7 @@ from .services import (
     remove_adjustment,
     resolve_payroll_exception,
     submit_for_review,
+    return_payroll_to_draft,
     void_payroll_run,
 )
 
@@ -999,12 +1002,27 @@ def run_create_submit(request):
 def run_detail(request, pk):
     organization = _organization(request)
     run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    invalid_statutory_form = None
+    invalid_statement_id = None
     if request.method == "POST":
         action = request.POST.get("action")
         try:
             if action == "recalculate":
                 calculate_payroll_run(run, actor=request.user)
                 messages.success(request, "Payroll preview recalculated from the current approved timesheets and rules.")
+            elif action == "statutory_review":
+                statement = get_object_or_404(PayrollStatement, pk=request.POST.get('statement_id'), run=run)
+                form = StatutoryReviewForm(request.POST, statement=statement, prefix=f'statutory-{statement.pk}')
+                if form.is_valid():
+                    try:
+                        record_statutory_review(statement=statement, actor=request.user, **form.cleaned_data)
+                        messages.success(request, 'Statutory review saved for this employee and payroll period.')
+                    except ValidationError as error:
+                        form.add_error(None, error)
+                if form.errors:
+                    invalid_statutory_form = form
+                    invalid_statement_id = statement.pk
+                    messages.error(request, 'Check the statutory review fields and try again.')
             elif action == "adjustment":
                 form = PayrollAdjustmentForm(request.POST, organization=organization)
                 if form.is_valid():
@@ -1017,6 +1035,9 @@ def run_detail(request, pk):
             elif action == "submit_review":
                 submit_for_review(run=run, actor=request.user)
                 messages.success(request, "Payroll run submitted for review.")
+            elif action == 'return_to_draft':
+                return_payroll_to_draft(run=run, actor=request.user)
+                messages.success(request, 'Payroll returned to draft. Review any changed amounts before submitting again.')
             elif action == "finalize":
                 form = FinalizePayrollForm(request.POST)
                 if form.is_valid():
@@ -1058,12 +1079,26 @@ def run_detail(request, pk):
                 messages.error(request, "Choose a valid payroll action.")
         except ValidationError as error:
             _message_error(request, error)
-        return redirect("payroll:run_detail", pk=run.pk)
+        if invalid_statutory_form is None:
+            return redirect("payroll:run_detail", pk=run.pk)
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
-    statement_page = Paginator(statement_query, 30).get_page(request.GET.get("page"))
+    paginator = Paginator(statement_query, 30)
+    page_number = request.GET.get('page')
+    if invalid_statement_id:
+        ids = list(statement_query.values_list('pk', flat=True))
+        page_number = ids.index(invalid_statement_id) // 30 + 1
+    statement_page = paginator.get_page(page_number)
     for statement in statement_page.object_list:
         statement.rule_profile_summary = _statement_rule_profile_summary(statement)
+        statement.statutory_rows = statutory_review_rows(statement)
+        statement.statutory_complete = all(row['current'] for row in statement.statutory_rows)
+        statement.statutory_form = invalid_statutory_form if statement.pk == invalid_statement_id else StatutoryReviewForm(
+            statement=statement, prefix=f'statutory-{statement.pk}')
+    statutory_pending = sum(
+        not all(row['current'] for row in statutory_review_rows(statement))
+        for statement in run.statements.select_related('run').prefetch_related('lines')
+    )
     exceptions = list(run.exceptions.select_related("employee", "timesheet", "resolution_line").order_by("superseded_at", "resolved_at", "employee__last_name", "pk"))
     exception_rows = [{
         "exception": item,
@@ -1083,6 +1118,7 @@ def run_detail(request, pk):
         "unresolved_exception_count": sum(1 for item in exceptions if not item.resolved_at and not item.superseded_at),
         "preview_history": run.calculation_previews.all()[:5],
         "adjustment_form": adjustment_form,
+        "statutory_pending_count": statutory_pending,
         "finalize_form": FinalizePayrollForm(),
         "void_form": VoidPayrollForm(),
         "totals": {key: value or Decimal("0.00") for key, value in totals.items()},

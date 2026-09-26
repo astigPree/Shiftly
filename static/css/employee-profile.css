@@ -790,7 +790,7 @@
   .employee-access-controls > form,
   .employee-access-controls > .employee-deactivate-trigger {
     width: 100%;
-    margin-left: 54px;
+    margin-left: 0;
   }
 
   .employee-access-controls > form .button-danger,

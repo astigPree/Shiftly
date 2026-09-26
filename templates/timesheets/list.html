@@ -159,7 +159,7 @@
               <div><dt>Scheduled</dt><dd>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div>
               <div><dt>Worked</dt><dd>{{ timesheet.worked_display }}</dd></div>
             </dl>
-            <a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet details <span aria-hidden="true">›</span></a>
+            <a class="table-action-button" href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet details <span aria-hidden="true">›</span></a>
           </li>
         {% endfor %}
       </ul>

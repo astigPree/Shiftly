@@ -21,6 +21,7 @@
         return;
       }
       event.preventDefault();
+      event.stopImmediatePropagation();
       if (!(confirmationDialog instanceof HTMLDialogElement)) return;
       pendingForm = form;
       confirmationDialog.querySelector("#payroll-confirm-title").textContent = form.dataset.confirmTitle || "Confirm this action?";
@@ -28,14 +29,19 @@
       const submitButton = confirmationDialog.querySelector("[data-payroll-confirm-submit]");
       submitButton.textContent = form.dataset.confirmAction || "Continue";
       submitButton.classList.toggle("button-danger", form.dataset.confirmDanger !== "false");
+      submitButton.classList.toggle("button-link", form.dataset.confirmDanger === "false");
       confirmationDialog.showModal();
-    });
+      confirmationDialog.querySelector("[data-payroll-confirm-cancel]")?.focus();
+    }, true);
   });
 
   confirmationDialog?.querySelector("[data-payroll-confirm-cancel]")?.addEventListener("click", () => {
+    pendingForm?.querySelector('button[type="submit"]')?.focus();
     pendingForm = null;
     confirmationDialog.close();
   });
+
+  confirmationDialog?.addEventListener("cancel", () => { pendingForm = null; });
 
   confirmationDialog?.querySelector("[data-payroll-confirm-submit]")?.addEventListener("click", () => {
     if (!pendingForm) return;

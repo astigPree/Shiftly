@@ -1,0 +1,29 @@
+<details class="payroll-statutory-review"{% if statement.statutory_form.errors %} open{% endif %}>
+  <summary>{{ statement.employee.full_name }} · Statutory items · {% if statement.statutory_complete %}Reviewed{% elif run.status == 'FINALIZED' %}No structured review recorded{% else %}Needs review{% endif %}</summary>
+  <p class="form-help">Review SSS, PhilHealth, Pag-IBIG, and withholding tax for this employee and cutoff. Amounts come from your reviewed manual lines. Missing registration details do not automatically remove contributions.</p>
+  <div class="payroll-statutory-items">
+    {% for row in statement.statutory_rows %}
+    <article>
+      <header><strong>{{ row.label }}</strong><span class="payroll-status {% if row.current %}payroll-status--finalized{% else %}payroll-status--review{% endif %}">{{ row.status }}</span></header>
+      {% if row.review %}
+      <p>{{ row.registration_label }}</p>
+      <dl>
+        <div><dt>Employee</dt><dd>{{ run.currency }} {{ row.review.employee.amount }} · {{ row.employee_treatment_label }}</dd></div>
+        <div><dt>Employer</dt><dd>{{ run.currency }} {{ row.review.employer.amount }} · {{ row.employer_treatment_label }}</dd></div>
+      </dl>
+      <p>{{ row.review.review_note }}</p>
+      <p class="form-help">Source: {{ row.review.source_reference }} · Reviewed by {{ row.review.reviewed_by }}</p>
+      {% if row.review.registration_follow_up %}<p class="form-help">Registration follow-up: {{ row.review.registration_follow_up }}</p>{% endif %}
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% if run.status == 'DRAFT' %}
+  <form method="post" class="payroll-statutory-form" novalidate>
+    {% csrf_token %}<input type="hidden" name="action" value="statutory_review"><input type="hidden" name="statement_id" value="{{ statement.pk }}">
+    {% if statement.statutory_form.non_field_errors %}<div class="field-error" role="alert">{{ statement.statutory_form.non_field_errors }}</div>{% endif %}
+    {% for field in statement.statutory_form %}{% include 'components/form_field.html' with field=field %}{% endfor %}
+    <div class="payroll-form-actions"><button class="button-secondary" type="submit">Save statutory review</button></div>
+  </form>
+  {% endif %}
+</details>

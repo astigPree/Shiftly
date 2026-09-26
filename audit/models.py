@@ -31,6 +31,8 @@ class AuditEvent(models.Model):
         PAYROLL_RUN_CREATED = "PAYROLL_RUN_CREATED", _("Payroll run created")
         PAYROLL_RUN_RECALCULATED = "PAYROLL_RUN_RECALCULATED", _("Payroll run recalculated")
         PAYROLL_RUN_REVIEWED = "PAYROLL_RUN_REVIEWED", _("Payroll run submitted for review")
+        PAYROLL_STATUTORY_REVIEWED = "PAYROLL_STATUTORY_REVIEWED", _("Payroll statutory item reviewed")
+        PAYROLL_RUN_REOPENED = "PAYROLL_RUN_REOPENED", _("Payroll run returned to draft")
         PAYROLL_RUN_FINALIZED = "PAYROLL_RUN_FINALIZED", _("Payroll run finalized")
         PAYROLL_RUN_VOIDED = "PAYROLL_RUN_VOIDED", _("Payroll run voided")
         PAYROLL_ADJUSTMENT_ADDED = "PAYROLL_ADJUSTMENT_ADDED", _("Payroll adjustment added")

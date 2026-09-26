@@ -66,6 +66,7 @@
 }
 
 .employee-home .employee-summary-card {
+  display: grid;
   min-height: 116px;
   padding: 14px 17px;
 }
@@ -126,6 +127,16 @@
 
   .employee-home .employee-summary-card {
     min-height: 104px;
+  }
+
+  .employee-home .employee-next-shift-card h2 {
+    font-size: var(--text-xl);
+    line-height: 1.35;
+  }
+
+  .employee-home .employee-summary-card > a {
+    max-width: 100%;
+    white-space: nowrap;
   }
 
   .employee-home .employee-ready-state .employee-clock-in-control,

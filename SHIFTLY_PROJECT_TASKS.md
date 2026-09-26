@@ -292,6 +292,19 @@ The attendance MVP is ready when an employer can create an organization, add an 
 
 ### 11.5 Security, audit, and rollout
 
+#### Philippine payroll scenario review (September 26, 2026)
+
+- [x] Simulate missing SSS, PhilHealth, Pag-IBIG, and tax registration details without silently treating missing registration as exemption.
+- [x] Require a per-statement review of all four statutory items, with separate employee/employer treatments, linked manual lines, source, reviewer, and pending-registration follow-up.
+- [x] Cover explicit zero amounts, another-cutoff treatment, reviewed exemptions, negative net pay, and employer shares excluded from employee deductions.
+- [x] Block stale reviews after pay-line changes, prevent a single line from being reused across agencies, and recheck at finalization.
+- [x] Permit reviewed runs to return to draft while preserving immutable finalized statements and audit history.
+- [x] Exercise mixed employee rules/rates, overnight work and breaks, missing eligibility/setup, invalid money inputs, and organization/employee access boundaries.
+- [x] Fix payroll confirmation handling so cancellation preserves controls and confirmation submits successfully.
+- [ ] Independently validate live statutory amounts and exemption/cutoff decisions with the payroll reviewer; automatic statutory calculations and agency registration/remittance remain outside this release.
+
+Scenario evidence and current boundaries: `docs/PAYROLL_SCENARIOS.md`.
+
 - [x] Scope employer data by organization and employee statements by the signed-in employee.
 - [x] Audit payroll rule/profile changes, rates, run creation/recalculation/review/finalization/voiding, adjustments, exceptions, exports, and employee statement access.
 - [x] Keep payroll identifiers minimal; the current implementation does not collect tax IDs or banking details.

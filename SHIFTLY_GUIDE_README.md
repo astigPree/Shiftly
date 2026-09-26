@@ -311,10 +311,19 @@ The readiness checklist requires reviewed payroll settings, configured participa
 5. Recalculate after late timesheet approvals or rule/profile changes.
 6. Review employee statements, source timesheets, calculated lines, totals, and exceptions.
 7. Resolve exceptions with evidence or add a controlled manual earning, deduction, employer contribution, allowance, reimbursement, or correction line.
-8. Submit the run for review.
-9. Provide finalization review evidence and finalize it after all blockers are resolved.
+8. Under each employee statement, expand **Statutory items**. Review SSS, PhilHealth, Pag-IBIG, and withholding tax separately. Select the matching manual employee deduction and employer contribution lines, or explicitly record a reviewed zero, another cutoff, or a supported not-applicable treatment. Include a source/calculation reference and reason.
+9. If a number or registration is missing, select **Missing number / registration pending** and record the registration follow-up. This does not automatically exempt the employee or set contributions to zero. Do not put government ID numbers into the review notes.
+10. Submit the run for review. Missing or stale statutory reviews block submission and finalization. Recalculate and complete the reviews again after changing payroll inputs; changed line items also require review again.
+11. Provide finalization review evidence and finalize it after all blockers are resolved.
 
 Run statuses are **Draft**, **In review**, **Finalized**, and **Voided**. Drafts can be recalculated and adjusted. Finalized and voided runs are immutable. Use a linked off-cycle run for corrections after finalization. Finalization and voiding use confirmation dialogs and retain the actor, timestamp, reason, and audit history.
+
+Use **Return to draft** to correct a run that is in review, including an older
+run without structured statutory reviews. Submit it again after the corrections.
+Existing finalized statements keep their original historical data. Empty runs
+cannot be finalized. Employer contributions are recorded separately and do not
+reduce employee net pay. The application records the review evidence; it does
+not register employees with an agency or verify remittance.
 
 Only finalized payroll can be exported from `/payroll/runs/<id>/export.csv`.
 

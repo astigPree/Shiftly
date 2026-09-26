@@ -11,6 +11,8 @@
 
   {% include "payroll/_subnav.html" %}
 
+  {% if run.status == 'REVIEW' %}<form method="post" class="payroll-header-actions" data-payroll-confirm data-confirm-title="Return this run to draft?" data-confirm-description="You can update the draft and complete any missing statutory reviews. Submit it for review again before finalizing." data-confirm-action="Return to draft" data-confirm-danger="false">{% csrf_token %}<input type="hidden" name="action" value="return_to_draft"><button class="button-secondary" type="submit">Return to draft</button></form>{% endif %}
+
   <div class="payroll-warning-box"><strong>Calculation scope</strong><span>Hourly base pay, configured daily overtime, reviewed rest-day/holiday premiums, and ordinary-day night differential are calculated from approved attendance. Tax withholding and statutory contributions remain manually reviewed line items. Night premium combinations that need manual review block finalization until a corresponding earning line is recorded. No money is transferred.</span></div>
 
   <section class="payroll-total-grid" aria-label="Payroll totals">
@@ -51,6 +53,7 @@
   </section>
   {% endif %}
 
+  {% if run.status == 'DRAFT' and statutory_pending_count %}<div class="payroll-info-box"><strong>Statutory review needed</strong><span>{{ statutory_pending_count }} employee statement{{ statutory_pending_count|pluralize }} still need statutory review. Open “Statutory items” below each statement after adding the reviewed deduction and employer-contribution lines. Changed amounts require a new review.</span></div>{% endif %}
   <section class="payroll-card" aria-labelledby="payroll-statements-heading">
     <header class="payroll-section-heading"><div><h2 id="payroll-statements-heading">Employee statements</h2><p>Approved timesheets and the effective profile/rule inputs are snapshotted in this draft.</p></div>{% if run.status == "DRAFT" %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="recalculate"><button class="button-secondary" type="submit">Recalculate preview</button></form>{% endif %}</header>
     {% if statements.object_list %}
@@ -64,6 +67,7 @@
     </tbody></table></div>
     {% if statements.paginator.num_pages > 1 %}<footer class="payroll-table-footer"><span>Page {{ statements.number }} of {{ statements.paginator.num_pages }}</span><nav class="payroll-pagination" aria-label="Statement pages">{% if statements.has_previous %}<a class="table-action-button" href="?page={{ statements.previous_page_number }}">Previous</a>{% endif %}{% if statements.has_next %}<a class="table-action-button" href="?page={{ statements.next_page_number }}">Next</a>{% endif %}</nav></footer>{% endif %}
     {% else %}<div class="payroll-empty-state"><h3>No employee statements in this draft</h3><p>For off-cycle runs, add employees and adjustment lines below. For regular runs, approve matching timesheets, complete employee pay profiles, and recalculate.</p></div>{% endif %}
+    {% for statement in statements.object_list %}{% include 'payroll/_statutory_review.html' %}{% endfor %}
   </section>
 
   {% if run.status == "DRAFT" %}<section class="payroll-card"><header class="payroll-card-heading"><div><h2>Add an itemized line</h2><p>Add a reviewed bonus, allowance, reimbursement, withholding, employee contribution, or employer contribution. Record the work/effective date and source.</p></div></header><form method="post" class="payroll-adjustment-form" novalidate>{% csrf_token %}<input type="hidden" name="action" value="adjustment">{% for field in adjustment_form %}{% include "components/form_field.html" with field=field %}{% endfor %}<button class="button-secondary" type="submit">Add line</button></form></section>{% endif %}

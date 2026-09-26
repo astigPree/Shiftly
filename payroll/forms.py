@@ -5,6 +5,7 @@ from django import forms
 from django.utils import timezone
 
 from employees.models import Employee
+from .statutory import AGENCIES, REGISTRATIONS, TREATMENTS
 
 from .models import (
     EmployeePayProfile,
@@ -470,6 +471,31 @@ class PayrollAdjustmentForm(forms.Form):
     def __init__(self, *args, organization, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["employee"].queryset = Employee.objects.filter(organization=organization)
+
+
+class StatutoryReviewForm(forms.Form):
+    agency = forms.ChoiceField(choices=[('', 'Choose statutory item'), *AGENCIES])
+    registration = forms.ChoiceField(label='Registration status', choices=[('', 'Choose status'), *REGISTRATIONS])
+    employee_treatment = forms.ChoiceField(label='Employee deduction treatment', choices=[('', 'Choose treatment'), *TREATMENTS])
+    employee_line = forms.ModelChoiceField(label='Employee deduction line', queryset=PayrollLine.objects.none(), required=False,
+        empty_label='No line selected', help_text='Add the manual deduction below first if an amount applies.')
+    employer_treatment = forms.ChoiceField(label='Employer contribution treatment', choices=[('', 'Choose treatment'), *TREATMENTS],
+        help_text='For withholding tax, choose Not applicable. Employer shares do not reduce employee net pay.')
+    employer_line = forms.ModelChoiceField(label='Employer contribution line', queryset=PayrollLine.objects.none(), required=False,
+        empty_label='No line selected')
+    source_reference = forms.CharField(max_length=255, label='Calculation / source reference',
+        help_text='Reference the reviewed calculation and applicable period. Do not enter government ID numbers.')
+    review_note = forms.CharField(max_length=500, label='Review reason', widget=forms.Textarea(attrs={'rows': 2}),
+        help_text='Explain any zero amount, exemption, or different cutoff. A missing number is not an exemption.')
+    registration_follow_up = forms.CharField(max_length=500, required=False, label='Registration follow-up',
+        widget=forms.Textarea(attrs={'rows': 2}), help_text='Required when a number or registration is pending.')
+
+    def __init__(self, *args, statement, **kwargs):
+        super().__init__(*args, **kwargs)
+        for side, kind in (('employee', PayrollLine.Kind.DEDUCTION), ('employer', PayrollLine.Kind.EMPLOYER_CONTRIBUTION)):
+            field = self.fields[f'{side}_line']
+            field.queryset = statement.lines.filter(kind=kind, source='MANUAL')
+            field.label_from_instance = lambda line: f'{line.label} — {statement.run.currency} {line.amount:.2f}'
 
 
 class FinalizePayrollForm(forms.Form):

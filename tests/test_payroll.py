@@ -10,7 +10,7 @@ from payroll.models import (PayrollRun, PayrollLine, PayrollRuleProfile, Payroll
 from payroll.services import (create_payroll_run, calculate_payroll_run, add_adjustment,
     remove_adjustment, submit_for_review, finalize_payroll_run, void_payroll_run,
     resolve_payroll_exception, resolve_effective_rule, effective_pay_rate)
-from .factories import workspace, employee, completed, payroll_setup, instant, DAY
+from .factories import workspace, employee, completed, payroll_setup, instant, DAY, review_statutory
 
 
 class PayrollTests(TestCase):
@@ -29,6 +29,7 @@ class PayrollTests(TestCase):
         return set(run.exceptions.filter(superseded_at__isnull=True, resolved_at__isnull=True).values_list("code", flat=True))
 
     def finalize(self, run):
+        review_statutory(run)
         run = submit_for_review(run=run, actor=self.owner)
         return finalize_payroll_run(run=run, actor=self.owner, review_note="Synthetic reference checked")
 

@@ -183,7 +183,7 @@
           <li class="mobile-timesheet-card">
             <div class="mobile-timesheet-heading"><time datetime="{{ timesheet.shift.work_date|date:'Y-m-d' }}"><strong>{{ timesheet.shift.work_date|date:"M j, Y" }}</strong></time><span class="status-badge status-{{ timesheet.status|lower }}">{{ timesheet.get_status_display }}</span></div>
             <dl><div><dt>Shift</dt><dd>{{ timesheet.shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }} – {{ timesheet.shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</dd></div><div><dt>Worked</dt><dd>{{ timesheet.worked_duration_label }}</dd></div></dl>
-            <a href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a>
+            <a class="table-action-button" href="{% url 'timesheets:my_detail' timesheet.pk %}">View timesheet</a>
           </li>
         {% endfor %}
       </ul>

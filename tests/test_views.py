@@ -111,6 +111,8 @@ class PageAndPermissionTests(TestCase):
         self.assertEqual(self.client.get(f"/payroll/my/{statement.pk}/").status_code, 404)
         self.client.force_login(self.owner)
         self.assertIn(self.client.get(f"/payroll/runs/{self.pay_run.pk}/export.csv").status_code, (302, 400))
+        from .factories import review_statutory
+        review_statutory(self.pay_run)
         run = submit_for_review(run=self.pay_run, actor=self.owner)
         finalize_payroll_run(run=run, actor=self.owner, review_note="Reference verified")
         self.assertEqual(self.client.get(f"/payroll/runs/{run.pk}/export.csv").status_code, 200)
