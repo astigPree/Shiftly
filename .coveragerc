@@ -1,0 +1,8 @@
+[run]
+source = accounts,organizations,employees,schedules,attendance,timesheets,payroll,reports,audit,config
+branch = True
+omit = */migrations/*,*/admin.py,*/apps.py,config/asgi.py,config/wsgi.py,config/test_settings.py,config/qa_settings.py
+
+[report]
+show_missing = True
+skip_empty = True

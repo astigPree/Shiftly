@@ -365,7 +365,7 @@ def employee_edit(request, pk):
 def employee_toggle_status(request, pk):
     with transaction.atomic():
         employee = get_object_or_404(
-            _employee_queryset(request.user).select_for_update(), pk=pk
+            _employee_queryset(request.user).select_for_update(of=("self",)), pk=pk
         )
         if employee.status == Employee.Status.ACTIVE:
             employee.status = Employee.Status.INACTIVE

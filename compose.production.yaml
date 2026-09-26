@@ -1,0 +1,16 @@
+# Requires certificates in .secrets/tls and a production .env.docker.
+services:
+  web:
+    environment:
+      SECURE_SSL_REDIRECT: "true"
+      SESSION_COOKIE_SECURE: "true"
+      CSRF_COOKIE_SECURE: "true"
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-3600}
+      EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+  proxy:
+    ports: !override
+      - "${HTTP_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${HTTPS_BIND:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/nginx.tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./.secrets/tls:/etc/nginx/certs:ro

@@ -13,6 +13,7 @@
   min-height: 100vh;
 }
 .app-sidebar {
+  min-width: 0;
   position: sticky;
   top: 0;
   display: flex;
@@ -136,7 +137,6 @@
   padding: 0 32px;
   background: var(--topbar-surface);
   border-bottom: 1px solid var(--color-border);
-  backdrop-filter: blur(8px);
 }
 .topbar-context {
   color: var(--color-text-muted);

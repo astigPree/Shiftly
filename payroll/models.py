@@ -284,10 +284,11 @@ class PayrollRuleAssignment(models.Model):
         if self.employee_id and self.effective_from:
             overlaps = type(self).objects.filter(
                 employee_id=self.employee_id,
-                effective_from__lte=(self.effective_until or self.effective_from),
             ).exclude(pk=self.pk).filter(
                 Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
             )
+            if self.effective_until:
+                overlaps = overlaps.filter(effective_from__lte=self.effective_until)
             if overlaps.exists():
                 raise ValidationError({"effective_from": "Assignment dates cannot overlap another assignment for this employee."})
 

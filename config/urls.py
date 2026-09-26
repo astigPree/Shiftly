@@ -1,8 +1,10 @@
 from django.contrib import admin
 from django.urls import include, path
+from .health import health
 
 
 urlpatterns = [
+    path("health/", health, name="health"),
     path("", include("accounts.urls")),
     path("employees/", include("employees.urls")),
     path("schedules/", include("schedules.urls")),

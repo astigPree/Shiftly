@@ -1,0 +1,20 @@
+# A separate project (-p shiftly-test) isolates test data from deployed volumes.
+services:
+  tests:
+    image: shiftly-tests:local
+    build:
+      context: .
+      target: test
+    environment:
+      DEBUG: "true"
+      DJANGO_SETTINGS_MODULE: config.test_settings
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-shiftly}@db:5432/${POSTGRES_DB:-shiftly}
+      DATABASE_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    depends_on:
+      db:
+        condition: service_healthy
+    tmpfs:
+      - /tmp
+    command: ["python", "manage.py", "test", "tests", "--noinput"]

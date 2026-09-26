@@ -231,7 +231,7 @@ def _refresh_statement(statement):
     statement.employer_contribution_amount = _money(totals[PayrollLine.Kind.EMPLOYER_CONTRIBUTION])
     statement.net_amount = _money(statement.gross_amount - statement.deduction_amount)
     statement.save(update_fields=[
-        "gross_amount", "deduction_amount", "employer_contribution_amount", "updated_at"
+        "gross_amount", "deduction_amount", "employer_contribution_amount", "net_amount", "updated_at"
     ])
 
 

@@ -1,0 +1,3 @@
+-r production.txt
+coverage==7.16.1
+playwright==1.63.0

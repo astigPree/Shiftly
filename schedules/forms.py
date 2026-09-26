@@ -154,7 +154,12 @@ class ShiftForm(forms.Form):
             except (TypeError, ValueError):
                 employee_ids = None
             if not isinstance(employee_ids, list) or any(
-                not isinstance(value, (str, int)) for value in employee_ids
+                type(value) not in (str, int)
+                or not str(value).isascii()
+                or not str(value).isdigit()
+                or len(str(value)) > 19
+                or not 0 < int(value) <= 9223372036854775807
+                for value in employee_ids
             ):
                 self.add_error("employees", "Choose employees from the list.")
                 selected_employees = []

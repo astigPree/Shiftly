@@ -34,7 +34,7 @@ def _ensure_clockable(shift, employee, now):
 def clock_in(*, shift, employee, actor, at=None):
     now = at or timezone.now()
     shift = Shift.objects.select_for_update().select_related("employee").get(pk=shift.pk)
-    employee = Employee.objects.select_for_update().select_related("user").get(pk=employee.pk)
+    employee = Employee.objects.select_for_update(of=("self",)).select_related("user").get(pk=employee.pk)
     _require_owner(employee, actor)
     _ensure_clockable(shift, employee, now)
     if AttendanceSession.objects.filter(shift=shift).exists():
@@ -53,7 +53,7 @@ def clock_in(*, shift, employee, actor, at=None):
 
 def _locked_owned_session(session, employee, actor):
     session = (
-        AttendanceSession.objects.select_for_update()
+        AttendanceSession.objects.select_for_update(of=("self",))
         .select_related("employee", "employee__user", "shift")
         .get(pk=session.pk)
     )

@@ -41,8 +41,19 @@ def _env_bool(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_secret(name, default=None):
+    """Support Docker secrets without putting credentials in container metadata."""
+    filename = os.environ.get(f"{name}_FILE")
+    if filename:
+        try:
+            return Path(filename).read_text(encoding="utf-8").strip()
+        except OSError as error:
+            raise ImproperlyConfigured(f"Cannot read {name}_FILE.") from error
+    return os.environ.get(name, default)
+
+
 DEBUG = _env_bool("DEBUG", False)
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = _env_secret("SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
         SECRET_KEY = "development-only-insecure-key-change-before-deploying"
@@ -152,7 +163,7 @@ else:
             "ENGINE": "django.db.backends.postgresql",
             "NAME": database_name,
             "USER": unquote(database_url.username or ""),
-            "PASSWORD": unquote(database_url.password or ""),
+            "PASSWORD": _env_secret("DATABASE_PASSWORD", unquote(database_url.password or "")),
             "HOST": database_url.hostname or "",
             "PORT": str(database_url.port or ""),
             "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
@@ -202,16 +213,16 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@shiftly.loca
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_HOST_PASSWORD = _env_secret("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", not DEBUG)
 EMAIL_USE_SSL = _env_bool("EMAIL_USE_SSL", False)
 EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = _env_bool("SECURE_SSL_REDIRECT", not DEBUG)
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = _env_bool("CSRF_COOKIE_SECURE", not DEBUG)
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if not DEBUG else None
 SECURE_CONTENT_TYPE_NOSNIFF = True
