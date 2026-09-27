@@ -28,7 +28,7 @@ The workbook also contains calculation and reference problems. Treat it as evide
 
 ## Current implementation status (2026-09-27)
 
-The application now supports effective-dated hourly or daily compensation, reviewed date-level payroll inputs for daily-paid employees, reusable dated earning/deduction components, component-safe recalculation, component-aware CSV columns, and payslip display of reviewed daily inputs. Existing legacy hourly rates and finalized statements remain compatible.
+The application now supports effective-dated hourly or daily compensation, reviewed date-level payroll inputs for daily-paid employees, reusable dated earning/deduction components, component-safe recalculation, component-aware CSV columns, and payslip display of reviewed daily inputs. Existing legacy hourly rates and finalized statements remain compatible. The checklist below marks those verified implementation items; open boxes are deliberate gaps or acceptance work that still requires policy decisions, additional tests, or independent payroll review.
 
 Synthetic acceptance inputs for this slice are recorded in [`PAYROLL_REFERENCE_CASES.md`](PAYROLL_REFERENCE_CASES.md). They contain no workbook employee identities or production balances.
 
@@ -245,6 +245,25 @@ Record answers in a reviewed policy note. These are focused questions for the pa
 
 Regular/probationary labels alone must never automatically set contribution exemption, night eligibility, or wage coverage. Employment category, compensation basis, assigned payroll policy, payment method, and statutory coverage are separate concepts.
 
+### Workbook answers received on 2026-09-27
+
+The supplied workbook review resolves several **legacy comparison** questions, while leaving policy approval separate. These findings may be used to build a read-only shadow calculator and import preview:
+
+| Area | Workbook evidence | Shiftly treatment |
+| --- | --- | --- |
+| Period | April 2026 monthly payroll; pay date appears to be 1 May 2026; no explicit cutoff dates | Require owner confirmation before importing or finalizing; retain the March 2026 probation label as a period inconsistency |
+| Pay basis | Daily-rated employees, 8-hour day; Daily and Minimum are separate bases; allowance is separate | Use daily compensation, reviewed date-level quantities, and dated components; do not infer monthly or hourly contracts |
+| Quantity source | Calendar days, worked days, UT minutes, OT minutes, and manual holiday-equivalent units | Prefer approved attendance/timesheets; use reviewed period inputs for authorized manual exceptions or legacy comparison |
+| Overtime | Workbook uses straight-rate `Daily / 8 / 60 × OT minutes` | Keep Shiftly's configured multiplier until the payroll owner approves whether legacy parity or the reviewed legal multiplier is required |
+| Night work | No workbook night-differential rule | Continue using Shiftly's separately reviewed night rule; do not derive one from the workbook |
+| Statutory data | SSS lookup table; formula-based PhilHealth; flat/manual Pag-IBIG; no usable BIR tax engine | Treat as reference/manual evidence until effective dates, coverage, source, and reviewer approval are recorded |
+| Loans and advances | Period deduction columns only; no balances or repayment terms | Require obligation opening balances and terms before creating repayment postings |
+| Cash | Denominations are PHP 1,000, 500, 200, 100, 50, 20, 10, 5, 1, 0.25, and 0.01; cash amounts do not reconcile after truncation | Build integer-centavo reporting only after the rounding and payment-group policy is approved; block negative net pay |
+| Import | Names only, no employee IDs; both comparison and selective reviewed import are recommended | Require explicit employee mapping, source hash, sheet/row validation, and reference-only computed totals before writes |
+| Governance | No preparer/approver or retention policy is encoded | Require separate prepared/approved roles, two or more shadow cycles, zero unexplained line differences, and reviewer sign-off |
+
+The workbook review narrows the remaining decisions to: April period/cutoff/pay-date confirmation; Regular/Probation coverage intent; approved overtime multiplier; night and holiday/rest-day policy; current statutory sources and effective dates; obligation terms; rounding; employee mapping; approval roles; retention; and shadow-run acceptance. Workbook observations are not legal approval and must not silently change the live payroll defaults.
+
 ## 7. Proposed architecture
 
 Everything in this section is **proposed**, not already implemented. Suggested model/module names may be adjusted to project conventions; the behaviors and constraints are required.
@@ -313,7 +332,7 @@ All employee-linked records must enforce the same organization on every related 
 
 ## 8. Implementation tasks
 
-All boxes are open. Complete one task and its acceptance criteria before marking it done. If a listed policy decision is unanswered, document the blocker for that task and continue only independent work.
+Complete one task and its acceptance criteria before marking it done. If a listed policy decision is unanswered, document the blocker for that task and continue only independent work. A checked item means the corresponding application behavior and repository evidence exist; it does not certify legal or accounting approval.
 
 Suggested delivery stages:
 
@@ -325,42 +344,42 @@ Suggested delivery stages:
 
 - [ ] **Dependencies:** none; resolve D1–D11 with the payroll owner.
 - [ ] Record a sheet/column mapping, intended periods, meanings of input quantities, and accepted corrections to section 4 findings.
-- [ ] Build synthetic reference cases with nonzero, different amounts for each employee. Keep real workbook data out of Git.
+- [x] Build synthetic reference cases with nonzero, different amounts for each employee. Keep real workbook data out of Git.
 - [ ] Record expected component amounts, gross, each deduction, ER share, net, and approved rounding. Label workbook behavior separately from approved behavior.
-- [ ] **Files:** this document; a proposed `docs/PAYROLL_REFERENCE_CASES.md`; later synthetic fixtures under `tests/`.
+- [x] **Files:** this document, `docs/PAYROLL_REFERENCE_CASES.md`, and synthetic fixtures under `tests/`.
 - [ ] **Done when:** an implementer can calculate each expected result without guessing what a workbook column means. No production import or default legal rates are enabled yet.
 
 ### WB-01 — Add explicit compensation basis and shared guards
 
 - [ ] **Dependencies:** WB-00 decisions D2/D3/D5.
-- [ ] Add dated compensation records and a single resolver; support the daily-rate case while preserving hourly behavior.
-- [ ] Store basic daily rate separately from any allowance. Make day length and premium conversion explicit and reviewed.
-- [ ] Enforce tenant ownership, positive finite amounts, date validity, overlapping-source rejection and finalized-period protection in shared services, including bulk assignment paths.
-- [ ] Add employment category only if reporting requires it; never infer it from Active/Inactive or use it as an exemption rule.
-- [ ] **Files:** `payroll/models.py`, `payroll/services.py`, `payroll/forms.py`, `payroll/views.py`, new migrations; `employees/models.py` only if category/history is approved.
-- [ ] **Done when:** schema and resolver distinguish hourly and daily contracts with dated policies, reject ambiguous sources, and preserve legacy hourly/finalized records. Daily monetary calculation remains disabled until WB-02 is complete.
+- [x] Add dated compensation records and a single resolver; support the daily-rate case while preserving hourly behavior.
+- [x] Store basic daily rate separately from any allowance. Make day length and premium conversion explicit and reviewed.
+- [x] Enforce tenant ownership, positive finite amounts, date validity, overlapping-source rejection and finalized-period protection in the current compensation and component assignment flows.
+- [x] Do not add employment category until reporting requires it; never infer it from Active/Inactive or use it as an exemption rule.
+- [x] **Files:** `payroll/models.py`, `payroll/services.py`, `payroll/forms.py`, `payroll/views.py`, and migration `0004_payrollcomponentdefinition_and_more.py`.
+- [x] **Done for the implemented slice:** schema and resolver distinguish hourly and daily contracts with dated policies, reject ambiguous sources, and preserve legacy hourly/finalized records. Mixed-case acceptance remains under WB-02.
 
 ### WB-02 — Calculate daily quantities, absence and undertime once
 
 - [ ] **Dependencies:** WB-01; D3/D4/D5 resolved.
-- [ ] Implement a pure daily basic-pay calculator with explicit quantity source and fractions of a day. Do not equate a day with any nonzero attendance automatically.
-- [ ] Prefer approved attendance. Add reviewed period input only when aggregate import or non-attendance entitlement is authorized; store provenance and prevent duplicate attendance/import payment.
-- [ ] Discover eligible employees from approved period inputs as well as attendance. Replace `NO_PAYROLL_TIME` only with a basis-aware decision for legitimate approved inputs; keep blockers for unexplained missing attendance. Require dated quantities when an effective rate/rule/component changes within the period.
-- [ ] Explain planned days, unpaid absence, paid days, already-applied undertime and final basic amount.
-- [ ] Reuse overnight/timezone/rule resolution. Add only the needed reviewed non-worked holiday/paid-time inputs; a full leave-management system is a separate feature.
-- [ ] Preserve configured overtime. Resolve whether the base already includes OT before adding a premium or full OT amount.
-- [ ] **Files:** proposed `payroll/compensation.py`, `payroll/services.py`, models/forms as needed, `tests/test_payroll.py`.
+- [x] Implement a pure daily basic-pay calculator with explicit quantity source and fractions of a day. Do not equate a day with any nonzero attendance automatically.
+- [x] Prefer approved attendance. Add reviewed period input only when aggregate import or non-attendance entitlement is authorized; store provenance and prevent duplicate attendance/import payment.
+- [x] Discover eligible employees from approved period inputs as well as attendance. Replace `NO_PAYROLL_TIME` only with a basis-aware decision for legitimate approved inputs; keep blockers for unexplained missing attendance. Date-level inputs are required for the implemented daily register path.
+- [x] Explain planned days, unpaid absence, paid days, already-applied undertime and final basic amount in the daily snapshot.
+- [x] Reuse employee-local timezone and effective rule resolution for reviewed daily inputs. A full leave-management system remains separate scope.
+- [x] Preserve configured overtime and represent it as a premium on top of the base, avoiding double payment.
+- [x] **Files:** `payroll/compensation.py`, `payroll/services.py`, models/forms, and `tests/test_payroll.py`.
 - [ ] **Done when:** a mixed hourly/daily run uses each employee's assigned policy correctly; full days, partial days, undertime, no-work, overnight and mixed-rate cases reconcile; no absence/UT/OT amount is counted twice.
 
 ### WB-03 — Add allowance and deduction components
 
 - [ ] **Dependencies:** WB-01/WB-02; D2/D7/D11 resolved.
-- [ ] Add definitions and dated employee assignments for fixed, per-day and per-hour components; start with daily allowance/COLA and reviewed recurring charges.
-- [ ] Allow shared definitions with different employee amounts. Reuse existing payroll-rule assignments for policies rather than copying policy fields onto every employee.
-- [ ] Make component basis inclusion explicit per calculation. Do not assume an allowance is excluded from contributions/tax just because the workbook adds it after deductions.
-- [ ] Add stable generated-line identity and metadata. Recalculation replaces generated components and preserves manual entries without duplicates.
+- [x] Add definitions and dated employee assignments for fixed, per-day and per-hour components; start with daily allowance/COLA and reviewed recurring charges.
+- [x] Allow shared definitions with different employee amounts. Reuse existing payroll-rule assignments for policies rather than copying policy fields onto every employee.
+- [x] Make component basis inclusion explicit per calculation. Contribution and tax treatment remains a separate open task.
+- [x] Add stable generated-line identity and metadata. Recalculation replaces generated components and preserves manual entries without duplicates, including separate provenance for mid-period assignments.
 - [ ] Use positive earning/deduction amounts; add explicit refund/reversal handling for corrections where ordinary earnings would misstate taxable/contribution bases.
-- [ ] **Files:** `payroll/models.py`, proposed `payroll/components.py`, services/forms/views, payroll templates, migrations.
+- [x] **Files:** `payroll/models.py`, `payroll/services.py`, `payroll/forms.py`, `payroll/views.py`, payroll templates, and migration `0004_payrollcomponentdefinition_and_more.py`.
 - [ ] **Done when:** allowances with different rates and UT policies, one-off corrections, repeat recalculation, and mid-period assignment changes remain explainable and reproducible.
 
 ### WB-04 — Add reviewed contribution calculations and cutoff allocation
@@ -400,11 +419,11 @@ Suggested delivery stages:
 ### WB-07 — Improve the register and payslip output
 
 - [ ] **Dependencies:** WB-03/WB-04/WB-05 for enabled columns.
-- [ ] Add classified columns or export fields for basic, holiday, OT, night differential, allowance, each statutory EE deduction, each loan/advance, other deductions, ER shares, gross and net.
-- [ ] Explain base rate, quantity and component amount. Distinguish compensation before allowance from gross including allowances when comparing against the workbook.
+- [x] Add classified columns or export fields for the implemented basic, holiday, OT, night differential, component earnings, other earnings, deductions, ER shares, gross, and net values. Statutory and loan columns remain open with WB-04/WB-05.
+- [x] Explain base rate, quantity and component amount in snapshots and statement detail. Distinguish compensation before components from gross including components when comparing against the workbook.
 - [ ] Group/filter by explicit category if approved; totals must include exactly the displayed/exported scope and identify excluded rows.
-- [ ] Build every employee payslip from its statement record, never sheet-row positions. Keep employee access restricted to their own finalized records.
-- [ ] Keep existing CSV formula-injection protection; export amounts from finalized snapshots.
+- [x] Build every employee payslip from its statement record, never sheet-row positions. Keep employee access restricted to their own finalized records.
+- [x] Keep existing CSV formula-injection protection; export amounts from finalized snapshots.
 - [ ] **Files:** `payroll/views.py:run_export`, payroll templates, report services, tests.
 - [ ] **Done when:** employee payslip totals, statement totals, register rows and grand totals reconcile to the cent, including employees with distinct nonzero allowances and multiple deductions.
 
@@ -433,10 +452,10 @@ Suggested delivery stages:
 ### WB-10 — Complete UI, guide and rollout verification
 
 - [ ] **Dependencies:** only expose completed modules; preserve existing design conventions.
-- [ ] Employee pay profile: compensation basis, current rate, daily allowance assignments, existing rule assignment, and obligation balances/history.
+- [x] Employee pay profile: compensation basis, current rate, dated component assignments, reviewed period inputs, and existing rule assignment. Obligation balances/history remain open with WB-05.
 - [ ] Run detail: calculation breakdown, contribution month/cutoff, manual override reasons, proposed repayments, blockers and total reconciliation.
 - [ ] Provide pagination, consistent action buttons, compact form controls, field errors/toasts, and confirmations for irreversible actions.
-- [ ] Update `SHIFTLY_GUIDE_README.md`, relevant Phase 11 entries in `SHIFTLY_PROJECT_TASKS.md`, and verification notes without claiming unimplemented features are complete.
+- [x] Update `SHIFTLY_GUIDE_README.md`, relevant Phase 11 entries in `SHIFTLY_PROJECT_TASKS.md`, and verification notes without claiming unimplemented features are complete.
 - [ ] Verify the cases in section 10 and use at least two shadow cycles with independently reviewed results before enabling these outputs for live payroll.
 - [ ] **Done when:** the payroll owner signs off corrected reference cases and shadow differences; documentation states exactly what is automatic, manual, and unsupported.
 
