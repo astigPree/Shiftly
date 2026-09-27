@@ -276,7 +276,7 @@ Reports are organization-scoped, paginated, and use the organization timezone fo
 
 ## 11. Payroll foundation
 
-Payroll is available under `/payroll/` for employers and `/payroll/my/` for employees. The current release is a Philippine/PHP hourly-pay foundation. It is not a complete statutory payroll product and does not transfer money.
+Payroll is available under `/payroll/` for employers and `/payroll/my/` for employees. The current release supports Philippine/PHP hourly payroll plus a reviewed daily-pay/register workflow and dated recurring earning/deduction components. It is not a complete statutory payroll product and does not transfer money.
 
 ### Payroll setup order
 
@@ -293,14 +293,16 @@ Complete the readiness checklist on `/payroll/` in this order:
    - record the wage-order reference;
    - confirm the rate was checked, night-differential eligibility, and rank-and-file classification;
    - choose whether the employee participates in payroll;
-   - add effective-dated hourly rates at `/payroll/employees/<id>/rates/new/`.
+   - add effective-dated hourly rates at `/payroll/employees/<id>/rates/new/`, or use **Add compensation** at `/payroll/employees/<id>/compensation/new/` for an hourly or daily version;
+   - create shared allowance/deduction definitions at `/payroll/components/`, then assign dated amounts from an employee profile at `/payroll/employees/<id>/components/new/`;
+   - add one reviewed date-level register input per local work date for daily-paid employees at `/payroll/employees/<id>/period-inputs/new/`.
 3. **Holiday calendar** at `/payroll/holidays/`
    - add regular or special holidays;
    - enter worked and overtime multipliers;
    - provide the source reference and reviewer;
    - review each holiday before relying on it for finalization.
 
-The readiness checklist requires reviewed payroll settings, configured participating employee profiles/rates, and a configured reviewed holiday calendar before a run can be created.
+The readiness checklist requires reviewed payroll settings, configured participating employee profiles with either hourly or daily compensation, and a configured reviewed holiday calendar before a run can be created. Daily employees are discovered from reviewed period inputs; approved attendance and a period input for the same date are treated as a duplicate source and blocked.
 
 ### Create and review a run
 
@@ -332,6 +334,8 @@ Only finalized payroll can be exported from `/payroll/runs/<id>/export.csv`.
 The current foundation calculates hourly base pay, configured daily overtime premiums, ordinary-day night differential, and reviewed rest-day/holiday premiums from approved timesheets. Overnight time is split at the employee's local midnight and configured night-window boundaries. Effective rates and rules use the employee-local work date.
 
 For a `10:00 PM` to `3:00 AM` shift, the system keeps the shift on its original local work date while calculating the correct next-day end instant and night-window minutes. An employee's payroll timezone is locked after the first finalized statement to protect historical payroll.
+
+For a daily-paid employee, the run uses reviewed worked-day units as the paid quantity. Planned units explain unpaid absence, while undertime is applied once from the daily rate and configured regular-day length. Overtime and night differential are added as premiums using the effective reviewed rule. Components are calculated from their dated assignment basis (per period, per worked day, or per payable hour); recalculation replaces generated component lines without touching manual lines.
 
 ### Employee payroll view
 
@@ -395,6 +399,7 @@ Open the run's exceptions and readiness checklist. Common blockers are missing e
 | Payroll overview | `/payroll/` | `/payroll/my/` |
 | Payroll setup | `/payroll/setup/` | — |
 | Pay profiles | `/payroll/employees/` | — |
+| Components | `/payroll/components/` and employee component/period-input forms | — |
 | Holidays | `/payroll/holidays/` | — |
 | Login | `/login/` | `/login/` |
 | Signup | `/signup/` | — |
@@ -422,4 +427,4 @@ Open the run's exceptions and readiness checklist. Common blockers are missing e
 
 ## 16. Current product limits
 
-The current release intentionally does not include recurring schedules, leave management, automatic clock correction, timesheet resubmission, multiple organization owners, employee self-enrollment, full HR records, automated statutory payroll, bank transfers, or complete legal/accounting payroll compliance. These should be treated as future product work rather than current workflows.
+The current release intentionally does not include recurring schedules, leave management, automatic clock correction, timesheet resubmission, multiple organization owners, employee self-enrollment, full HR records, automatic SSS/PhilHealth/Pag-IBIG/withholding calculations, loan or cash-advance balances, cash denomination reports, workbook import/comparison, bank transfers, or complete legal/accounting payroll compliance. These should be treated as future product work rather than current workflows.

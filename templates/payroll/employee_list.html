@@ -3,14 +3,14 @@
 {% block app_content %}
 <div class="payroll-page payroll-employee-list-page">
   <header class="payroll-page-header">
-    <div><p class="payroll-eyebrow">{{ organization.name }} · Payroll</p><h1>Employee pay profiles</h1><p class="muted">Find missing pay details and keep hourly-rate history up to date.</p></div>
+    <div><p class="payroll-eyebrow">{{ organization.name }} · Payroll</p><h1>Employee pay profiles</h1><p class="muted">Find missing pay details and keep dated hourly or daily compensation up to date.</p></div>
   </header>
   {% include "payroll/_subnav.html" %}
 
   <section class="payroll-employee-summary" aria-label="Employee payroll readiness">
     <article class="payroll-employee-metric"><span class="payroll-employee-metric__icon">{% include "components/icon.html" with icon_name="users" icon_class="icon" %}</span><div><strong>{{ summary.total }}</strong><span>Employees</span><small>In this organization</small></div></article>
     <article class="payroll-employee-metric payroll-employee-metric--ready"><span class="payroll-employee-metric__icon">{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}</span><div><strong>{{ summary.ready }}</strong><span>Payroll ready</span><small>Complete rate and wage details</small></div></article>
-    <article class="payroll-employee-metric payroll-employee-metric--setup"><span class="payroll-employee-metric__icon">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span><div><strong>{{ summary.needs_setup }}</strong><span>Need setup</span><small>Missing rate or pay details</small></div></article>
+    <article class="payroll-employee-metric payroll-employee-metric--setup"><span class="payroll-employee-metric__icon">{% include "components/icon.html" with icon_name="alert" icon_class="icon" %}</span><div><strong>{{ summary.needs_setup }}</strong><span>Need setup</span><small>Missing compensation or pay details</small></div></article>
     <article class="payroll-employee-metric payroll-employee-metric--review"><span class="payroll-employee-metric__icon">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span><div><strong>{{ summary.needs_review }}</strong><span>Need wage review</span><small>Confirm the applicable wage check</small></div></article>
   </section>
 
@@ -24,7 +24,7 @@
   <form method="post" class="payroll-bulk-assignment-form" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="bulk_assignment">
   <section class="payroll-card payroll-employee-table-card" aria-labelledby="payroll-employees-title">
-    <header class="payroll-card-heading"><div><h2 id="payroll-employees-title">Employee readiness</h2><p>Rate values shown here are the current effective hourly rate.</p></div><span class="payroll-result-count">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} employees</span></header>
+    <header class="payroll-card-heading"><div><h2 id="payroll-employees-title">Employee readiness</h2><p>Amounts shown here are the current effective hourly or daily compensation.</p></div><span class="payroll-result-count">Showing {{ page.start_index }}–{{ page.end_index }} of {{ page.paginator.count }} employees</span></header>
     <div class="payroll-bulk-assignment-fields">
       <strong>Assign a rule profile to selected employees</strong>
       {% if bulk_assignment_form.errors %}<div class="field-error" role="alert">Select at least one employee and enter a valid assignment period.</div>{% endif %}
@@ -36,14 +36,14 @@
     </div>
     <div class="payroll-table-wrap" tabindex="0" aria-label="Scrollable employee payroll readiness table">
       <table class="payroll-table payroll-employee-table">
-        <thead><tr><th scope="col">Select</th><th scope="col">Employee</th><th scope="col">Work location</th><th scope="col">Wage region</th><th scope="col">Current rate</th><th scope="col">Payroll status</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Select</th><th scope="col">Employee</th><th scope="col">Work location</th><th scope="col">Wage region</th><th scope="col">Current compensation</th><th scope="col">Payroll status</th><th scope="col">Actions</th></tr></thead>
         <tbody>{% for row in rows %}
           <tr>
             <td><input type="checkbox" name="employees" value="{{ row.employee.pk }}" aria-label="Select {{ row.employee.full_name }}"></td>
             <td><strong>{{ row.employee.full_name }}</strong><small>#{{ row.employee.employee_code }} &middot; {{ row.employee.job_title|default:"Employee" }}</small>{% if row.rule_profile %}<small>{{ row.rule_profile.name }} &middot; {{ row.rule_profile_source }}</small>{% else %}<small class="muted">No rule profile</small>{% endif %}</td>
             <td>{% if row.profile and row.profile.work_location %}{{ row.profile.work_location }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
             <td>{% if row.profile and row.profile.payroll_region %}{{ row.profile.payroll_region }}{% else %}<span class="muted">Not set</span>{% endif %}</td>
-            <td>{% if row.rate %}<strong>{{ currency }} {{ row.rate|floatformat:2 }} / hour</strong><small>Effective {{ row.rate_effective_from|date:"M j, Y" }}</small>{% else %}<span class="muted">Not set</span>{% endif %}</td>
+            <td>{% if row.compensation_amount %}<strong>{{ currency }} {{ row.compensation_amount|floatformat:2 }} / {{ row.compensation_basis|lower }}</strong><small>Effective {{ row.compensation_effective_from|date:"M j, Y" }}</small>{% elif row.rate %}<strong>{{ currency }} {{ row.rate|floatformat:2 }} / hour</strong><small>Legacy rate · effective {{ row.rate_effective_from|date:"M j, Y" }}</small>{% else %}<span class="muted">Not set</span>{% endif %}</td>
             <td><span class="payroll-status payroll-status--{{ row.payroll_status }}">{{ row.status_detail }}</span></td>
             <td><a class="table-action-button" href="{% url 'payroll:employee_profile' row.employee.pk %}">Manage pay</a></td>
           </tr>

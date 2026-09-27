@@ -19,12 +19,16 @@ from timesheets.models import Timesheet
 from schedules.models import Shift
 
 from .models import (
+    EmployeeCompensationVersion,
+    EmployeeComponentAssignment,
     EmployeePayProfile,
     EmployeePayRate,
     PayrollException,
     PayrollHoliday,
     PayrollLine,
     PayrollCalculationSnapshot,
+    PayrollPeriodInput,
+    PayrollComponentDefinition,
     PayrollRuleAssignment,
     PayrollRuleProfile,
     PayrollRuleSet,
@@ -34,6 +38,7 @@ from .models import (
     PayrollTimeEntry,
 )
 from .statutory import assert_statutory_reviewed
+from .compensation import calculate_daily_pay
 
 
 CENT = Decimal("0.01")
@@ -113,6 +118,142 @@ def effective_pay_rate(employee, work_date):
         employee=employee,
         effective_from__lte=work_date,
     ).filter(Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)).order_by("-effective_from").first()
+
+
+def effective_compensation(employee, work_date):
+    """Resolve one dated compensation source without paying two sources.
+
+    New compensation versions are preferred.  If an employee has no new
+    version, the legacy hourly-rate history remains the source for backwards
+    compatibility with existing hourly payroll runs.
+    """
+    version = EmployeeCompensationVersion.objects.filter(
+        employee=employee,
+        effective_from__lte=work_date,
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=work_date)
+    ).order_by("-effective_from", "-pk").first()
+    if version:
+        return {
+            "basis": version.basis,
+            "amount": version.amount,
+            "source": version,
+            "regular_day_minutes": version.regular_day_minutes,
+        }
+    rate = effective_pay_rate(employee, work_date)
+    if rate:
+        return {
+            "basis": EmployeeCompensationVersion.Basis.HOURLY,
+            "amount": rate.hourly_rate,
+            "source": rate,
+            "regular_day_minutes": 480,
+        }
+    return None
+
+
+def _effective_component_assignments(employee, work_date):
+    assignments = EmployeeComponentAssignment.objects.filter(
+        employee=employee,
+        effective_from__lte=work_date,
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=work_date),
+        component__active=True,
+    ).select_related("component").order_by("component__code", "-effective_from", "-pk")
+    # A component assignment is append-only and overlap guarded.  Keep the
+    # resolver deterministic if legacy data contains duplicates.
+    seen = set()
+    result = []
+    for assignment in assignments:
+        if assignment.component_id in seen:
+            continue
+        seen.add(assignment.component_id)
+        result.append(assignment)
+    return result
+
+
+def _apply_component_lines(*, statement, employee, run, actor, worked_days, payable_hours,
+                           undertime_minutes=0, effective_date=None,
+                           worked_days_by_date=None, payable_hours_by_date=None,
+                           undertime_by_date=None, day_minutes_by_date=None):
+    """Create reproducible calculated lines for dated recurring components."""
+    lines = []
+    dates = [effective_date] if effective_date else []
+    worked_days_by_date = worked_days_by_date or {}
+    payable_hours_by_date = payable_hours_by_date or {}
+    undertime_by_date = undertime_by_date or {}
+    day_minutes_by_date = day_minutes_by_date or {}
+    if not dates:
+        # Resolve a component for every date in the period and coalesce by
+        # stable component code.  This makes mid-period changes visible in
+        # the snapshot and avoids silently applying the current value to an
+        # historical period.
+        cursor = run.period_start
+        while cursor <= run.period_end:
+            dates.append(cursor)
+            cursor += timedelta(days=1)
+    assignments = {}
+    for work_date in dates:
+        for assignment in _effective_component_assignments(employee, work_date):
+            # Keep each dated assignment separate.  Grouping only by component
+            # code would hide a mid-period rate change and the snapshot would
+            # retain only the first assignment's provenance.
+            assignments.setdefault(assignment.pk, []).append((work_date, assignment))
+    for assignment_id, entries in assignments.items():
+        assignment = entries[0][1]
+        basis = assignment.basis or assignment.component.basis
+        # Use the assignment's dated amount for each date and sum by the
+        # component.  This is intentionally date-aware for effective changes.
+        amount = Decimal("0")
+        input_days = Decimal("0")
+        input_hours = Decimal("0")
+        for work_date, item in entries:
+            if effective_date is not None:
+                day_factor = worked_days
+                hour_factor = payable_hours
+                ut_minutes = undertime_minutes
+            else:
+                day_factor = worked_days_by_date.get(work_date, Decimal("0"))
+                hour_factor = payable_hours_by_date.get(work_date, Decimal("0"))
+                ut_minutes = undertime_by_date.get(work_date, 0)
+            if basis == PayrollComponentDefinition.Basis.PER_PERIOD:
+                # A period component is applied once, using its first effective
+                # date; a second version in the same period is separately
+                # itemized rather than merged.
+                amount += item.amount if work_date == entries[0][0] else Decimal("0")
+            elif basis == PayrollComponentDefinition.Basis.PER_WORKED_DAY:
+                input_days += day_factor
+                reduction = Decimal("0")
+                if (assignment.deduct_undertime if assignment.deduct_undertime is not None else assignment.component.deduct_undertime) and ut_minutes:
+                    reduction = day_factor * (Decimal(ut_minutes) / Decimal(day_minutes_by_date.get(work_date, 480)))
+                amount += item.amount * max(Decimal("0"), day_factor - reduction)
+            elif basis == PayrollComponentDefinition.Basis.PER_PAYABLE_HOUR:
+                input_hours += hour_factor
+                amount += item.amount * hour_factor
+        amount = _money(amount)
+        if amount:
+            lines.append({
+                "component": assignment.component,
+                "assignment": assignment,
+                "amount": amount,
+                "basis": basis,
+                "worked_days": str(input_days),
+                "payable_hours": str(input_hours),
+            })
+    for item in lines:
+        component = item["component"]
+        assignment = item["assignment"]
+        PayrollLine.objects.create(
+            statement=statement,
+            kind=component.kind,
+            code=f"COMPONENT_{component.code.upper()[:20]}",
+            label=component.label,
+            amount=item["amount"],
+            effective_date=effective_date,
+            source="CALCULATED_COMPONENT",
+            note=f"{component.get_basis_display()} component; assignment {assignment.pk}; basis amount {assignment.amount}.",
+            created_by=actor,
+        )
+    return lines
 
 
 def _worked_intervals(session, breaks):
@@ -402,7 +543,7 @@ def calculate_payroll_run(run, *, actor):
         raise ValidationError("Only a draft payroll run can be recalculated.")
 
     # Recalculation is repeatable: remove the old machine preview but keep manual adjustments.
-    PayrollLine.objects.filter(statement__run=run, source="CALCULATED").delete()
+    PayrollLine.objects.filter(statement__run=run, source__in=["CALCULATED", "CALCULATED_COMPONENT"]).delete()
     PayrollTimeEntry.objects.filter(statement__run=run).delete()
     PayrollException.objects.filter(run=run, superseded_at__isnull=True).update(superseded_at=timezone.now())
 
@@ -550,14 +691,18 @@ def calculate_payroll_run(run, *, actor):
                 )
                 _add_exception(run, code=code, description=description, employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
-            rate = effective_pay_rate(timesheet.employee, segment["work_date"])
-            if not rate:
-                _add_exception(run, code="PAY_RATE_MISSING", description=f"Add an effective hourly rate for {timesheet.employee.full_name} on {segment['work_date']}.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
+            compensation = effective_compensation(timesheet.employee, segment["work_date"])
+            if not compensation:
+                _add_exception(run, code="PAY_RATE_MISSING", description=f"Add an effective hourly or daily compensation for {timesheet.employee.full_name} on {segment['work_date']}.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
+                continue
+            if compensation["basis"] != EmployeeCompensationVersion.Basis.HOURLY:
+                _add_exception(run, code="DAILY_INPUT_REQUIRED", description=f"{timesheet.employee.full_name} is daily-paid on {segment['work_date']}; add a reviewed period input instead of paying attendance as hourly time.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
             segment["rule"] = rule
             segment["rule_profile"] = rule_profile
             segment["rule_assignment"] = rule_assignment
-            segment["rate"] = rate.hourly_rate
+            segment["rate"] = compensation["amount"]
+            segment["compensation"] = compensation
             segment["timesheet"] = timesheet
             segment["profile"] = profile
             available_segments.append(segment)
@@ -567,7 +712,59 @@ def calculate_payroll_run(run, *, actor):
             employee_bucket["entries"].append((timesheet, available_segments))
             employee_bucket["worked_dates"].update(segment["work_date"] for segment in available_segments)
 
-    if not grouped:
+    # Reviewed daily/register inputs are a second, explicit source of payroll
+    # quantities.  They are only considered for daily compensation and are
+    # rejected on dates that already have approved attendance so the same work
+    # cannot be paid twice.
+    hourly_work_dates = defaultdict(set)
+    for employee_id, bucket in grouped.items():
+        hourly_work_dates[employee_id].update(bucket["worked_dates"])
+    daily_grouped = defaultdict(list)
+    period_inputs = PayrollPeriodInput.objects.filter(
+        organization=organization,
+        period_start=run.period_start,
+        period_end=run.period_end,
+        reviewed_at__isnull=False,
+    ).select_related("employee", "employee__payroll_profile")
+    for period_input in period_inputs:
+        profile = getattr(period_input.employee, "payroll_profile", None)
+        work_date = period_input.work_date
+        if work_date in hourly_work_dates.get(period_input.employee_id, set()):
+            _add_exception(run, code="PERIOD_INPUT_DUPLICATE_ATTENDANCE", description=f"{period_input.employee.full_name} has both attendance and a reviewed period input on {work_date}; remove one source.", employee=period_input.employee, work_date=work_date)
+            continue
+        if not profile or not profile.active_for_payroll:
+            _add_exception(run, code="PAY_PROFILE_MISSING", description=f"{period_input.employee.full_name} needs an active payroll profile.", employee=period_input.employee, work_date=work_date)
+            continue
+        if not profile.rank_and_file or not profile.work_location or not profile.payroll_region or not profile.minimum_wage_confirmed or not profile.wage_order_reference:
+            _add_exception(run, code="WORK_LOCATION_MISSING", description=f"Complete {period_input.employee.full_name}'s work location and wage-order review before using period inputs.", employee=period_input.employee, work_date=work_date)
+            continue
+        compensation = effective_compensation(period_input.employee, work_date)
+        if not compensation:
+            _add_exception(run, code="PAY_RATE_MISSING", description=f"Add daily compensation for {period_input.employee.full_name} on {work_date}.", employee=period_input.employee, work_date=work_date)
+            continue
+        if compensation["basis"] != EmployeeCompensationVersion.Basis.DAILY:
+            _add_exception(run, code="HOURLY_INPUT_NOT_ALLOWED", description=f"{period_input.employee.full_name} is hourly-paid on {work_date}; use approved attendance rather than a daily register input.", employee=period_input.employee, work_date=work_date)
+            continue
+        if isinstance(compensation["source"], EmployeeCompensationVersion) and not compensation["source"].reviewed:
+            _add_exception(run, code="COMPENSATION_NOT_REVIEWED", description=f"Review the daily compensation source for {period_input.employee.full_name} before calculating {work_date}.", employee=period_input.employee, work_date=work_date)
+            continue
+        rule, rule_profile, rule_assignment = resolve_effective_rule(organization, work_date, employee=period_input.employee)
+        if not rule or not rule.reviewed:
+            _add_exception(run, code="PAYROLL_RULES_NOT_REVIEWED", description=f"Review payroll rules covering {period_input.employee.full_name} on {work_date} before using the daily input.", employee=period_input.employee, work_date=work_date)
+            continue
+        if period_input.worked_day_units > period_input.planned_day_units:
+            _add_exception(run, code="PERIOD_INPUT_INVALID", description=f"Worked day units exceed planned units for {period_input.employee.full_name} on {work_date}.", employee=period_input.employee, work_date=work_date)
+            continue
+        daily_grouped[period_input.employee_id].append({
+            "input": period_input,
+            "profile": profile,
+            "compensation": compensation,
+            "rule": rule,
+            "rule_profile": rule_profile,
+            "rule_assignment": rule_assignment,
+        })
+
+    if not grouped and not daily_grouped:
         _add_exception(run, code="NO_PAYROLL_TIME", description="No approved, eligible worked time was found for this period. Review the period or add reviewed adjustment lines for the included employees.")
 
     for employee_id, bucket in grouped.items():
@@ -669,13 +866,20 @@ def calculate_payroll_run(run, *, actor):
                     "reviewed_by": rule.reviewed_by,
                     "reviewed_at": rule.reviewed_at.isoformat() if rule.reviewed_at else None,
                 }
-                rate = effective_pay_rate(employee, item["work_date"])
-                if rate:
-                    rate_versions[str(rate.pk)] = {
-                        "effective_from": rate.effective_from.isoformat(),
-                        "effective_until": rate.effective_until.isoformat() if rate.effective_until else None,
-                        "hourly_rate": str(rate.hourly_rate),
-                        "change_reason": rate.change_reason,
+                compensation = effective_compensation(employee, item["work_date"])
+                if compensation:
+                    source = compensation["source"]
+                    source_key = f"{source.__class__.__name__}:{source.pk}"
+                    rate_versions[source_key] = {
+                        "source_type": source.__class__.__name__,
+                        "source_id": source.pk,
+                        "basis": compensation["basis"],
+                        "effective_from": source.effective_from.isoformat(),
+                        "effective_until": source.effective_until.isoformat() if source.effective_until else None,
+                        "amount": str(compensation["amount"]),
+                        "hourly_rate": str(compensation["amount"]) if compensation["basis"] == EmployeeCompensationVersion.Basis.HOURLY else None,
+                        "change_reason": getattr(source, "change_reason", ""),
+                        "source_reference": getattr(source, "source_reference", ""),
                     }
             time_inputs.append({
                 "timesheet_id": timesheet.pk,
@@ -782,6 +986,154 @@ def calculate_payroll_run(run, *, actor):
                     } for item in segments if item.get("rule_profile")],
                 },
             )
+        worked_days_by_date = {work_date: Decimal("1") for work_date in by_day}
+        payable_hours_by_date = {
+            work_date: sum((item["seconds"] for item in day_segments), Decimal("0")) / HOUR_SECONDS
+            for work_date, day_segments in by_day.items()
+        }
+        component_lines = _apply_component_lines(
+            statement=statement,
+            employee=employee,
+            run=run,
+            actor=actor,
+            worked_days=Decimal(len(worked_days_by_date)),
+            payable_hours=totals["hours"],
+            worked_days_by_date=worked_days_by_date,
+            payable_hours_by_date=payable_hours_by_date,
+        )
+        statement.snapshot["components"] = [{
+            "component_id": item["component"].pk,
+            "assignment_id": item["assignment"].pk,
+            "code": item["component"].code,
+            "label": item["component"].label,
+            "kind": item["component"].kind,
+            "basis": item["basis"],
+            "amount": str(item["amount"]),
+            "worked_days": item["worked_days"],
+            "payable_hours": item["payable_hours"],
+        } for item in component_lines]
+        statement.save(update_fields=["snapshot", "updated_at"])
+        _refresh_statement(statement)
+
+    for employee_id, entries in daily_grouped.items():
+        employee = Employee.objects.get(pk=employee_id, organization=organization)
+        statement = statements_by_employee.get(employee_id)
+        if statement is None:
+            statement = PayrollStatement.objects.create(run=run, employee=employee)
+            statements_by_employee[employee_id] = statement
+        totals = defaultdict(Decimal)
+        worked_days_by_date = {}
+        payable_hours_by_date = {}
+        undertime_by_date = {}
+        day_minutes_by_date = {}
+        input_rows = []
+        rule_versions = {}
+        compensation_versions = {}
+        for entry in entries:
+            period_input = entry["input"]
+            profile = entry["profile"]
+            compensation = entry["compensation"]
+            rule = entry["rule"]
+            work_date = period_input.work_date
+            daily_rate = compensation["amount"]
+            day_minutes = compensation.get("regular_day_minutes") or rule.regular_day_minutes
+            worked_units = period_input.worked_day_units
+            planned_units = period_input.planned_day_units
+            worked_days_by_date[work_date] = worked_units
+            payable_hours_by_date[work_date] = worked_units * Decimal(day_minutes) / Decimal("60")
+            undertime_by_date[work_date] = period_input.undertime_minutes
+            day_minutes_by_date[work_date] = day_minutes
+            raw_undertime = daily_rate / Decimal(day_minutes) * Decimal(period_input.undertime_minutes)
+            if raw_undertime > daily_rate * worked_units:
+                _add_exception(run, code="PERIOD_INPUT_UT_EXCEEDS_PAY", description=f"Undertime exceeds daily pay for {employee.full_name} on {work_date}; review the imported quantities.", employee=employee, work_date=work_date)
+            daily_amounts = calculate_daily_pay(
+                daily_rate=daily_rate,
+                worked_day_units=worked_units,
+                planned_day_units=planned_units,
+                undertime_minutes=period_input.undertime_minutes,
+                overtime_minutes=period_input.overtime_minutes,
+                night_minutes=period_input.night_minutes,
+                holiday_units=period_input.holiday_units,
+                regular_day_minutes=day_minutes,
+                overtime_multiplier=rule.overtime_multiplier,
+                night_differential_rate=rule.night_differential_rate,
+            )
+            totals["base"] += daily_amounts["basic"]
+            totals["overtime"] += daily_amounts["overtime_premium"]
+            if period_input.night_minutes:
+                if not profile.night_differential_eligible:
+                    _add_exception(run, code="NIGHT_ELIGIBILITY_UNCONFIRMED", description=f"Confirm {employee.full_name}'s eligibility for night shift differential before valuing night work on {work_date}.", employee=employee, work_date=work_date)
+                else:
+                    totals["night"] += daily_amounts["night_differential"]
+            totals["premium"] += daily_amounts["holiday_premium"]
+            totals["hours"] += payable_hours_by_date[work_date]
+            source = compensation["source"]
+            compensation_versions[f"{source.__class__.__name__}:{source.pk}"] = {
+                "source_type": source.__class__.__name__,
+                "source_id": source.pk,
+                "basis": compensation["basis"],
+                "amount": str(compensation["amount"]),
+                "effective_from": source.effective_from.isoformat(),
+                "effective_until": source.effective_until.isoformat() if source.effective_until else None,
+                "regular_day_minutes": day_minutes,
+                "source_reference": getattr(source, "source_reference", ""),
+            }
+            rule_versions[str(rule.pk)] = {
+                "profile_id": entry["rule_profile"].pk if entry["rule_profile"] else None,
+                "profile_code": entry["rule_profile"].code if entry["rule_profile"] else None,
+                "assignment_id": entry["rule_assignment"].pk if entry["rule_assignment"] else None,
+                "effective_from": rule.effective_from.isoformat(),
+                "effective_until": rule.effective_until.isoformat() if rule.effective_until else None,
+                "regular_day_minutes": rule.regular_day_minutes,
+                "overtime_multiplier": str(rule.overtime_multiplier),
+                "night_differential_rate": str(rule.night_differential_rate),
+            }
+            input_rows.append({
+                "id": period_input.pk,
+                "work_date": work_date.isoformat(),
+                "worked_day_units": str(worked_units),
+                "planned_day_units": str(planned_units),
+                "absence_units": str(max(Decimal("0"), planned_units - worked_units)),
+                "undertime_minutes": period_input.undertime_minutes,
+                "overtime_minutes": period_input.overtime_minutes,
+                "night_minutes": period_input.night_minutes,
+                "holiday_units": str(period_input.holiday_units),
+                "mode": period_input.mode,
+                "source_reference": period_input.source_reference,
+                "reviewed_by": period_input.reviewed_by,
+            })
+        for code, label, key in (("REGULAR_PAY", "Basic daily pay", "base"), ("OVERTIME_PREMIUM", "Overtime premium", "overtime"), ("NIGHT_DIFFERENTIAL", "Night shift differential", "night"), ("DAY_PREMIUM", "Holiday premium", "premium")):
+            amount = _money(totals[key])
+            if amount:
+                PayrollLine.objects.create(statement=statement, kind=PayrollLine.Kind.EARNING, code=code, label=label, amount=amount, source="CALCULATED", note=f"Calculated from reviewed daily period inputs for {run.period_start}–{run.period_end}.", created_by=actor)
+        component_lines = _apply_component_lines(
+            statement=statement,
+            employee=employee,
+            run=run,
+            actor=actor,
+            worked_days=sum(worked_days_by_date.values(), Decimal("0")),
+            payable_hours=sum(payable_hours_by_date.values(), Decimal("0")),
+            worked_days_by_date=worked_days_by_date,
+            payable_hours_by_date=payable_hours_by_date,
+            undertime_by_date=undertime_by_date,
+            day_minutes_by_date=day_minutes_by_date,
+        )
+        statement.snapshot = {
+            "country_code": "PH",
+            "currency": run.currency,
+            "pay_frequency": run.pay_frequency,
+            "timezone": entries[0]["profile"].payroll_timezone or organization.timezone,
+            "period_start": run.period_start.isoformat(),
+            "period_end": run.period_end.isoformat(),
+            "calculation_method": "reviewed_daily_period_inputs",
+            "employee": {"id": employee.pk, "code": employee.employee_code, "name": employee.full_name, "work_location": entries[0]["profile"].work_location, "timezone": entries[0]["profile"].payroll_timezone or organization.timezone},
+            "compensation_versions": compensation_versions,
+            "rule_versions": rule_versions,
+            "period_inputs": input_rows,
+            "components": [{"component_id": item["component"].pk, "assignment_id": item["assignment"].pk, "code": item["component"].code, "label": item["component"].label, "kind": item["component"].kind, "basis": item["basis"], "amount": str(item["amount"]), "worked_days": item["worked_days"], "payable_hours": item["payable_hours"]} for item in component_lines],
+            "rounding": "Line totals use Decimal ROUND_HALF_UP to two currency decimals.",
+        }
+        statement.save(update_fields=["snapshot", "updated_at"])
         _refresh_statement(statement)
 
     for statement in statements_by_employee.values():

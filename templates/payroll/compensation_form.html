@@ -1,0 +1,11 @@
+{% extends "layouts/employer.html" %}
+{% load form_tags %}
+{% block title %}Add compensation · Shiftly{% endblock %}
+{% block app_content %}
+<div class="payroll-page payroll-page--narrow">
+  <a class="payroll-back-link" href="{% url 'payroll:employee_profile' employee.pk %}">← {{ employee.full_name }}</a>
+  <header class="payroll-page-header"><div><p class="payroll-eyebrow">Effective-dated compensation · PHP</p><h1>Add compensation</h1><p class="muted">Choose hourly pay for attendance-based payroll or daily pay for reviewed date-level register inputs.</p></div></header>
+  {% include "payroll/_subnav.html" %}
+  <section class="payroll-card"><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:employee_profile' employee.pk %}">Cancel</a><button class="button-link" type="submit">Save compensation</button></div></form></section>
+</div>
+{% endblock %}

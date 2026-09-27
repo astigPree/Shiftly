@@ -23,10 +23,13 @@ from employees.models import Employee
 from .statutory import record_statutory_review, statutory_review_rows
 
 from .forms import (
+    EmployeeCompensationForm,
+    EmployeeComponentAssignmentForm,
     EmployeePayProfileForm,
     EmployeePayRateForm,
     FinalizePayrollForm,
     PayrollAdjustmentForm,
+    PayrollComponentDefinitionForm,
     PayrollExceptionResolutionForm,
     PayrollBulkRuleAssignmentForm,
     PayrollHolidayForm,
@@ -35,13 +38,17 @@ from .forms import (
     PayrollRuleSetForm,
     PayrollRunForm,
     PayrollSettingsForm,
+    PayrollPeriodInputForm,
     StatutoryReviewForm,
     VoidPayrollForm,
 )
 from .models import (
+    EmployeeCompensationVersion,
+    EmployeeComponentAssignment,
     EmployeePayProfile,
     EmployeePayRate,
     PayrollException,
+    PayrollComponentDefinition,
     PayrollHoliday,
     PayrollLine,
     PayrollRuleAssignment,
@@ -50,11 +57,13 @@ from .models import (
     PayrollRun,
     PayrollSettings,
     PayrollStatement,
+    PayrollPeriodInput,
 )
 from .services import (
     add_adjustment,
     calculate_payroll_run,
     create_payroll_run,
+    effective_compensation,
     finalize_payroll_run,
     remove_adjustment,
     resolve_payroll_exception,
@@ -180,7 +189,7 @@ def _payroll_readiness(organization):
     active_employees = Employee.objects.filter(
         organization=organization,
         status=Employee.Status.ACTIVE,
-    ).select_related("payroll_profile").prefetch_related("pay_rates")
+    ).select_related("payroll_profile").prefetch_related("pay_rates", "compensation_versions")
     active_employee_count = active_employees.count()
     expected_count = 0
     ready_count = 0
@@ -217,9 +226,14 @@ def _payroll_readiness(organization):
             if rate.effective_from <= employee_work_date
             and (rate.effective_until is None or rate.effective_until >= employee_work_date)
         ), None)
-        if not current_rate:
+        current_compensation = next((
+            item for item in employee.compensation_versions.all()
+            if item.effective_from <= employee_work_date
+            and (item.effective_until is None or item.effective_until >= employee_work_date)
+        ), None)
+        if not current_rate and not current_compensation:
             missing_rate_count += 1
-        if profile_complete and current_rate:
+        if profile_complete and (current_rate or current_compensation):
             ready_count += 1
 
     employee_complete = expected_count > 0 and ready_count == expected_count
@@ -233,7 +247,7 @@ def _payroll_readiness(organization):
         if missing_profile_count:
             problems.append(f"{missing_profile_count} missing profile(s)")
         if missing_rate_count:
-            problems.append(f"{missing_rate_count} missing hourly rate(s)")
+            problems.append(f"{missing_rate_count} missing compensation record(s)")
         if incomplete_profile_count:
             problems.append(f"{incomplete_profile_count} profile(s) need review")
         if problems:
@@ -265,7 +279,7 @@ def _payroll_readiness(organization):
         },
         {
             "title": "Employee pay profiles",
-            "description": "Add work locations, wage checks, and effective hourly rates.",
+            "description": "Add work locations, wage checks, and effective hourly or daily compensation.",
             "detail": employee_detail,
             "complete": employee_complete,
             "url_name": "payroll:employee_list",
@@ -469,6 +483,12 @@ def employee_payroll_list(request):
     ).filter(
         Q(effective_until__isnull=True) | Q(effective_until__gte=OuterRef("_payroll_work_date"))
     ).order_by("-effective_from", "-pk")
+    current_compensation_query = EmployeeCompensationVersion.objects.filter(
+        employee_id=OuterRef("pk"),
+        effective_from__lte=OuterRef("_payroll_work_date"),
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=OuterRef("_payroll_work_date"))
+    ).order_by("-effective_from", "-pk")
     default_rule_profile = PayrollRuleProfile.objects.filter(
         organization=organization, is_default=True, active=True,
     ).first()
@@ -479,6 +499,10 @@ def employee_payroll_list(request):
         _has_current_rate=Exists(current_rate_query),
         _current_rate=Subquery(current_rate_query.values("hourly_rate")[:1]),
         _current_rate_from=Subquery(current_rate_query.values("effective_from")[:1]),
+        _has_current_compensation=Exists(current_compensation_query),
+        _current_comp_amount=Subquery(current_compensation_query.values("amount")[:1]),
+        _current_comp_basis=Subquery(current_compensation_query.values("basis")[:1]),
+        _current_comp_from=Subquery(current_compensation_query.values("effective_from")[:1]),
     )
 
     required_profile_missing = (
@@ -489,14 +513,15 @@ def employee_payroll_list(request):
     )
     payroll_enabled = Q(payroll_profile__isnull=True) | Q(payroll_profile__active_for_payroll=True)
     active_employee = Q(status=Employee.Status.ACTIVE)
-    setup_query = active_employee & payroll_enabled & (required_profile_missing | Q(_has_current_rate=False))
+    has_compensation = Q(_has_current_rate=True) | Q(_has_current_compensation=True)
+    setup_query = active_employee & payroll_enabled & (required_profile_missing | ~has_compensation)
     review_query = (
         active_employee & payroll_enabled & ~required_profile_missing
-        & Q(_has_current_rate=True) & Q(payroll_profile__minimum_wage_confirmed=False)
+        & has_compensation & Q(payroll_profile__minimum_wage_confirmed=False)
     )
     ready_query = (
         active_employee & payroll_enabled & ~required_profile_missing
-        & Q(_has_current_rate=True) & Q(payroll_profile__minimum_wage_confirmed=True)
+        & has_compensation & Q(payroll_profile__minimum_wage_confirmed=True)
     )
     excluded_query = Q(status=Employee.Status.INACTIVE) | Q(payroll_profile__active_for_payroll=False)
 
@@ -520,7 +545,7 @@ def employee_payroll_list(request):
     status_filters = {
         "ready": ready_query,
         "needs_setup": setup_query,
-        "missing_rate": active_employee & payroll_enabled & Q(_has_current_rate=False),
+        "missing_rate": active_employee & payroll_enabled & ~has_compensation,
         "missing_location": active_employee & payroll_enabled & (Q(payroll_profile__isnull=True) | Q(payroll_profile__work_location="")),
         "needs_review": review_query,
         "excluded": excluded_query,
@@ -540,7 +565,7 @@ def employee_payroll_list(request):
         resolved_rule_profile = assignment.rule_profile if assignment else default_rule_profile
         if employee.status != Employee.Status.ACTIVE or (profile and not profile.active_for_payroll):
             payroll_status, status_detail = "excluded", "Excluded from payroll"
-        elif not profile or not profile.work_location.strip() or not profile.payroll_region.strip() or not profile.wage_order_reference.strip() or not employee._has_current_rate:
+        elif not profile or not profile.work_location.strip() or not profile.payroll_region.strip() or not profile.wage_order_reference.strip() or not (employee._has_current_rate or employee._has_current_compensation):
             payroll_status, status_detail = "needs-setup", "Add missing pay details"
         elif not profile.minimum_wage_confirmed:
             payroll_status, status_detail = "needs-review", "Confirm wage-order review"
@@ -551,6 +576,9 @@ def employee_payroll_list(request):
             "profile": profile,
             "rate": employee._current_rate,
             "rate_effective_from": employee._current_rate_from,
+            "compensation_amount": employee._current_comp_amount,
+            "compensation_basis": employee._current_comp_basis,
+            "compensation_effective_from": employee._current_comp_from,
             "payroll_status": payroll_status,
             "status_detail": status_detail,
             "rule_profile": resolved_rule_profile,
@@ -565,7 +593,7 @@ def employee_payroll_list(request):
         "status_choices": [
             ("", "All employees"),
             ("ready", "Payroll ready"),
-            ("missing_rate", "Missing rate"),
+            ("missing_rate", "Missing compensation"),
             ("missing_location", "Missing work location"),
             ("needs_review", "Needs wage review"),
             ("needs_setup", "Needs setup"),
@@ -716,11 +744,10 @@ def employee_profile(request, pk):
         except (ZoneInfoNotFoundError, TypeError, ValueError):
             employee_work_date = timezone.localdate()
 
-    current_rate = employee.pay_rates.filter(
-        effective_from__lte=employee_work_date,
-    ).filter(
-        Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
-    ).order_by("-effective_from", "-pk").first()
+    current_compensation = effective_compensation(employee, employee_work_date)
+    current_rate = current_compensation["source"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.HOURLY else None
+    current_daily_compensation = current_compensation["source"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.DAILY else None
+    compensations = employee.compensation_versions.order_by("-effective_from", "-pk")
 
     missing_setup = []
     if not profile.work_location.strip():
@@ -729,8 +756,8 @@ def employee_profile(request, pk):
         missing_setup.append("Payroll region")
     if not profile.wage_order_reference.strip():
         missing_setup.append("Wage order reference")
-    if not current_rate:
-        missing_setup.append("Hourly rate")
+    if not current_compensation:
+        missing_setup.append("Hourly or daily compensation")
 
     if employee.status != Employee.Status.ACTIVE:
         profile_status, profile_status_label = "excluded", "Employee inactive"
@@ -743,7 +770,7 @@ def employee_profile(request, pk):
         profile_status_detail = "Missing: " + ", ".join(missing_setup) + "."
     elif not profile.minimum_wage_confirmed:
         profile_status, profile_status_label = "needs-review", "Needs review"
-        profile_status_detail = "Confirm the hourly rate against the recorded wage order."
+        profile_status_detail = "Confirm the compensation amount against the recorded wage order."
     else:
         profile_status, profile_status_label = "ready", "Payroll ready"
         profile_status_detail = "Required work and wage details are configured."
@@ -801,7 +828,11 @@ def employee_profile(request, pk):
         "profile": profile,
         "form": form,
         "rates": employee.pay_rates.select_related("created_by"),
+        "compensations": compensations,
         "current_rate": current_rate,
+        "current_daily_compensation": current_daily_compensation,
+        "current_compensation": current_compensation,
+        "current_hourly_amount": current_compensation["amount"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.HOURLY else None,
         "employee_work_date": employee_work_date,
         "work_timezone": work_timezone,
         "profile_status": profile_status,
@@ -817,6 +848,9 @@ def employee_profile(request, pk):
             Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
         ).select_related("rule_profile").first(),
         "assignment_form": assignment_form,
+        "component_assignments": employee.payroll_component_assignments.select_related("component", "assigned_by"),
+        "period_inputs": employee.payroll_period_inputs.order_by("-work_date", "-pk")[:20],
+        "component_count": PayrollComponentDefinition.objects.filter(organization=organization, active=True).count(),
         "currency_symbol": "₱",
     })
 
@@ -854,6 +888,123 @@ def add_pay_rate(request, pk):
         except ValidationError as error:
             _message_error(request, error)
     return render(request, "payroll/pay_rate_form.html", {"organization": organization, "employee": employee, "form": form})
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
+def add_compensation(request, pk):
+    organization = _organization(request)
+    employee = get_object_or_404(Employee, pk=pk, organization=organization)
+    form = EmployeeCompensationForm(
+        request.POST or None,
+        employee=employee,
+        actor=request.user,
+        organization=organization,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                compensation = form.save(commit=False)
+                if PayrollRun.objects.filter(
+                    organization=organization,
+                    status=PayrollRun.Status.FINALIZED,
+                    statements__employee=employee,
+                    period_end__gte=compensation.effective_from,
+                ).exists():
+                    raise ValidationError("This effective date could change a finalized payroll period. Create an adjustment run instead.")
+                prior = EmployeeCompensationVersion.objects.select_for_update().filter(
+                    employee=employee,
+                    effective_from__lt=compensation.effective_from,
+                    effective_until__isnull=True,
+                ).order_by("-effective_from").first()
+                if prior:
+                    prior.effective_until = compensation.effective_from - timedelta(days=1)
+                    prior.save(update_fields=["effective_until"])
+                compensation.save()
+            record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_RATE_ADDED, target_type="employee_compensation_version", target_id=compensation.pk, summary=f"Added a {compensation.get_basis_display().lower()} compensation version for {employee.employee_code}.", metadata={"basis": compensation.basis, "effective_from": compensation.effective_from.isoformat(), "amount": str(compensation.amount)})
+            messages.success(request, "Compensation version added to the employee's pay history.")
+            return redirect("payroll:employee_profile", pk=employee.pk)
+        except ValidationError as error:
+            _message_error(request, error)
+    return render(request, "payroll/compensation_form.html", {"organization": organization, "employee": employee, "form": form})
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
+def add_component_assignment(request, pk):
+    organization = _organization(request)
+    employee = get_object_or_404(Employee, pk=pk, organization=organization)
+    form = EmployeeComponentAssignmentForm(
+        request.POST or None,
+        employee=employee,
+        actor=request.user,
+        organization=organization,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                assignment = form.save(commit=False)
+                if PayrollRun.objects.filter(
+                    organization=organization,
+                    status=PayrollRun.Status.FINALIZED,
+                    statements__employee=employee,
+                    period_end__gte=assignment.effective_from,
+                ).exists():
+                    raise ValidationError("This effective date could change a finalized payroll period. Create an adjustment run instead.")
+                prior = EmployeeComponentAssignment.objects.select_for_update().filter(
+                    employee=employee,
+                    component=assignment.component,
+                    effective_from__lt=assignment.effective_from,
+                    effective_until__isnull=True,
+                ).order_by("-effective_from").first()
+                if prior:
+                    prior.effective_until = assignment.effective_from - timedelta(days=1)
+                    prior.save(update_fields=["effective_until"])
+                assignment.save()
+            record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_RULES_UPDATED, target_type="employee_component_assignment", target_id=assignment.pk, summary=f"Assigned {assignment.component.label} to {employee.employee_code}.", metadata={"component": assignment.component.code, "effective_from": assignment.effective_from.isoformat(), "amount": str(assignment.amount)})
+            messages.success(request, "Pay component assignment saved.")
+            return redirect("payroll:employee_profile", pk=employee.pk)
+        except ValidationError as error:
+            _message_error(request, error)
+    return render(request, "payroll/component_assignment_form.html", {"organization": organization, "employee": employee, "form": form})
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
+def add_period_input(request, pk):
+    organization = _organization(request)
+    employee = get_object_or_404(Employee, pk=pk, organization=organization)
+    form = PayrollPeriodInputForm(
+        request.POST or None,
+        employee=employee,
+        actor=request.user,
+        organization=organization,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            period_input = form.save()
+            record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_RULES_UPDATED, target_type="payroll_period_input", target_id=period_input.pk, summary=f"Added a reviewed payroll period input for {employee.employee_code}.", metadata={"work_date": period_input.work_date.isoformat(), "period_start": period_input.period_start.isoformat(), "period_end": period_input.period_end.isoformat()})
+            messages.success(request, "Reviewed period input saved. It will be included in a matching daily payroll run.")
+            return redirect("payroll:employee_profile", pk=employee.pk)
+        except ValidationError as error:
+            _message_error(request, error)
+    return render(request, "payroll/period_input_form.html", {"organization": organization, "employee": employee, "form": form})
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
+def component_definitions(request):
+    organization = _organization(request)
+    form = PayrollComponentDefinitionForm(request.POST or None, organization=organization, actor=request.user)
+    if request.method == "POST" and form.is_valid():
+        try:
+            component = form.save()
+            messages.success(request, f"{component.label} is available for employee assignments.")
+            return redirect("payroll:component_definitions")
+        except ValidationError as error:
+            _message_error(request, error)
+    components = PayrollComponentDefinition.objects.filter(organization=organization).order_by("label")
+    return render(request, "payroll/component_definitions.html", {"organization": organization, "form": form, "components": components})
 
 
 @employer_required
@@ -1137,7 +1288,7 @@ def run_export(request, pk):
     response["Content-Disposition"] = f'attachment; filename="{run.reference.lower()}-payroll.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
-    writer.writerow(["Employee code", "Employee", "Rule profiles", "Period start", "Period end", "Pay date", "Pay frequency", "Currency", "Basic pay", "Overtime premium", "Night differential", "Other earnings", "Employee deductions", "Employer contributions", "Gross pay", "Net pay"])
+    writer.writerow(["Employee code", "Employee", "Rule profiles", "Period start", "Period end", "Pay date", "Pay frequency", "Currency", "Basic pay", "Overtime premium", "Night differential", "Holiday premium", "Allowances", "Other earnings", "Employee deductions", "Employer contributions", "Gross pay", "Net pay"])
     for statement in run.statements.select_related("employee").prefetch_related("lines"):
         grouped = {kind: Decimal("0.00") for kind in PayrollLine.Kind.values}
         for line in statement.lines.all():
@@ -1145,11 +1296,13 @@ def run_export(request, pk):
         basic = sum((line.amount for line in statement.lines.all() if line.code == "REGULAR_PAY"), Decimal("0.00"))
         overtime = sum((line.amount for line in statement.lines.all() if line.code == "OVERTIME_PREMIUM"), Decimal("0.00"))
         night = sum((line.amount for line in statement.lines.all() if line.code == "NIGHT_DIFFERENTIAL"), Decimal("0.00"))
+        holiday = sum((line.amount for line in statement.lines.all() if line.code == "DAY_PREMIUM"), Decimal("0.00"))
+        allowances = sum((line.amount for line in statement.lines.all() if line.kind == PayrollLine.Kind.EARNING and line.source == "CALCULATED_COMPONENT"), Decimal("0.00"))
         writer.writerow([
             _csv_cell(statement.employee.employee_code), _csv_cell(statement.employee.full_name), _csv_cell(_statement_rule_profile_summary(statement)),
             run.period_start.isoformat(), run.period_end.isoformat(), run.pay_date.isoformat(), run.get_pay_frequency_display(), run.currency,
-            f"{basic:.2f}", f"{overtime:.2f}", f"{night:.2f}",
-            f"{grouped[PayrollLine.Kind.EARNING] - basic - overtime - night:.2f}",
+            f"{basic:.2f}", f"{overtime:.2f}", f"{night:.2f}", f"{holiday:.2f}", f"{allowances:.2f}",
+            f"{grouped[PayrollLine.Kind.EARNING] - basic - overtime - night - holiday - allowances:.2f}",
             f"{statement.deduction_amount:.2f}", f"{statement.employer_contribution_amount:.2f}",
             f"{statement.gross_amount:.2f}", f"{statement.net_amount:.2f}",
         ])

@@ -8,8 +8,11 @@ from employees.models import Employee
 from .statutory import AGENCIES, REGISTRATIONS, TREATMENTS
 
 from .models import (
+    EmployeeCompensationVersion,
+    EmployeeComponentAssignment,
     EmployeePayProfile,
     EmployeePayRate,
+    PayrollComponentDefinition,
     PayrollHoliday,
     PayrollLine,
     PayrollException,
@@ -19,6 +22,7 @@ from .models import (
     PayrollRun,
     PayrollSettings,
     PayrollStatement,
+    PayrollPeriodInput,
 )
 
 
@@ -351,6 +355,161 @@ class EmployeePayRateForm(forms.ModelForm):
         if commit:
             rate.save()
         return rate
+
+
+class EmployeeCompensationForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeCompensationVersion
+        fields = ["basis", "amount", "effective_from", "regular_day_minutes", "source_reference", "reviewed_by"]
+        widgets = {
+            "effective_from": forms.DateInput(attrs={"type": "date"}),
+            "regular_day_minutes": forms.NumberInput(attrs={"min": "1", "step": "1"}),
+            "source_reference": forms.TextInput(attrs={"placeholder": "Contract, approved register, or wage-order reference"}),
+        }
+        labels = {
+            "basis": "Pay basis",
+            "amount": "Amount (PHP)",
+            "effective_from": "Effective from",
+            "regular_day_minutes": "Regular day length (minutes)",
+            "source_reference": "Source reference",
+            "reviewed_by": "Reviewed by",
+        }
+        help_texts = {
+            "basis": "Hourly preserves the existing time-based flow. Daily uses reviewed period inputs.",
+            "amount": "Hourly rate or daily rate, depending on the selected basis.",
+            "regular_day_minutes": "Used to convert daily pay into undertime, overtime, and night differential amounts.",
+            "source_reference": "Record the contract, approved register, or other reviewed source.",
+        }
+
+    def __init__(self, *args, employee, actor, organization, **kwargs):
+        self.employee = employee
+        self.actor = actor
+        self.organization = organization
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get("effective_from")
+        if start and PayrollStatement.objects.filter(
+            employee=self.employee,
+            run__status=PayrollRun.Status.FINALIZED,
+            run__period_end__gte=start,
+        ).exists():
+            self.add_error("effective_from", "This date could change finalized payroll. Use an off-cycle adjustment for a correction.")
+        return cleaned
+
+    def save(self, commit=True):
+        compensation = super().save(commit=False)
+        compensation.employee = self.employee
+        compensation.organization = self.organization
+        compensation.created_by = self.actor
+        if compensation.source_reference.strip() and compensation.reviewed_by.strip():
+            compensation.reviewed_at = timezone.now()
+        if commit:
+            compensation.save()
+        return compensation
+
+
+class PayrollComponentDefinitionForm(forms.ModelForm):
+    class Meta:
+        model = PayrollComponentDefinition
+        fields = ["code", "label", "kind", "basis", "deduct_undertime", "description", "active"]
+        widgets = {"description": forms.TextInput(attrs={"placeholder": "What this component represents"})}
+
+    def __init__(self, *args, organization, actor, **kwargs):
+        self.organization = organization
+        self.actor = actor
+        super().__init__(*args, **kwargs)
+
+    def save(self, commit=True):
+        component = super().save(commit=False)
+        component.organization = self.organization
+        if not component.pk:
+            component.created_by = self.actor
+        if commit:
+            component.save()
+        return component
+
+
+class EmployeeComponentAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeComponentAssignment
+        fields = ["component", "amount", "effective_from", "effective_until", "basis", "deduct_undertime", "source_reference"]
+        widgets = {
+            "effective_from": forms.DateInput(attrs={"type": "date"}),
+            "effective_until": forms.DateInput(attrs={"type": "date"}),
+        }
+        help_texts = {
+            "basis": "Leave blank to inherit the component definition's basis.",
+            "deduct_undertime": "For per-day components, reduce the amount by reviewed undertime minutes.",
+        }
+
+    def __init__(self, *args, employee, actor, organization, **kwargs):
+        self.employee = employee
+        self.actor = actor
+        self.organization = organization
+        super().__init__(*args, **kwargs)
+        self.fields["component"].queryset = PayrollComponentDefinition.objects.filter(
+            organization=organization, active=True,
+        ).order_by("label")
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get("effective_from")
+        if start and PayrollStatement.objects.filter(
+            employee=self.employee,
+            run__status=PayrollRun.Status.FINALIZED,
+            run__period_end__gte=start,
+        ).exists():
+            self.add_error("effective_from", "This date could change finalized payroll. Use an off-cycle adjustment for a correction.")
+        return cleaned
+
+    def save(self, commit=True):
+        assignment = super().save(commit=False)
+        assignment.employee = self.employee
+        assignment.organization = self.organization
+        assignment.assigned_by = self.actor
+        if commit:
+            assignment.save()
+        return assignment
+
+
+class PayrollPeriodInputForm(forms.ModelForm):
+    class Meta:
+        model = PayrollPeriodInput
+        fields = ["period_start", "period_end", "work_date", "worked_day_units", "planned_day_units", "undertime_minutes", "overtime_minutes", "night_minutes", "holiday_units", "mode", "source_reference", "reviewed_by"]
+        widgets = {
+            "period_start": forms.DateInput(attrs={"type": "date"}),
+            "period_end": forms.DateInput(attrs={"type": "date"}),
+            "work_date": forms.DateInput(attrs={"type": "date"}),
+            "worked_day_units": forms.NumberInput(attrs={"min": "0", "step": "0.001"}),
+            "planned_day_units": forms.NumberInput(attrs={"min": "0", "step": "0.001"}),
+            "holiday_units": forms.NumberInput(attrs={"min": "0", "step": "0.001"}),
+        }
+        labels = {
+            "worked_day_units": "Worked day units",
+            "planned_day_units": "Planned day units",
+            "undertime_minutes": "Undertime (minutes)",
+            "overtime_minutes": "Overtime (minutes)",
+            "night_minutes": "Night hours (minutes)",
+            "holiday_units": "Holiday premium units",
+        }
+
+    def __init__(self, *args, employee, actor, organization, **kwargs):
+        self.employee = employee
+        self.actor = actor
+        self.organization = organization
+        super().__init__(*args, **kwargs)
+
+    def save(self, commit=True):
+        period_input = super().save(commit=False)
+        period_input.employee = self.employee
+        period_input.organization = self.organization
+        period_input.created_by = self.actor
+        period_input.reviewed_at = timezone.now()
+        if commit:
+            period_input.save()
+        return period_input
 
 
 class PayrollHolidayForm(forms.ModelForm):

@@ -193,7 +193,7 @@ class PayrollRuleSet(models.Model):
 
 
 class EmployeePayProfile(models.Model):
-    """The first implementation supports hourly-paid employees in the Philippines."""
+    """Work-location and review controls shared by hourly and daily payroll."""
 
     employee = models.OneToOneField(
         "employees.Employee", on_delete=models.PROTECT, related_name="payroll_profile"
@@ -359,6 +359,263 @@ class EmployeePayRate(models.Model):
 
     def __str__(self):
         return f"{self.employee.full_name}: {self.hourly_rate} from {self.effective_from}"
+
+
+class EmployeeCompensationVersion(models.Model):
+    """Effective-dated compensation that can be hourly or daily.
+
+    Legacy :class:`EmployeePayRate` rows remain valid.  The payroll resolver
+    prefers the newest compensation version when one exists and otherwise
+    falls back to the legacy hourly rate, so existing payroll history is not
+    rewritten by introducing daily-paid employees.
+    """
+
+    class Basis(models.TextChoices):
+        HOURLY = "HOURLY", "Hourly"
+        DAILY = "DAILY", "Daily"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="employee_compensation_versions"
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT, related_name="compensation_versions"
+    )
+    basis = models.CharField(max_length=8, choices=Basis.choices, default=Basis.HOURLY)
+    amount = models.DecimalField(max_digits=12, decimal_places=4)
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    regular_day_minutes = models.PositiveSmallIntegerField(default=480)
+    currency = models.CharField(max_length=3, default="PHP")
+    source_reference = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.CharField(max_length=160, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="employee_compensation_versions_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "effective_from"], name="payroll_compensation_emp_from_unique"),
+            models.CheckConstraint(check=Q(amount__gt=0), name="payroll_compensation_amount_positive"),
+            models.CheckConstraint(check=Q(regular_day_minutes__gt=0), name="payroll_compensation_day_minutes_positive"),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_compensation_dates_valid",
+            ),
+        ]
+        indexes = [models.Index(fields=["employee", "effective_from"], name="payroll_comp_emp_from_idx")]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        if self.currency != "PHP":
+            raise ValidationError({"currency": "The first payroll release supports PHP only."})
+        if self.basis == self.Basis.DAILY and (not self.source_reference.strip() or not self.reviewed_by.strip()):
+            raise ValidationError({"source_reference": "Daily compensation requires a reviewed source reference and reviewer."})
+        overlaps = type(self).objects.filter(employee_id=self.employee_id).exclude(pk=self.pk).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+        )
+        if self.effective_until:
+            overlaps = overlaps.filter(effective_from__lte=self.effective_until)
+        if overlaps.exists():
+            raise ValidationError({"effective_from": "Compensation dates cannot overlap another compensation version."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def reviewed(self):
+        return bool(self.reviewed_by.strip() and self.reviewed_at and self.source_reference.strip())
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.amount} ({self.get_basis_display()}) from {self.effective_from}"
+
+
+class PayrollComponentDefinition(models.Model):
+    """Organization-scoped, stable definition for recurring pay components."""
+
+    class Kind(models.TextChoices):
+        EARNING = "EARNING", "Earning"
+        DEDUCTION = "DEDUCTION", "Deduction"
+        EMPLOYER_CONTRIBUTION = "EMPLOYER_CONTRIBUTION", "Employer contribution"
+
+    class Basis(models.TextChoices):
+        PER_PERIOD = "PER_PERIOD", "Per payroll period"
+        PER_WORKED_DAY = "PER_WORKED_DAY", "Per worked day"
+        PER_PAYABLE_HOUR = "PER_PAYABLE_HOUR", "Per payable hour"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_component_definitions"
+    )
+    code = models.SlugField(max_length=40)
+    label = models.CharField(max_length=120)
+    kind = models.CharField(max_length=24, choices=Kind.choices, default=Kind.EARNING)
+    basis = models.CharField(max_length=20, choices=Basis.choices, default=Basis.PER_PERIOD)
+    deduct_undertime = models.BooleanField(default=False)
+    active = models.BooleanField(default=True)
+    description = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_component_definitions_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["label", "pk"]
+        constraints = [models.UniqueConstraint(fields=["organization", "code"], name="payroll_component_org_code_unique")]
+
+    def clean(self):
+        super().clean()
+        self.code = (self.code or "").strip().lower()
+        self.label = (self.label or "").strip()
+        if not self.code:
+            raise ValidationError({"code": "Enter a component code."})
+        if not self.label:
+            raise ValidationError({"label": "Enter a component label."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.label} ({self.code})"
+
+
+class EmployeeComponentAssignment(models.Model):
+    """Effective-dated amount for one employee and shared component definition."""
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="employee_component_assignments"
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT, related_name="payroll_component_assignments"
+    )
+    component = models.ForeignKey(
+        PayrollComponentDefinition, on_delete=models.PROTECT, related_name="employee_assignments"
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=4)
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    basis = models.CharField(max_length=20, choices=PayrollComponentDefinition.Basis.choices, blank=True)
+    deduct_undertime = models.BooleanField(null=True, blank=True)
+    source_reference = models.CharField(max_length=255, blank=True)
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_component_assignments_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "component__label", "-pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "component", "effective_from"], name="payroll_component_emp_from_unique"),
+            models.CheckConstraint(check=Q(amount__gt=0), name="payroll_component_amount_positive"),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_component_dates_valid",
+            ),
+        ]
+        indexes = [models.Index(fields=["employee", "effective_from"], name="payroll_comp_assign_emp_idx")]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.component_id and self.organization_id and self.component.organization_id != self.organization_id:
+            raise ValidationError({"component": "The component must belong to the same organization."})
+        if self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        if self.basis and self.basis not in PayrollComponentDefinition.Basis.values:
+            raise ValidationError({"basis": "Choose a valid component basis."})
+        overlaps = type(self).objects.filter(employee_id=self.employee_id, component_id=self.component_id).exclude(pk=self.pk).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+        )
+        if self.effective_until:
+            overlaps = overlaps.filter(effective_from__lte=self.effective_until)
+        if overlaps.exists():
+            raise ValidationError({"effective_from": "Component dates cannot overlap another assignment for this employee."})
+
+    def save(self, *args, **kwargs):
+        if not self.basis and self.component_id:
+            self.basis = self.component.basis
+        if self.deduct_undertime is None and self.component_id:
+            self.deduct_undertime = self.component.deduct_undertime
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.component.label} from {self.effective_from}"
+
+
+class PayrollPeriodInput(models.Model):
+    """Reviewed date-level quantities for daily pay or imported registers."""
+
+    class Mode(models.TextChoices):
+        DAILY_REGISTER = "DAILY_REGISTER", "Daily register"
+        ADJUSTMENT = "ADJUSTMENT", "Reviewed adjustment"
+        PAID_ABSENCE = "PAID_ABSENCE", "Paid absence"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_period_inputs"
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT, related_name="payroll_period_inputs"
+    )
+    period_start = models.DateField()
+    period_end = models.DateField()
+    work_date = models.DateField()
+    worked_day_units = models.DecimalField(max_digits=7, decimal_places=3, default=Decimal("0"))
+    planned_day_units = models.DecimalField(max_digits=7, decimal_places=3, default=Decimal("1"))
+    undertime_minutes = models.PositiveIntegerField(default=0)
+    overtime_minutes = models.PositiveIntegerField(default=0)
+    night_minutes = models.PositiveIntegerField(default=0)
+    holiday_units = models.DecimalField(max_digits=7, decimal_places=3, default=Decimal("0"))
+    mode = models.CharField(max_length=20, choices=Mode.choices, default=Mode.DAILY_REGISTER)
+    source_reference = models.CharField(max_length=255)
+    reviewed_by = models.CharField(max_length=160)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_period_inputs_created"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["work_date", "employee_id", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["employee", "period_start", "period_end", "work_date"], name="payroll_input_emp_period_date_unique"),
+            models.CheckConstraint(check=Q(period_end__gte=models.F("period_start")), name="payroll_input_period_valid"),
+            models.CheckConstraint(check=Q(work_date__gte=models.F("period_start"), work_date__lte=models.F("period_end")), name="payroll_input_date_in_period"),
+            models.CheckConstraint(check=Q(worked_day_units__gte=0) & Q(planned_day_units__gte=0) & Q(holiday_units__gte=0), name="payroll_input_units_nonneg"),
+        ]
+        indexes = [models.Index(fields=["organization", "period_start", "period_end"], name="payroll_input_org_period_idx")]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.period_end < self.period_start:
+            raise ValidationError({"period_end": "Period end must be on or after period start."})
+        if not (self.period_start <= self.work_date <= self.period_end):
+            raise ValidationError({"work_date": "The work date must be inside the input period."})
+        if not self.source_reference.strip():
+            raise ValidationError({"source_reference": "Add the register or approved source reference."})
+        if not self.reviewed_by.strip():
+            raise ValidationError({"reviewed_by": "Record who reviewed these quantities."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def reviewed(self):
+        return bool(self.reviewed_at and self.reviewed_by.strip() and self.source_reference.strip())
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.work_date} period input"
 
 
 class PayrollHoliday(models.Model):

@@ -210,11 +210,11 @@ The attendance MVP is ready when an employer can create an organization, add an 
 
 ## Phase 11 - Payroll feature (approved scope)
 
-**Implementation status: payroll foundation implemented; not cleared for live payroll.** The current release supports one Philippine organization currency (PHP), hourly pay, employer-entered effective-dated rules, approved timesheets, reviewable runs, manual line items, final statements, and CSV export. It does not calculate Philippine tax withholding, SSS, PhilHealth, Pag-IBIG, or transfer money. Reviewer fields capture an application attestation, not legal/accounting sign-off.
+**Implementation status: payroll foundation and the first workbook-compatible daily-pay slice are implemented; not cleared for live payroll.** The current release supports one Philippine organization currency (PHP), legacy hourly pay, dated hourly or daily compensation, reviewed date-level daily inputs, reusable dated earning/deduction components, employer-entered effective-dated rules, approved timesheets, reviewable runs, final statements, and CSV export. It does not automatically calculate Philippine tax withholding, SSS, PhilHealth, Pag-IBIG, loan balances, cash denominations, import workbook data, or transfer money. Reviewer fields capture an application attestation, not legal/accounting sign-off.
 
 ### 11.1 Scope and business rules
 
-- [x] Set the initial jurisdiction to the Philippines and currency to PHP; keep the first implementation to hourly employees and one payroll currency per organization.
+- [x] Set the initial jurisdiction to the Philippines and currency to PHP; keep the first implementation to one payroll currency per organization while supporting both legacy hourly and reviewed daily compensation.
 - [x] Add weekly, semi-monthly, and monthly calendar pay periods; retain the selected frequency on each run.
 - [x] Use inclusive calendar dates for payroll periods. Split worked intervals in each employee's configured work-location timezone and select effective rates/rules by that local work date. New profiles start with the employee's preferred timezone when available; otherwise they use the organization timezone.
 - [x] Make daily regular minutes, overtime/rest-day multipliers, night window, and night differential rate configurable and effective-dated. Require source references and reviewer details before a rule version can be used for finalization.
@@ -241,6 +241,9 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [ ] Add effective-dated work-location/timezone history so employee moves can be represented without permanently locking their payroll timezone.
 - [x] Provide a linked off-cycle adjustment run for post-finalization corrections.
 - [x] Add database constraints and indexes for payroll ownership, periods, statements, effective rates, rules, and idempotency.
+- [x] Add effective-dated hourly/daily compensation versions with a single resolver that preserves legacy hourly-rate behavior and blocks overlapping sources.
+- [x] Add reviewed date-level period inputs for daily-register quantities, with provenance, reviewer, date/period constraints, and duplicate attendance/input protection.
+- [x] Add dated reusable earning, deduction, and employer-contribution components with employee assignments and repeatable recalculation.
 - [ ] Add reviewed reference calculations for ordinary hours, overtime, rest day, holiday, night differential, breaks, rate changes, and corrections.
 - [ ] Add overnight and boundary scenarios including a 10:00 PM-3:00 AM shift in the employee's work timezone, pay-period crossover, and applicable DST transitions.
 
@@ -287,6 +290,7 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [x] Provide a printable HTML payslip that can be printed or saved as PDF from the browser.
 - [x] Provide a finalized-run CSV export with payroll frequency, itemized totals, formula-injection protection, and organization-scoped access.
 - [x] Reconcile each statement's gross, deductions, employer contributions, and net totals against its itemized lines before review/finalization.
+- [x] Include reviewed daily-input details and dated recurring component lines in statement snapshots and payslip detail; export component-aware totals for finalized runs.
 - [ ] Implement jurisdiction-required payslip layout, periodic/year-end summaries, and filing exports after legal/accounting requirements are validated.
 - [ ] Define and implement approved accounting exports. No bank file, banking identifiers, or payment-provider workflow is included.
 
@@ -312,7 +316,7 @@ Scenario evidence and current boundaries: `docs/PAYROLL_SCENARIOS.md`.
 - [ ] Run automated payroll tests and independently reconcile reference scenarios with a qualified reviewer.
 - [ ] Run at least two shadow payroll cycles against the current payroll process, address differences, and obtain written legal/accounting sign-off before paying through these outputs.
 - [ ] Pilot with a limited organization, rollback/correction plan, and employer/employee training.
-- [x] Document the current limits: hourly PH/PHP foundation only, reviewer-configured rules, manual statutory items, printable HTML slips, CSV export, and no fund movement.
+- [x] Document the current limits: hourly and reviewed daily PH/PHP calculation, reviewer-configured rules, manual statutory items, printable HTML slips, CSV export, and no fund movement. Workbook statutory automation, obligations, cash preparation, and import remain open tasks.
 
 Payroll is not ready to be treated as a legally compliant payroll product until the open research, validation, automated coverage, shadow reconciliation, and sign-off tasks above are complete.
 

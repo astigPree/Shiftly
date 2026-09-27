@@ -6,10 +6,12 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase
 
 from payroll.models import (PayrollRun, PayrollLine, PayrollRuleProfile, PayrollRuleAssignment,
-    PayrollRuleSet, EmployeePayRate, PayrollHoliday, PayrollSettings)
+    PayrollRuleSet, EmployeePayRate, PayrollHoliday, PayrollSettings,
+    EmployeeCompensationVersion, PayrollPeriodInput, PayrollComponentDefinition,
+    EmployeeComponentAssignment)
 from payroll.services import (create_payroll_run, calculate_payroll_run, add_adjustment,
     remove_adjustment, submit_for_review, finalize_payroll_run, void_payroll_run,
-    resolve_payroll_exception, resolve_effective_rule, effective_pay_rate)
+    resolve_payroll_exception, resolve_effective_rule, effective_pay_rate, effective_compensation)
 from .factories import workspace, employee, completed, payroll_setup, instant, DAY, review_statutory
 
 
@@ -210,3 +212,101 @@ class PayrollTests(TestCase):
         self.assertEqual(original.net_amount, Decimal("800.00"))
         statement.refresh_from_db()
         self.assertEqual(statement.net_amount, Decimal("50.00"))
+
+    def test_daily_compensation_uses_reviewed_period_inputs_without_attendance(self):
+        EmployeeCompensationVersion.objects.create(
+            organization=self.org, employee=self.emp,
+            basis=EmployeeCompensationVersion.Basis.DAILY,
+            amount=Decimal("800"), effective_from=DAY,
+            source_reference="Synthetic daily contract", reviewed_by="Reviewer",
+            reviewed_at=instant(), created_by=self.owner,
+        )
+        PayrollPeriodInput.objects.create(
+            organization=self.org, employee=self.emp,
+            period_start=date(2026, 9, 1), period_end=date(2026, 9, 30), work_date=DAY,
+            worked_day_units=Decimal("1"), planned_day_units=Decimal("1"),
+            undertime_minutes=60, overtime_minutes=120, night_minutes=60,
+            source_reference="Synthetic daily register", reviewed_by="Reviewer",
+            reviewed_at=instant(), created_by=self.owner,
+        )
+        statement = self.run_payroll().statements.get()
+        # 800 - 100 undertime + 50.00 overtime premium + 10.00 night differential.
+        self.assertEqual(statement.gross_amount, Decimal("760.00"))
+        self.assertEqual(statement.snapshot["calculation_method"], "reviewed_daily_period_inputs")
+        self.assertEqual(statement.snapshot["period_inputs"][0]["absence_units"], "0")
+        self.assertEqual(statement.time_entries.count(), 0)
+
+    def test_components_are_dated_and_recalculation_does_not_duplicate_lines(self):
+        EmployeeCompensationVersion.objects.create(
+            organization=self.org, employee=self.emp,
+            basis=EmployeeCompensationVersion.Basis.DAILY,
+            amount=Decimal("800"), effective_from=DAY,
+            source_reference="Synthetic daily contract", reviewed_by="Reviewer",
+            reviewed_at=instant(), created_by=self.owner,
+        )
+        PayrollPeriodInput.objects.create(
+            organization=self.org, employee=self.emp,
+            period_start=date(2026, 9, 1), period_end=date(2026, 9, 30), work_date=DAY,
+            worked_day_units=Decimal("1"), planned_day_units=Decimal("1"),
+            source_reference="Synthetic daily register", reviewed_by="Reviewer",
+            reviewed_at=instant(), created_by=self.owner,
+        )
+        allowance = PayrollComponentDefinition.objects.create(
+            organization=self.org, code="cola", label="Daily COLA",
+            kind="EARNING", basis="PER_WORKED_DAY", created_by=self.owner,
+        )
+        deduction = PayrollComponentDefinition.objects.create(
+            organization=self.org, code="advance", label="Advance repayment",
+            kind="DEDUCTION", basis="PER_PERIOD", created_by=self.owner,
+        )
+        EmployeeComponentAssignment.objects.create(
+            organization=self.org, employee=self.emp, component=allowance,
+            amount=Decimal("50"), effective_from=DAY, source_reference="Synthetic allowance", assigned_by=self.owner,
+        )
+        EmployeeComponentAssignment.objects.create(
+            organization=self.org, employee=self.emp, component=deduction,
+            amount=Decimal("25"), effective_from=DAY, source_reference="Synthetic deduction", assigned_by=self.owner,
+        )
+        run = self.run_payroll()
+        statement = run.statements.get()
+        self.assertEqual(statement.gross_amount, Decimal("850.00"))
+        self.assertEqual(statement.net_amount, Decimal("825.00"))
+        self.assertEqual(statement.lines.filter(source="CALCULATED_COMPONENT").count(), 2)
+        calculate_payroll_run(run=run, actor=self.owner)
+        self.assertEqual(run.statements.get().lines.filter(source="CALCULATED_COMPONENT").count(), 2)
+
+    def test_mid_period_component_assignments_keep_separate_provenance(self):
+        EmployeeCompensationVersion.objects.create(
+            organization=self.org, employee=self.emp,
+            basis=EmployeeCompensationVersion.Basis.DAILY,
+            amount=Decimal("800"), effective_from=DAY,
+            source_reference="Synthetic daily contract", reviewed_by="Reviewer",
+            reviewed_at=instant(), created_by=self.owner,
+        )
+        for work_date in (DAY, DAY + timedelta(days=1)):
+            PayrollPeriodInput.objects.create(
+                organization=self.org, employee=self.emp,
+                period_start=date(2026, 9, 1), period_end=date(2026, 9, 30), work_date=work_date,
+                worked_day_units=Decimal("1"), planned_day_units=Decimal("1"),
+                source_reference="Synthetic daily register", reviewed_by="Reviewer",
+                reviewed_at=instant(), created_by=self.owner,
+            )
+        allowance = PayrollComponentDefinition.objects.create(
+            organization=self.org, code="cola", label="Daily COLA",
+            kind="EARNING", basis="PER_WORKED_DAY", created_by=self.owner,
+        )
+        first = EmployeeComponentAssignment.objects.create(
+            organization=self.org, employee=self.emp, component=allowance,
+            amount=Decimal("50"), effective_from=DAY, effective_until=DAY,
+            source_reference="First allowance", assigned_by=self.owner,
+        )
+        second = EmployeeComponentAssignment.objects.create(
+            organization=self.org, employee=self.emp, component=allowance,
+            amount=Decimal("75"), effective_from=DAY + timedelta(days=1),
+            source_reference="Second allowance", assigned_by=self.owner,
+        )
+        statement = self.run_payroll().statements.get()
+        lines = list(statement.lines.filter(source="CALCULATED_COMPONENT").order_by("pk"))
+        self.assertEqual([line.amount for line in lines], [Decimal("50.00"), Decimal("75.00")])
+        self.assertIn(f"assignment {first.pk}", lines[0].note)
+        self.assertIn(f"assignment {second.pk}", lines[1].note)

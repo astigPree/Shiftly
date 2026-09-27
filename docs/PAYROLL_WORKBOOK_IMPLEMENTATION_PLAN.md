@@ -3,7 +3,7 @@
 **Prepared:** 2026-09-27  
 **Reference file:** `202604.xls`  
 **Code reviewed:** Shiftly commit `c2b72dd`  
-**Status:** Analysis and proposed tasks only. These tasks have not been implemented.  
+**Status:** Analysis plus the first daily-pay/component implementation slice. Statutory automation, obligations, cash preparation, and workbook import remain open.
 **Intended reader:** A developer or GPT 5.5 Luna implementing one task at a time.
 
 ## 1. Answer: does Shiftly already support this workbook?
@@ -24,7 +24,15 @@ The workbook also contains calculation and reference problems. Treat it as evide
 4. Sections 7–9: implement the proposed architecture and tasks in order.
 5. Sections 10–12: verify arithmetic, rollout, and references.
 
-**Scope of this delivery:** this Markdown plan. The source workbook and application behavior are not changed. Do not import the workbook's people or balances into the live database as part of reading this document.
+**Scope of the original analysis:** the source workbook and application behavior were not changed while this document was prepared. The application now has a separate implementation slice for dated hourly/daily compensation, reviewed daily inputs, and reusable pay components; it does not import the workbook's people or balances into the live database.
+
+## Current implementation status (2026-09-27)
+
+The application now supports effective-dated hourly or daily compensation, reviewed date-level payroll inputs for daily-paid employees, reusable dated earning/deduction components, component-safe recalculation, component-aware CSV columns, and payslip display of reviewed daily inputs. Existing legacy hourly rates and finalized statements remain compatible.
+
+Synthetic acceptance inputs for this slice are recorded in [`PAYROLL_REFERENCE_CASES.md`](PAYROLL_REFERENCE_CASES.md). They contain no workbook employee identities or production balances.
+
+Automatic SSS/PhilHealth/Pag-IBIG/withholding calculations, contribution cutoff allocation, loan and cash-advance balances, cash denomination preparation, workbook comparison/import, and the policy decisions D1–D11 remain deliberately manual or unimplemented. Do not describe those areas as automatic payroll features until their tasks below are completed and independently reviewed.
 
 ## 2. Workbook inventory and evidence
 
@@ -525,6 +533,7 @@ Historical workbook data can be retained as a reviewed import/reconciliation rec
 - [`../payroll/views.py`](../payroll/views.py)
 - [`../SHIFTLY_PROJECT_TASKS.md`](../SHIFTLY_PROJECT_TASKS.md), Phase 11
 - [`PAYROLL_SCENARIOS.md`](PAYROLL_SCENARIOS.md), earlier synthetic verification; not validation of this workbook
+- [`PAYROLL_REFERENCE_CASES.md`](PAYROLL_REFERENCE_CASES.md), synthetic cases for the implemented daily/component slice
 
 ### Official references for policy validation
 
@@ -541,4 +550,4 @@ Consulted on 2026-09-27. These are starting references for reviewing the applica
 - It does not establish the legal correctness of the workbook's wages, allowances, contribution deductions, charges or loan authorizations.
 - It does not prove that a saved workbook amount was paid or remitted.
 - It does not certify a complete Philippine payroll product. Scope remains explicit: existing hourly foundation, proposed daily/component extensions, separately reviewed statutory automation, and no money movement.
-- No application code was changed, and the application test suite was not run for this documentation task.
+- The application now contains the first daily-pay/component slice described in the status section. Statutory, loan, cash, and import tasks remain open and are not enabled by this slice.

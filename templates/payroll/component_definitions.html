@@ -1,0 +1,14 @@
+{% extends "layouts/employer.html" %}
+{% load form_tags %}
+{% block title %}Payroll components · Shiftly{% endblock %}
+{% block app_content %}
+<div class="payroll-page">
+  <a class="payroll-back-link" href="{% url 'payroll:run_list' %}">← Payroll</a>
+  <header class="payroll-page-header"><div><p class="payroll-eyebrow">Reusable payroll inputs</p><h1>Payroll components</h1><p class="muted">Define shared allowances, deductions, and employer contributions before assigning employee-specific amounts.</p></div></header>
+  {% include "payroll/_subnav.html" %}
+  <div class="payroll-profile-form-layout">
+    <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Create component</h2><p>Codes remain stable in payroll exports and snapshots.</p></div></header><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<button class="button-link" type="submit">Save component</button></form></section>
+    <section class="payroll-card"><header class="payroll-card-heading"><div><h2>Available components</h2><p>Assign these from an employee pay profile.</p></div></header>{% if components %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Component</th><th>Kind</th><th>Basis</th><th>Status</th></tr></thead><tbody>{% for component in components %}<tr><td><strong>{{ component.label }}</strong><small>{{ component.code }}</small></td><td>{{ component.get_kind_display }}</td><td>{{ component.get_basis_display }}</td><td>{% if component.active %}Active{% else %}Inactive{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><h3>No components yet</h3><p>Create an allowance or deduction definition to assign it to employees.</p></div>{% endif %}</section>
+  </div>
+</div>
+{% endblock %}
