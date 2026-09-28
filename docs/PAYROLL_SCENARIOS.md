@@ -1,6 +1,6 @@
 # Philippine payroll scenario verification
 
-Date: September 26, 2026.
+Original verification: September 26, 2026. Scenario update: September 28, 2026.
 
 ## Scope and result
 
@@ -15,6 +15,40 @@ The browser scenario fills in the statutory review form, submits a missing-SSS
 registration case, corrects a validation error, completes all four reviews,
 submits the run, returns it to draft, and confirms removal of an adjustment.
 Expanded form layouts were checked at 1440, 390, and 320 pixels.
+
+After the payroll foundation update, the repository-wide suite passes **101
+tests with 8 skips**. That run verifies compatibility of the existing
+workflows and migrations; it does not mark the new scope, statutory-record,
+payment-method, obligation-ledger, or monthly-basis scenarios below as
+complete.
+
+This update records the payroll foundation added after that run. The new data
+models and selected-run workflow are documented below, but the new scenarios
+are intentionally still pending execution. They must be rerun with synthetic
+employees and an isolated database before their checklist items are marked
+verified.
+
+## Changes covered by the next scenario run
+
+The next run must cover these additions:
+
+- separate Regular and Probation/Part-time payroll periods in one organization;
+- explicit all-active versus selected employee scope on a payroll run;
+- hourly, daily, monthly, and mixed pay-basis metadata, including the monthly
+  calculation blocker until a conversion policy is approved;
+- reviewer-entered minimum daily base without inferring statutory coverage;
+- effective-dated SSS, PhilHealth, Pag-IBIG, and BIR coverage records, including
+  exemption reason/source and sensitive identifier access controls;
+- effective-dated Cash and Bank Transfer payment methods without storing bank
+  credentials;
+- append-only cash-advance, SSS-loan, Pag-IBIG-loan, company-loan, and employee
+  charge obligations and their proposed/posted ledger transactions;
+- selected-run filtering, idempotency, and finalized-run scope immutability;
+- morning/afternoon/overtime paper timecard mapping as reviewed work segments.
+
+The examples in the questionnaire (including employee names, balances, and
+payment methods) are not fixtures. Scenario setup must create synthetic
+records explicitly and must never seed those values into a user's database.
 
 ## Defects found and fixed
 
@@ -80,6 +114,63 @@ Expanded form layouts were checked at 1440, 390, and 320 pixels.
 | Two employees, different rates/rule profiles and missing different registrations | Each employee keeps the correct rules, contributions, review evidence, and net amount |
 | Payslip and CSV after finalization | Finalized net pay and employer-share totals match the itemized statement |
 | Missing form values | Inputs remain visible, the review section stays open, and field/toast feedback is shown |
+| Separate Regular and Probation/Part-time periods | **Pending next run:** verify that two runs with different inclusive periods coexist when their employee scopes are selected separately |
+| All-active employee scope | **Pending next run:** verify that `ALL_ACTIVE` evaluates active payroll employees using the existing behavior |
+| Selected employee scope | **Pending next run:** verify that `SELECTED` evaluates only active organization members and rejects empty or cross-organization selections |
+| Scope idempotency | **Pending next run:** verify that a submission key can only be reused for the exact same dates, scope mode, and employee selection |
+| Finalized scope immutability | **Pending next run:** verify that finalized or voided runs reject membership or scope changes |
+| Employment classification | **Pending next run:** verify that Regular, Probation, Part-time, and Other remain metadata and do not infer coverage |
+| Pay-basis metadata | **Pending next run:** verify Hourly, Daily, Monthly, and Mixed values and rejection of missing/negative minimum daily base |
+| Monthly compensation attendance | **Pending next run:** verify the `MONTHLY_CALCULATION_NOT_CONFIGURED` exception until a conversion formula is approved |
+| Monthly compensation register input | **Pending next run:** verify that monthly employees cannot use the daily register path and receive `MONTHLY_INPUT_NOT_SUPPORTED` |
+| Statutory coverage dates | **Pending next run:** verify overlap rejection and exemption reason/source requirements |
+| Statutory rule versions | **Pending next run:** verify overlap rejection and append-only behavior after approval |
+| Payment method history | **Pending next run:** verify effective-dated Cash and Bank Transfer methods and absence of raw bank credentials |
+| Obligation opening terms | **Pending next run:** verify source/reviewer requirements and rejection of silent term changes |
+| Obligation ledger append-only | **Pending next run:** verify that corrections and reversals create new rows instead of editing transactions |
+| Draft obligation proposal | **Pending next run:** verify that a proposed repayment does not change the balance before finalization |
+| Paper timecard source | **Pending next run:** verify reviewed morning, afternoon, overtime, day-off/closed, and signature inputs remain separate from raw attendance |
+
+## Next-run execution checklist
+
+Use a fresh test database and synthetic employees. Run the checks in this
+order so failures identify the responsible layer:
+
+1. Create one organization with a reviewed payroll rule profile and at least
+   four employees: hourly, daily, monthly, and mixed-basis.
+2. Create separate Regular and Probation/Part-time employee groups. Create a
+   monthly Regular run and a different period for the Probation/Part-time
+   group using **Selected employees**.
+3. Re-submit each run with the same idempotency key, then change its dates,
+   scope mode, and selected IDs one at a time. Only the exact original request
+   may be reused.
+4. Add dated statutory coverage records for all four agencies. Verify that a
+   Regular/Probation label does not change coverage, that an exemption requires
+   evidence, and that overlapping effective dates fail validation.
+5. Add one reviewed statutory rule version, attempt an overlap, approve it,
+   and verify that an approved version is append-only.
+6. Add Cash and Bank Transfer payment methods with adjacent effective dates.
+   Attempt an overlap and confirm that no bank account credential field is
+   requested or persisted.
+7. Add a synthetic cash advance and loan obligation. Preview a proposed
+   installment, recalculate the draft, and confirm the ledger balance remains
+   unchanged. Exercise correction and reversal as new rows.
+8. Add monthly compensation and approved attendance. Confirm the explicit
+   monthly conversion blocker. Add daily compensation and a reviewed daily
+   input separately, then confirm the daily path still calculates once.
+9. Record a paper timecard as reviewed morning, afternoon, and overtime
+   segments with a day-off marker and signature evidence. Confirm the source
+   record is retained independently from automatic punches.
+10. Finalize a synthetic selected run, attempt to change its scope, and verify
+    that the operation is rejected. Record any unexplained differences before
+    updating the acceptance checkboxes.
+
+### Evidence to retain
+
+For each scenario, retain the test name or reproduction steps, relevant object
+IDs, validation/error text, and a screenshot for any browser behavior. Keep
+synthetic values only. Do not attach real employee identifiers, bank details,
+or government registration numbers to the scenario artifacts.
 
 ### Independent arithmetic examples
 
