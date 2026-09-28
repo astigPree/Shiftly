@@ -677,6 +677,9 @@ class EmployeeObligationTransaction(models.Model):
         self.full_clean()
         return super().save(*args, **kwargs)
 
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Obligation transactions are append-only. Add a reversal or correction.")
+
 
 class PayrollRuleAssignment(models.Model):
     """An employee-specific, effective-dated override of the organization default profile."""
@@ -1216,13 +1219,19 @@ class PayrollRunEmployee(models.Model):
             raise ValidationError({"employee": "The employee must belong to the membership organization."})
 
     def save(self, *args, **kwargs):
-        if self.run_id and self.run.status != PayrollRun.Status.DRAFT:
+        run_status = (
+            PayrollRun.objects.only("status").get(pk=self.run_id).status
+            if self.run_id
+            else PayrollRun.Status.DRAFT
+        )
+        if run_status != PayrollRun.Status.DRAFT:
             raise ValidationError("Employee scope can only change while the payroll run is a draft.")
         self.full_clean()
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.run.status != PayrollRun.Status.DRAFT:
+        run_status = PayrollRun.objects.only("status").get(pk=self.run_id).status
+        if run_status != PayrollRun.Status.DRAFT:
             raise ValidationError("Employee scope can only change while the payroll run is a draft.")
         return super().delete(*args, **kwargs)
 

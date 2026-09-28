@@ -16,17 +16,17 @@ registration case, corrects a validation error, completes all four reviews,
 submits the run, returns it to draft, and confirms removal of an adjustment.
 Expanded form layouts were checked at 1440, 390, and 320 pixels.
 
-After the payroll foundation update, the repository-wide suite passes **101
+After the payroll foundation update, the repository-wide suite passes **102
 tests with 8 skips**. That run verifies compatibility of the existing
-workflows and migrations; it does not mark the new scope, statutory-record,
-payment-method, obligation-ledger, or monthly-basis scenarios below as
-complete.
+workflows and migrations.
 
-This update records the payroll foundation added after that run. The new data
-models and selected-run workflow are documented below, but the new scenarios
-are intentionally still pending execution. They must be rerun with synthetic
-employees and an isolated database before their checklist items are marked
-verified.
+The isolated execution recorded in
+[`PAYROLL_SCENARIO_RUN_2026-09-28.md`](PAYROLL_SCENARIO_RUN_2026-09-28.md)
+now verifies the selected-run, effective-dated records, obligation ledger,
+idempotency, and monthly blocker additions. The remaining unchecked rows below
+are still intentionally pending because they need browser evidence, all-active
+scope coverage, approved-run checks, or the future statutory/monthly
+calculation engines.
 
 ## Changes covered by the next scenario run
 
@@ -114,21 +114,21 @@ records explicitly and must never seed those values into a user's database.
 | Two employees, different rates/rule profiles and missing different registrations | Each employee keeps the correct rules, contributions, review evidence, and net amount |
 | Payslip and CSV after finalization | Finalized net pay and employer-share totals match the itemized statement |
 | Missing form values | Inputs remain visible, the review section stays open, and field/toast feedback is shown |
-| Separate Regular and Probation/Part-time periods | **Pending next run:** verify that two runs with different inclusive periods coexist when their employee scopes are selected separately |
+| Separate Regular and Probation/Part-time periods | Verified in the 2026-09-28 run: Regular and Probation profiles were placed in separate selected runs with different inclusive periods |
 | All-active employee scope | **Pending next run:** verify that `ALL_ACTIVE` evaluates active payroll employees using the existing behavior |
-| Selected employee scope | **Pending next run:** verify that `SELECTED` evaluates only active organization members and rejects empty or cross-organization selections |
-| Scope idempotency | **Pending next run:** verify that a submission key can only be reused for the exact same dates, scope mode, and employee selection |
-| Finalized scope immutability | **Pending next run:** verify that finalized or voided runs reject membership or scope changes |
-| Employment classification | **Pending next run:** verify that Regular, Probation, Part-time, and Other remain metadata and do not infer coverage |
-| Pay-basis metadata | **Pending next run:** verify Hourly, Daily, Monthly, and Mixed values and rejection of missing/negative minimum daily base |
+| Selected employee scope | Verified in the 2026-09-28 run for an active selected employee; empty and cross-organization rejection remain covered by service tests |
+| Scope idempotency | Verified in the 2026-09-28 run: reusing the same token with a changed employee selection was rejected |
+| Finalized scope immutability | Verified for a voided run in the 2026-09-28 run; finalized-run browser evidence remains pending |
+| Employment classification | Verified in the 2026-09-28 run for Regular, Probation, and Mixed metadata; Other remains a future fixture |
+| Pay-basis metadata | Verified in the 2026-09-28 run for Hourly, Daily, Monthly, and Mixed values; negative/missing-base validation remains covered by model tests |
 | Monthly compensation attendance | **Pending next run:** verify the `MONTHLY_CALCULATION_NOT_CONFIGURED` exception until a conversion formula is approved |
-| Monthly compensation register input | **Pending next run:** verify that monthly employees cannot use the daily register path and receive `MONTHLY_INPUT_NOT_SUPPORTED` |
-| Statutory coverage dates | **Pending next run:** verify overlap rejection and exemption reason/source requirements |
-| Statutory rule versions | **Pending next run:** verify overlap rejection and append-only behavior after approval |
-| Payment method history | **Pending next run:** verify effective-dated Cash and Bank Transfer methods and absence of raw bank credentials |
-| Obligation opening terms | **Pending next run:** verify source/reviewer requirements and rejection of silent term changes |
-| Obligation ledger append-only | **Pending next run:** verify that corrections and reversals create new rows instead of editing transactions |
-| Draft obligation proposal | **Pending next run:** verify that a proposed repayment does not change the balance before finalization |
+| Monthly compensation register input | Verified in the 2026-09-28 run: monthly employees received `MONTHLY_INPUT_NOT_SUPPORTED` (and the expected no-time exception) |
+| Statutory coverage dates | Verified in the 2026-09-28 run for an SSS overlap and a BIR exemption with evidence; all-agency fixtures remain pending |
+| Statutory rule versions | Verified in the 2026-09-28 run for overlap rejection; approved-version append-only editing remains pending |
+| Payment method history | Verified in the 2026-09-28 run for adjacent Cash and Bank Transfer methods and overlap rejection; no bank credential is stored |
+| Obligation opening terms | Verified in the 2026-09-28 run with reviewed cash-advance terms; invalid-term cases remain pending |
+| Obligation ledger append-only | Verified in the 2026-09-28 run for deletion rejection; correction/reversal row workflows remain pending |
+| Draft obligation proposal | Verified in the 2026-09-28 run: a proposed installment did not change the posted ledger balance |
 | Paper timecard source | **Pending next run:** verify reviewed morning, afternoon, overtime, day-off/closed, and signature inputs remain separate from raw attendance |
 
 ## Next-run execution checklist
@@ -227,7 +227,9 @@ sign-off remain separate tasks.
 - `tests/test_payroll.py`: existing calculation and payroll lifecycle tests.
 - `tests/test_browser.py`: browser workflow and layout checks.
 - `.artifacts/payroll-scenarios-before.log`: initial failing statutory-review reproduction.
-- `.artifacts/payroll-final-tests.log`: final 98-test run, all passing.
+- `.artifacts/payroll-final-tests.log`: historical 98-test run, all passing.
+- Latest local verification: **102 tests passed, 8 skipped**, including the
+  selected-run membership immutability regression test.
 - `.artifacts/ui/statutory-review-*.png`: browser screenshots.
 
 ```powershell

@@ -170,6 +170,13 @@ class PayrollTests(TestCase):
         with self.assertRaises(ValidationError):
             self.run_payroll(idempotency_key=token, pay_date=date(2026, 10, 1))
 
+    def test_selected_run_scope_rechecks_status_before_membership_delete(self):
+        run = self.run_payroll(employee_ids=[self.emp.pk])
+        membership = run.employee_memberships.get(employee=self.emp)
+        PayrollRun.objects.filter(pk=run.pk).update(status=PayrollRun.Status.VOID)
+        with self.assertRaises(ValidationError):
+            membership.delete()
+
     def test_void_reason_and_replacement_reference(self):
         run = self.run_payroll()
         with self.assertRaises(ValidationError):
