@@ -1136,6 +1136,10 @@ def run_create_submit(request):
                 run_type=form.cleaned_data["run_type"],
                 parent_run=form.cleaned_data["parent_run"],
                 idempotency_key=form.cleaned_data["request_key"],
+                employee_ids=(
+                    [employee.pk for employee in form.cleaned_data["employees"]]
+                    if form.cleaned_data["scope_mode"] == PayrollRun.ScopeMode.SELECTED else None
+                ),
             )
             messages.success(request, "Payroll draft created. Review exceptions and add any itemized manual adjustments.")
             return redirect("payroll:run_detail", pk=run.pk)

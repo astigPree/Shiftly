@@ -33,6 +33,7 @@ from .models import (
     PayrollRuleProfile,
     PayrollRuleSet,
     PayrollRun,
+    PayrollRunEmployee,
     PayrollSettings,
     PayrollStatement,
     PayrollTimeEntry,
@@ -454,7 +455,7 @@ def _validate_pay_period(settings_row, period_start, period_end, pay_date, run_t
 
 
 @transaction.atomic
-def create_payroll_run(*, organization, actor, period_start, period_end, pay_date, run_type=PayrollRun.RunType.REGULAR, parent_run=None, idempotency_key=None):
+def create_payroll_run(*, organization, actor, period_start, period_end, pay_date, run_type=PayrollRun.RunType.REGULAR, parent_run=None, idempotency_key=None, employee_ids=None):
     organization = _owner_organization(actor, organization.pk)
     settings_row = PayrollSettings.objects.filter(organization=organization).first()
     if settings_row is None:
@@ -462,6 +463,21 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
     # Serialize run creation for this organization so overlapping-period checks are safe under concurrency.
     settings_row = PayrollSettings.objects.select_for_update().get(pk=settings_row.pk)
     _validate_pay_period(settings_row, period_start, period_end, pay_date, run_type)
+    selected_employee_ids = None
+    if employee_ids is not None:
+        try:
+            selected_employee_ids = {int(employee_id) for employee_id in employee_ids}
+        except (TypeError, ValueError) as error:
+            raise ValidationError("Selected payroll employees must be valid employee IDs.") from error
+        valid_employee_ids = set(Employee.objects.filter(
+            organization=organization, status=Employee.Status.ACTIVE,
+            pk__in=selected_employee_ids,
+        ).values_list("pk", flat=True))
+        if valid_employee_ids != selected_employee_ids:
+            raise ValidationError("Selected payroll employees must be active employees in this organization.")
+        if not selected_employee_ids:
+            raise ValidationError("Select at least one employee for a selected payroll run.")
+    requested_scope_mode = PayrollRun.ScopeMode.SELECTED if selected_employee_ids is not None else PayrollRun.ScopeMode.ALL_ACTIVE
     if idempotency_key:
         existing = PayrollRun.objects.filter(organization=organization, idempotency_key=idempotency_key).first()
         if existing:
@@ -469,6 +485,12 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
                 period_start, period_end, pay_date, run_type, getattr(parent_run, "pk", None)
             ):
                 raise ValidationError("This payroll submission token was already used for different run details.")
+            if existing.scope_mode != requested_scope_mode:
+                raise ValidationError("This payroll submission token was already used with a different employee scope.")
+            if requested_scope_mode == PayrollRun.ScopeMode.SELECTED:
+                existing_ids = set(existing.employee_memberships.values_list("employee_id", flat=True))
+                if existing_ids != selected_employee_ids:
+                    raise ValidationError("This payroll submission token was already used with a different employee selection.")
             return existing
     if run_type == PayrollRun.RunType.REGULAR:
         overlaps = PayrollRun.objects.select_for_update().filter(
@@ -514,8 +536,19 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
                 pay_date=pay_date,
                 pay_frequency=settings_row.frequency,
                 currency=settings_row.currency,
+                scope_mode=(PayrollRun.ScopeMode.SELECTED if selected_employee_ids is not None else PayrollRun.ScopeMode.ALL_ACTIVE),
                 prepared_by=actor,
             )
+            if selected_employee_ids is not None:
+                PayrollRunEmployee.objects.bulk_create([
+                    PayrollRunEmployee(
+                        run=run,
+                        organization=organization,
+                        employee_id=employee_id,
+                        included_by=actor,
+                    )
+                    for employee_id in sorted(selected_employee_ids)
+                ])
     except IntegrityError as error:
         if idempotency_key:
             existing = PayrollRun.objects.filter(organization=organization, idempotency_key=idempotency_key).first()
@@ -542,10 +575,22 @@ def calculate_payroll_run(run, *, actor):
     if run.status != PayrollRun.Status.DRAFT:
         raise ValidationError("Only a draft payroll run can be recalculated.")
 
+    scoped_employee_ids = None
+    if run.scope_mode == PayrollRun.ScopeMode.SELECTED:
+        scoped_employee_ids = set(
+            PayrollRunEmployee.objects.filter(run=run).values_list("employee_id", flat=True)
+        )
+
     # Recalculation is repeatable: remove the old machine preview but keep manual adjustments.
     PayrollLine.objects.filter(statement__run=run, source__in=["CALCULATED", "CALCULATED_COMPONENT"]).delete()
     PayrollTimeEntry.objects.filter(statement__run=run).delete()
     PayrollException.objects.filter(run=run, superseded_at__isnull=True).update(superseded_at=timezone.now())
+    if scoped_employee_ids is not None and not scoped_employee_ids:
+        _add_exception(
+            run,
+            code="PAYROLL_SCOPE_EMPTY",
+            description="This selected-employee payroll run has no employee memberships.",
+        )
 
     statements_by_employee = {
         item.employee_id: item
@@ -569,6 +614,8 @@ def calculate_payroll_run(run, *, actor):
         attendance_session__clock_out_at__gt=start_local.astimezone(datetime_timezone.utc),
         attendance_session__clock_in_at__lt=end_local.astimezone(datetime_timezone.utc),
     ).select_related("employee", "employee__payroll_profile", "shift", "attendance_session", "employee__organization").prefetch_related("attendance_session__breaks").order_by("employee_id", "shift__work_date", "pk")
+    if scoped_employee_ids is not None:
+        timesheets = timesheets.filter(employee_id__in=scoped_employee_ids)
 
     # Scheduled absences and sessions that have not produced a complete timesheet must not disappear from the preview.
     now = timezone.now()
@@ -580,6 +627,8 @@ def calculate_payroll_run(run, *, actor):
         attendance_session__isnull=True,
         timesheet__isnull=True,
     ).select_related("employee", "employee__payroll_profile")
+    if scoped_employee_ids is not None:
+        absent_shifts = absent_shifts.filter(employee_id__in=scoped_employee_ids)
     for shift in absent_shifts:
         payroll_timezone = _employee_payroll_timezone(shift.employee, organization)
         work_date = shift.scheduled_start.astimezone(ZoneInfo(payroll_timezone)).date()
@@ -591,6 +640,8 @@ def calculate_payroll_run(run, *, actor):
         shift__work_date__range=(run.period_start - timedelta(days=2), run.period_end + timedelta(days=2)),
         clock_out_at__isnull=True,
     ).select_related("employee", "shift", "employee__payroll_profile")
+    if scoped_employee_ids is not None:
+        incomplete_sessions = incomplete_sessions.filter(employee_id__in=scoped_employee_ids)
     for session in incomplete_sessions:
         payroll_timezone = _employee_payroll_timezone(session.employee, organization)
         work_date = session.shift.scheduled_start.astimezone(ZoneInfo(payroll_timezone)).date()
@@ -603,6 +654,8 @@ def calculate_payroll_run(run, *, actor):
         clock_out_at__isnull=False,
         shift__timesheet__isnull=True,
     ).select_related("employee", "shift", "employee__payroll_profile")
+    if scoped_employee_ids is not None:
+        completed_without_timesheet = completed_without_timesheet.filter(employee_id__in=scoped_employee_ids)
     for session in completed_without_timesheet:
         payroll_timezone = _employee_payroll_timezone(session.employee, organization)
         work_date = session.shift.scheduled_start.astimezone(ZoneInfo(payroll_timezone)).date()
@@ -696,7 +749,13 @@ def calculate_payroll_run(run, *, actor):
                 _add_exception(run, code="PAY_RATE_MISSING", description=f"Add an effective hourly or daily compensation for {timesheet.employee.full_name} on {segment['work_date']}.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
             if compensation["basis"] != EmployeeCompensationVersion.Basis.HOURLY:
-                _add_exception(run, code="DAILY_INPUT_REQUIRED", description=f"{timesheet.employee.full_name} is daily-paid on {segment['work_date']}; add a reviewed period input instead of paying attendance as hourly time.", employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
+                code = "MONTHLY_CALCULATION_NOT_CONFIGURED" if compensation["basis"] == EmployeeCompensationVersion.Basis.MONTHLY else "DAILY_INPUT_REQUIRED"
+                description = (
+                    f"{timesheet.employee.full_name} has monthly compensation on {segment['work_date']}; configure and review the monthly-to-hourly conversion policy before calculating attendance."
+                    if code == "MONTHLY_CALCULATION_NOT_CONFIGURED" else
+                    f"{timesheet.employee.full_name} is daily-paid on {segment['work_date']}; add a reviewed period input instead of paying attendance as hourly time."
+                )
+                _add_exception(run, code=code, description=description, employee=timesheet.employee, timesheet=timesheet, work_date=segment["work_date"])
                 continue
             segment["rule"] = rule
             segment["rule_profile"] = rule_profile
@@ -726,6 +785,8 @@ def calculate_payroll_run(run, *, actor):
         period_end=run.period_end,
         reviewed_at__isnull=False,
     ).select_related("employee", "employee__payroll_profile")
+    if scoped_employee_ids is not None:
+        period_inputs = period_inputs.filter(employee_id__in=scoped_employee_ids)
     for period_input in period_inputs:
         profile = getattr(period_input.employee, "payroll_profile", None)
         work_date = period_input.work_date
@@ -743,7 +804,13 @@ def calculate_payroll_run(run, *, actor):
             _add_exception(run, code="PAY_RATE_MISSING", description=f"Add daily compensation for {period_input.employee.full_name} on {work_date}.", employee=period_input.employee, work_date=work_date)
             continue
         if compensation["basis"] != EmployeeCompensationVersion.Basis.DAILY:
-            _add_exception(run, code="HOURLY_INPUT_NOT_ALLOWED", description=f"{period_input.employee.full_name} is hourly-paid on {work_date}; use approved attendance rather than a daily register input.", employee=period_input.employee, work_date=work_date)
+            code = "MONTHLY_INPUT_NOT_SUPPORTED" if compensation["basis"] == EmployeeCompensationVersion.Basis.MONTHLY else "HOURLY_INPUT_NOT_ALLOWED"
+            description = (
+                f"{period_input.employee.full_name} has monthly compensation on {work_date}; monthly register conversion is not configured."
+                if code == "MONTHLY_INPUT_NOT_SUPPORTED" else
+                f"{period_input.employee.full_name} is hourly-paid on {work_date}; use approved attendance rather than a daily register input."
+            )
+            _add_exception(run, code=code, description=description, employee=period_input.employee, work_date=work_date)
             continue
         if isinstance(compensation["source"], EmployeeCompensationVersion) and not compensation["source"].reviewed:
             _add_exception(run, code="COMPENSATION_NOT_REVIEWED", description=f"Review the daily compensation source for {period_input.employee.full_name} before calculating {work_date}.", employee=period_input.employee, work_date=work_date)

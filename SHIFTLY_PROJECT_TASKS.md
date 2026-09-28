@@ -210,7 +210,7 @@ The attendance MVP is ready when an employer can create an organization, add an 
 
 ## Phase 11 - Payroll feature (approved scope)
 
-**Implementation status: payroll foundation and the first workbook-compatible daily-pay slice are implemented; not cleared for live payroll.** The current release supports one Philippine organization currency (PHP), legacy hourly pay, dated hourly or daily compensation, reviewed date-level daily inputs, reusable dated earning/deduction components, employer-entered effective-dated rules, approved timesheets, reviewable runs, final statements, and CSV export. It does not automatically calculate Philippine tax withholding, SSS, PhilHealth, Pag-IBIG, loan balances, cash denominations, import workbook data, or transfer money. Reviewer fields capture an application attestation, not legal/accounting sign-off.
+**Implementation status: payroll foundation and the first workbook-compatible daily-pay slice are implemented; not cleared for live payroll.** The current release supports one Philippine organization currency (PHP), legacy hourly pay, dated hourly/daily/monthly compensation metadata, reviewed date-level daily inputs, reusable dated earning/deduction components, employee pay-basis/status metadata, reviewer-gated statutory coverage/rule records, dated payment methods, append-only obligation records, explicit selected employee scope per run, employer-entered effective-dated rules, approved timesheets, reviewable runs, final statements, and CSV export. It does not automatically calculate Philippine tax withholding, SSS, PhilHealth, Pag-IBIG, loan repayments, cash denominations, import workbook data, or transfer money. Reviewer fields capture an application attestation, not legal/accounting sign-off.
 
 ### 11.1 Scope and business rules
 
@@ -242,8 +242,13 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [x] Provide a linked off-cycle adjustment run for post-finalization corrections.
 - [x] Add database constraints and indexes for payroll ownership, periods, statements, effective rates, rules, and idempotency.
 - [x] Add effective-dated hourly/daily compensation versions with a single resolver that preserves legacy hourly-rate behavior and blocks overlapping sources.
+- [x] Add monthly compensation metadata and employee primary pay-basis/status fields without guessing monthly-to-hourly conversion formulas.
 - [x] Add reviewed date-level period inputs for daily-register quantities, with provenance, reviewer, date/period constraints, and duplicate attendance/input protection.
 - [x] Add dated reusable earning, deduction, and employer-contribution components with employee assignments and repeatable recalculation.
+- [x] Add additive schema for dated employee statutory coverage/identifiers, reviewer-gated statutory rule versions, effective-dated cash/bank payment methods, append-only obligations/transactions, and selected employee memberships per payroll run.
+- [ ] Add reviewed manual work-segment inputs for morning/afternoon/overtime timecard rows, day-off/closed markers, signatures, and source evidence without mutating raw attendance.
+- [ ] Wire statutory coverage/rule records into approved contribution and tax calculations; until then, keep manual reviewed lines.
+- [ ] Wire obligation transactions into draft proposals and exactly-once finalization posting, with priority/defer rules and nonnegative net-pay protection.
 - [ ] Add reviewed reference calculations for ordinary hours, overtime, rest day, holiday, night differential, breaks, rate changes, and corrections.
 - [ ] Add overnight and boundary scenarios including a 10:00 PM-3:00 AM shift in the employee's work timezone, pay-period crossover, and applicable DST transitions.
 
@@ -279,6 +284,7 @@ The attendance MVP is ready when an employer can create an organization, add an 
 - [x] Require exceptions to be corrected/recalculated or explicitly resolved with evidence before review; link manual premium lines to the exception they address.
 - [x] Use confirmation dialogs for finalization and voiding; retain actor, timestamp, reason, and audit history.
 - [x] Scope payroll pages and actions to the employer's organization. Pagination and filters are available for payroll runs and employee profiles.
+- [ ] Expose run employee scope in the create/review UI, including separate Regular and probation/part-time periods, selected employee validation, and a visible scope snapshot.
 - [x] Show a live payroll-readiness checklist for reviewed rules, employee profiles/rates, and the current-year holiday calendar; add pay-frequency-aware period shortcuts, filtered run summaries, explicit exception links, and setup-aware empty states.
 - [ ] Add a pre-creation eligibility/cutoff preview and a more explicit payroll review step that supports separate preparer and reviewer accounts when the product's account model permits them.
 - [ ] Add automated tests for permissions, tenant boundaries, duplicate requests, concurrent run creation, reconciliation, and immutable finalized records.

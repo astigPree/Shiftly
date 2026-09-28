@@ -276,7 +276,7 @@ Reports are organization-scoped, paginated, and use the organization timezone fo
 
 ## 11. Payroll foundation
 
-Payroll is available under `/payroll/` for employers and `/payroll/my/` for employees. The current release supports Philippine/PHP hourly payroll plus a reviewed daily-pay/register workflow and dated recurring earning/deduction components. It is not a complete statutory payroll product and does not transfer money.
+Payroll is available under `/payroll/` for employers and `/payroll/my/` for employees. The current release supports Philippine/PHP hourly payroll plus a reviewed daily-pay/register workflow, dated recurring earning/deduction components, monthly pay-basis metadata, employee rule scope, and reviewer-gated payroll records. It is not a complete statutory payroll product and does not transfer money.
 
 ### Payroll setup order
 
@@ -291,6 +291,8 @@ Complete the readiness checklist on `/payroll/` in this order:
    - configure work location and payroll region;
    - set the employee work timezone or use the organization timezone;
    - record the wage-order reference;
+   - record employment status (Regular, Probation, Part-time, or Other) and primary pay basis (Hourly, Daily, Monthly, or Mixed). Status does not infer statutory coverage;
+   - optionally record the reviewer-entered minimum daily base. Monthly-to-hourly conversion remains blocked until its formula is approved;
    - confirm the rate was checked, night-differential eligibility, and rank-and-file classification;
    - choose whether the employee participates in payroll;
    - add effective-dated hourly rates at `/payroll/employees/<id>/rates/new/`, or use **Add compensation** at `/payroll/employees/<id>/compensation/new/` for an hourly or daily version;
@@ -302,19 +304,19 @@ Complete the readiness checklist on `/payroll/` in this order:
    - provide the source reference and reviewer;
    - review each holiday before relying on it for finalization.
 
-The readiness checklist requires reviewed payroll settings, configured participating employee profiles with either hourly or daily compensation, and a configured reviewed holiday calendar before a run can be created. Daily employees are discovered from reviewed period inputs; approved attendance and a period input for the same date are treated as a duplicate source and blocked.
+The readiness checklist requires reviewed payroll settings, configured participating employee profiles with either hourly or daily compensation, and a configured reviewed holiday calendar before a run can be created. Daily employees are discovered from reviewed period inputs; approved attendance and a period input for the same date are treated as a duplicate source and blocked. Monthly compensation is stored as a dated profile/rate but is not calculated until the owner approves its conversion policy.
 
 ### Create and review a run
 
 1. Open **Create payroll run** from `/payroll/`.
-2. Choose regular or off-cycle, period start, period end, pay date, and (for off-cycle) the finalized parent run.
+2. Choose regular or off-cycle, period start, period end, pay date, and (for off-cycle) the finalized parent run. Use **Selected employees** when Regular and probation/part-time groups need separate periods; otherwise choose all active payroll employees. The period and scope belong to this run and are retained in its snapshot.
 3. Create the draft.
 4. Open the draft run detail page.
 5. Recalculate after late timesheet approvals or rule/profile changes.
 6. Review employee statements, source timesheets, calculated lines, totals, and exceptions.
 7. Resolve exceptions with evidence or add a controlled manual earning, deduction, employer contribution, allowance, reimbursement, or correction line.
 8. Under each employee statement, expand **Statutory items**. Review SSS, PhilHealth, Pag-IBIG, and withholding tax separately. Select the matching manual employee deduction and employer contribution lines, or explicitly record a reviewed zero, another cutoff, or a supported not-applicable treatment. Include a source/calculation reference and reason.
-9. If a number or registration is missing, select **Missing number / registration pending** and record the registration follow-up. This does not automatically exempt the employee or set contributions to zero. Do not put government ID numbers into the review notes.
+9. If a number or registration is missing, select **Missing number / registration pending** and record the registration follow-up. Coverage and sensitive identifiers are effective-dated records separate from employment status. This does not automatically exempt the employee or set contributions to zero. Do not put government ID numbers into the review notes.
 10. Submit the run for review. Missing or stale statutory reviews block submission and finalization. Recalculate and complete the reviews again after changing payroll inputs; changed line items also require review again.
 11. Provide finalization review evidence and finalize it after all blockers are resolved.
 
@@ -343,7 +345,7 @@ After a run is finalized, the employee can open `/payroll/my/` to see finalized 
 
 ### Payroll boundary
 
-The application does **not** currently automate Philippine withholding tax, SSS, PhilHealth, Pag-IBIG, statutory filings, legal/accounting approval, bank files, payment transfers, or direct disbursement. Reviewer names and source references are application review evidence, not legal or accounting sign-off. Validate payroll output with a qualified reviewer before paying employees.
+The application does **not** currently automate Philippine withholding tax, SSS, PhilHealth, Pag-IBIG, statutory filings, obligation repayment posting, cash denomination preparation, legal/accounting approval, bank files, payment transfers, or direct disbursement. The schema can store reviewer-gated statutory coverage/rules, payment methods, and obligation ledgers, but those records are not automatically populated or calculated. Reviewer names and source references are application review evidence, not legal or accounting sign-off. Validate payroll output with a qualified reviewer before paying employees.
 
 ## 12. Timezones and dates
 

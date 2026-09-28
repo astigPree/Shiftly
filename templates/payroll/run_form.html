@@ -15,11 +15,11 @@
   </aside>
   {% endif %}
   <section class="payroll-card">
-    <div class="payroll-warning-box"><strong>Review before using</strong><span>This release supports hourly pay in PHP, approved time, reviewed ordinary overtime and night-differential rules, plus manual itemized adjustments. Philippine withholding tax and statutory contribution tables are not calculated automatically. Shiftly does not transfer funds.</span></div>
+    <div class="payroll-warning-box"><strong>Review before using</strong><span>This release supports hourly pay and reviewed daily inputs in PHP, with dated monthly pay metadata, configurable overtime and night-differential rules, and manual itemized adjustments. Philippine withholding tax and statutory contribution tables are not calculated automatically. Shiftly does not transfer funds.</span></div>
     <form method="post" action="{% url 'payroll:run_create_submit' %}" class="payroll-form" novalidate>
       {% csrf_token %}{{ form.request_key }}
       {% for field in form %}{% if field.name != "request_key" %}{% include "components/form_field.html" with field=field %}{% endif %}{% endfor %}
-      <p class="form-help">Regular period dates are inclusive calendar dates and follow the configured frequency. Each employee's worked time is split using the payroll timezone in their profile, falling back to the organization timezone. Late-approved time can be recalculated while the run is a draft; after finalization, use a linked off-cycle adjustment run.</p>
+      <p class="form-help">Period dates are inclusive and user-entered. Use a selected scope for a separate Regular or probation/part-time period; otherwise all active payroll employees are eligible. Each employee's worked time is split using the payroll timezone in their profile, falling back to the organization timezone. Late-approved time can be recalculated while the run is a draft; after finalization, use a linked off-cycle adjustment run.</p>
       <div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:run_list' %}">Cancel</a><button class="button-link" type="submit">Create draft</button></div>
     </form>
   </section>

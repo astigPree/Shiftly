@@ -192,11 +192,139 @@ class PayrollRuleSet(models.Model):
         return f"Payroll rules from {self.effective_from}{profile}"
 
 
+class StatutoryRuleVersion(models.Model):
+    """Reviewer-gated version of one Philippine statutory/tax rule table."""
+
+    class Agency(models.TextChoices):
+        SSS = "SSS", "SSS"
+        PHILHEALTH = "PHILHEALTH", "PhilHealth"
+        PAGIBIG = "PAGIBIG", "Pag-IBIG"
+        BIR = "BIR", "BIR withholding"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="statutory_rule_versions",
+    )
+    agency = models.CharField(max_length=12, choices=Agency.choices)
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    basis = models.CharField(max_length=120, blank=True)
+    employee_rate = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    employer_rate = models.DecimalField(max_digits=12, decimal_places=6, null=True, blank=True)
+    minimum_base = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    maximum_base = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    bracket_table = models.JSONField(default=dict, blank=True)
+    rounding_method = models.CharField(max_length=80, blank=True)
+    source_reference = models.TextField(blank=True)
+    reviewed_by = models.CharField(max_length=160, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="statutory_rule_versions_approved",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="statutory_rule_versions_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["agency", "-effective_from", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "agency", "effective_from"],
+                name="payroll_stat_rule_org_agency_from_unique",
+            ),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_stat_rule_dates_valid",
+            ),
+            models.CheckConstraint(
+                check=Q(minimum_base__isnull=True) | Q(minimum_base__gte=0),
+                name="payroll_stat_rule_min_base_nonneg",
+            ),
+            models.CheckConstraint(
+                check=Q(maximum_base__isnull=True) | Q(maximum_base__gte=0),
+                name="payroll_stat_rule_max_base_nonneg",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "agency", "effective_from"], name="payroll_stat_rule_lookup_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        if self.minimum_base is not None and self.maximum_base is not None and self.maximum_base < self.minimum_base:
+            raise ValidationError({"maximum_base": "Maximum base must be on or above the minimum base."})
+        overlaps = type(self).objects.filter(
+            organization_id=self.organization_id, agency=self.agency,
+        ).exclude(pk=self.pk).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+        )
+        if self.effective_until:
+            overlaps = overlaps.filter(effective_from__lte=self.effective_until)
+        if overlaps.exists():
+            raise ValidationError({"effective_from": "Statutory rule dates cannot overlap another version for this agency."})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            prior = type(self).objects.get(pk=self.pk)
+            if prior.approved_at and any(
+                getattr(prior, field) != getattr(self, field)
+                for field in (
+                    "agency", "effective_from", "effective_until", "basis", "employee_rate",
+                    "employer_rate", "minimum_base", "maximum_base", "bracket_table",
+                    "rounding_method", "source_reference", "reviewed_by", "reviewed_at",
+                    "approved_by_id", "approved_at",
+                )
+            ):
+                raise ValidationError("Approved statutory rules are immutable. Add a new effective-dated version.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def reviewed(self):
+        return bool(self.reviewed_by.strip() and self.reviewed_at and self.source_reference.strip())
+
+    @property
+    def approved(self):
+        return bool(self.reviewed and self.approved_by_id and self.approved_at)
+
+    def __str__(self):
+        return f"{self.get_agency_display()} rules from {self.effective_from}"
+
+
 class EmployeePayProfile(models.Model):
     """Work-location and review controls shared by hourly and daily payroll."""
 
+    class EmploymentStatus(models.TextChoices):
+        REGULAR = "REGULAR", "Regular"
+        PROBATION = "PROBATION", "Probation"
+        PART_TIME = "PART_TIME", "Part-time"
+        OTHER = "OTHER", "Other"
+
+    class PayBasis(models.TextChoices):
+        HOURLY = "HOURLY", "Hourly"
+        DAILY = "DAILY", "Daily"
+        MONTHLY = "MONTHLY", "Monthly"
+        MIXED = "MIXED", "Mixed"
+
     employee = models.OneToOneField(
         "employees.Employee", on_delete=models.PROTECT, related_name="payroll_profile"
+    )
+    employment_status = models.CharField(
+        max_length=16, choices=EmploymentStatus.choices, default=EmploymentStatus.REGULAR
+    )
+    pay_basis = models.CharField(
+        max_length=8, choices=PayBasis.choices, default=PayBasis.HOURLY,
+        help_text="The employee's primary payroll basis. Mixed pay uses dated compensation and components.",
+    )
+    minimum_daily_rate = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+        help_text="Reviewer-entered statutory/minimum daily base for the applicable wage region.",
     )
     work_location = models.CharField(max_length=180, blank=True)
     payroll_region = models.CharField(max_length=80, blank=True)
@@ -218,6 +346,8 @@ class EmployeePayProfile(models.Model):
     def clean(self):
         super().clean()
         self.payroll_timezone = (self.payroll_timezone or "").strip()
+        if self.minimum_daily_rate is not None and self.minimum_daily_rate < 0:
+            raise ValidationError({"minimum_daily_rate": "Minimum daily rate cannot be negative."})
         if self.payroll_timezone:
             try:
                 ZoneInfo(self.payroll_timezone)
@@ -237,6 +367,315 @@ class EmployeePayProfile(models.Model):
 
     def __str__(self):
         return f"Payroll profile for {self.employee.full_name}"
+
+
+class EmployeeStatutoryCoverage(models.Model):
+    """Effective-dated employee coverage and registration evidence.
+
+    Coverage is deliberately separate from employment status.  A Regular or
+    Probation label never silently creates an exemption or a contribution
+    registration.
+    """
+
+    class Agency(models.TextChoices):
+        SSS = "SSS", "SSS"
+        PHILHEALTH = "PHILHEALTH", "PhilHealth"
+        PAGIBIG = "PAGIBIG", "Pag-IBIG"
+        BIR = "BIR", "BIR withholding"
+
+    class Status(models.TextChoices):
+        REVIEW = "REVIEW", "Needs review"
+        COVERED = "COVERED", "Covered"
+        EXEMPT = "EXEMPT", "Exempt"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="employee_statutory_coverages",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT,
+        related_name="statutory_coverages",
+    )
+    agency = models.CharField(max_length=12, choices=Agency.choices)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.REVIEW)
+    identifier = models.CharField(
+        max_length=64, blank=True,
+        help_text="Sensitive government identifier. Restrict access at the view and audit layers.",
+    )
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    exemption_reason = models.CharField(max_length=255, blank=True)
+    source_reference = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.CharField(max_length=160, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="employee_statutory_coverages_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["agency", "-effective_from", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employee", "agency", "effective_from"],
+                name="payroll_stat_coverage_emp_agency_from_unique",
+            ),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_stat_coverage_dates_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "employee", "agency", "effective_from"], name="payroll_stat_cov_lookup_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        if self.status == self.Status.EXEMPT:
+            if not self.exemption_reason.strip():
+                raise ValidationError({"exemption_reason": "Record the approved exemption reason."})
+            if not self.source_reference.strip():
+                raise ValidationError({"source_reference": "Record the source for the exemption."})
+        overlaps = type(self).objects.filter(
+            employee_id=self.employee_id, agency=self.agency,
+        ).exclude(pk=self.pk).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+        )
+        if self.effective_until:
+            overlaps = overlaps.filter(effective_from__lte=self.effective_until)
+        if overlaps.exists():
+            raise ValidationError({"effective_from": "Coverage dates cannot overlap another version for this agency."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def reviewed(self):
+        return bool(self.reviewed_by.strip() and self.reviewed_at and self.source_reference.strip())
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.get_agency_display()} ({self.get_status_display()})"
+
+
+class EmployeePaymentMethod(models.Model):
+    """Effective-dated payment preference without storing bank credentials."""
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Cash"
+        BANK_TRANSFER = "BANK_TRANSFER", "Bank transfer / payroll account"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="employee_payment_methods",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT,
+        related_name="payment_methods",
+    )
+    method = models.CharField(max_length=16, choices=Method.choices)
+    effective_from = models.DateField()
+    effective_until = models.DateField(null=True, blank=True)
+    account_reference = models.CharField(
+        max_length=255, blank=True,
+        help_text="Optional payroll-owner reference; do not store raw bank credentials here.",
+    )
+    source_reference = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="employee_payment_methods_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_from", "-pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["employee", "effective_from"],
+                name="payroll_payment_method_emp_from_unique",
+            ),
+            models.CheckConstraint(
+                check=Q(effective_until__isnull=True) | Q(effective_until__gte=models.F("effective_from")),
+                name="payroll_payment_method_dates_valid",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.effective_until and self.effective_until < self.effective_from:
+            raise ValidationError({"effective_until": "End date must be on or after the effective date."})
+        overlaps = type(self).objects.filter(employee_id=self.employee_id).exclude(pk=self.pk).filter(
+            Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
+        )
+        if self.effective_until:
+            overlaps = overlaps.filter(effective_from__lte=self.effective_until)
+        if overlaps.exists():
+            raise ValidationError({"effective_from": "Payment method dates cannot overlap another version."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+
+class EmployeeObligation(models.Model):
+    """An approved employee obligation whose balance changes only through a ledger."""
+
+    class Kind(models.TextChoices):
+        CASH_ADVANCE = "CASH_ADVANCE", "Cash advance"
+        SSS_LOAN = "SSS_LOAN", "SSS loan"
+        PAGIBIG_LOAN = "PAGIBIG_LOAN", "Pag-IBIG loan"
+        COMPANY_LOAN = "COMPANY_LOAN", "Company loan"
+        EMPLOYEE_CHARGE = "EMPLOYEE_CHARGE", "Employee charge"
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        SUSPENDED = "SUSPENDED", "Suspended"
+        SETTLED = "SETTLED", "Settled"
+
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="employee_obligations",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT,
+        related_name="payroll_obligations",
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    reference = models.CharField(max_length=80)
+    opening_balance = models.DecimalField(max_digits=14, decimal_places=2)
+    as_of_date = models.DateField()
+    installment_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    starts_on = models.DateField(null=True, blank=True)
+    priority = models.PositiveIntegerField(default=100)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
+    source_reference = models.CharField(max_length=255)
+    reviewed_by = models.CharField(max_length=160)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="employee_obligations_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["priority", "employee_id", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "reference"], name="payroll_obligation_org_reference_unique"
+            ),
+            models.CheckConstraint(check=Q(opening_balance__gte=0), name="payroll_obligation_opening_nonneg"),
+            models.CheckConstraint(
+                check=Q(installment_amount__isnull=True) | Q(installment_amount__gt=0),
+                name="payroll_obligation_installment_positive",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the same organization."})
+        if self.installment_amount is not None and self.installment_amount <= 0:
+            raise ValidationError({"installment_amount": "Installment amount must be positive."})
+        if not self.source_reference.strip():
+            raise ValidationError({"source_reference": "Record the approved obligation source."})
+        if not self.reviewed_by.strip():
+            raise ValidationError({"reviewed_by": "Record who reviewed the obligation."})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            prior = type(self).objects.get(pk=self.pk)
+            if any(
+                getattr(prior, field) != getattr(self, field)
+                for field in (
+                    "organization_id", "employee_id", "kind", "reference", "opening_balance",
+                    "as_of_date", "installment_amount", "starts_on", "priority", "source_reference",
+                    "reviewed_by", "reviewed_at", "created_by_id",
+                )
+            ):
+                raise ValidationError("Obligation terms are append-only. Use a ledger correction transaction.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def ledger_balance(self):
+        posted = self.transactions.filter(status=EmployeeObligationTransaction.Status.POSTED).aggregate(
+            total=models.Sum("amount")
+        )["total"] or Decimal("0")
+        return max(Decimal("0.00"), self.opening_balance - posted)
+
+    def __str__(self):
+        return f"{self.employee.full_name}: {self.reference}"
+
+
+class EmployeeObligationTransaction(models.Model):
+    """Append-only obligation ledger. Positive amounts reduce the balance."""
+
+    class Kind(models.TextChoices):
+        SCHEDULED_INSTALLMENT = "SCHEDULED_INSTALLMENT", "Scheduled installment"
+        SKIPPED = "SKIPPED", "Skipped installment"
+        EXTERNAL_REPAYMENT = "EXTERNAL_REPAYMENT", "External repayment"
+        CORRECTION = "CORRECTION", "Correction"
+        REVERSAL = "REVERSAL", "Reversal"
+        FINAL_SETTLEMENT = "FINAL_SETTLEMENT", "Final settlement"
+
+    class Status(models.TextChoices):
+        PROPOSED = "PROPOSED", "Proposed"
+        POSTED = "POSTED", "Posted"
+        VOID = "VOID", "Voided"
+
+    obligation = models.ForeignKey(
+        EmployeeObligation, on_delete=models.PROTECT, related_name="transactions"
+    )
+    payroll_run = models.ForeignKey(
+        "PayrollRun", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="obligation_transactions",
+    )
+    kind = models.CharField(max_length=24, choices=Kind.choices)
+    amount = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        help_text="Positive repayment reduces balance; a signed correction can restore it.",
+    )
+    transaction_date = models.DateField()
+    reason = models.CharField(max_length=255)
+    source_reference = models.CharField(max_length=255, blank=True)
+    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PROPOSED)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="employee_obligation_transactions_created",
+    )
+    posted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["transaction_date", "pk"]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(amount__gte=0) | Q(kind__in=["CORRECTION", "REVERSAL"]),
+                name="payroll_obligation_tx_amount_signed_only_correction",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.payroll_run_id and self.obligation_id and self.payroll_run.organization_id != self.obligation.organization_id:
+            raise ValidationError({"payroll_run": "The payroll run must belong to the obligation's organization."})
+        if self.status == self.Status.POSTED and not self.posted_at:
+            raise ValidationError({"posted_at": "Posted transactions require a posted timestamp."})
+        if self.kind == self.Kind.SKIPPED and self.amount != 0:
+            raise ValidationError({"amount": "A skipped installment must have a zero ledger amount."})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Obligation transactions are append-only. Add a reversal or correction.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class PayrollRuleAssignment(models.Model):
@@ -373,6 +812,7 @@ class EmployeeCompensationVersion(models.Model):
     class Basis(models.TextChoices):
         HOURLY = "HOURLY", "Hourly"
         DAILY = "DAILY", "Daily"
+        MONTHLY = "MONTHLY", "Monthly"
 
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.PROTECT, related_name="employee_compensation_versions"
@@ -415,8 +855,8 @@ class EmployeeCompensationVersion(models.Model):
             raise ValidationError({"effective_until": "End date must be on or after the effective date."})
         if self.currency != "PHP":
             raise ValidationError({"currency": "The first payroll release supports PHP only."})
-        if self.basis == self.Basis.DAILY and (not self.source_reference.strip() or not self.reviewed_by.strip()):
-            raise ValidationError({"source_reference": "Daily compensation requires a reviewed source reference and reviewer."})
+        if self.basis in {self.Basis.DAILY, self.Basis.MONTHLY} and (not self.source_reference.strip() or not self.reviewed_by.strip()):
+            raise ValidationError({"source_reference": "Daily and monthly compensation require a reviewed source reference and reviewer."})
         overlaps = type(self).objects.filter(employee_id=self.employee_id).exclude(pk=self.pk).filter(
             Q(effective_until__isnull=True) | Q(effective_until__gte=self.effective_from)
         )
@@ -664,6 +1104,10 @@ class PayrollRun(models.Model):
         REGULAR = "REGULAR", "Regular"
         OFF_CYCLE = "OFF_CYCLE", "Off-cycle"
 
+    class ScopeMode(models.TextChoices):
+        ALL_ACTIVE = "ALL_ACTIVE", "All active payroll employees"
+        SELECTED = "SELECTED", "Selected employees"
+
     organization = models.ForeignKey(
         "organizations.Organization", on_delete=models.PROTECT, related_name="payroll_runs"
     )
@@ -680,6 +1124,14 @@ class PayrollRun(models.Model):
         default=PayrollSettings.Frequency.SEMI_MONTHLY,
     )
     currency = models.CharField(max_length=3, default="PHP")
+    scope_mode = models.CharField(
+        max_length=12, choices=ScopeMode.choices, default=ScopeMode.ALL_ACTIVE,
+        help_text="Payroll periods and employee scope belong to this run, not to the organization globally.",
+    )
+    employees = models.ManyToManyField(
+        "employees.Employee", through="PayrollRunEmployee", related_name="payroll_runs",
+        blank=True,
+    )
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT, db_index=True)
     prepared_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payroll_runs_prepared")
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="payroll_runs_reviewed")
@@ -709,7 +1161,7 @@ class PayrollRun(models.Model):
             prior = type(self).objects.get(pk=self.pk)
             if prior.status in (self.Status.FINALIZED, self.Status.VOID):
                 raise ValidationError("Finalized and void payroll runs are immutable.")
-            immutable = ("organization_id", "reference", "idempotency_key", "run_type", "parent_run_id", "period_start", "period_end", "pay_date", "pay_frequency", "currency", "prepared_by_id")
+            immutable = ("organization_id", "reference", "idempotency_key", "run_type", "parent_run_id", "period_start", "period_end", "pay_date", "pay_frequency", "currency", "scope_mode", "prepared_by_id")
             if any(getattr(prior, name) != getattr(self, name) for name in immutable):
                 raise ValidationError("Payroll run identity and period cannot be changed.")
             allowed = {
@@ -727,6 +1179,52 @@ class PayrollRun(models.Model):
 
     def __str__(self):
         return f"{self.reference} · {self.period_start}–{self.period_end}"
+
+
+class PayrollRunEmployee(models.Model):
+    """Explicit employee membership for a selected payroll run."""
+
+    run = models.ForeignKey(PayrollRun, on_delete=models.PROTECT, related_name="employee_memberships")
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="payroll_run_employee_memberships",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT,
+        related_name="payroll_run_memberships",
+    )
+    included_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="payroll_run_employee_memberships_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["employee__last_name", "employee__first_name", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["run", "employee"], name="payroll_run_employee_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "employee"], name="payroll_run_emp_org_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.run_id and self.organization_id and self.run.organization_id != self.organization_id:
+            raise ValidationError({"organization": "The membership organization must match the payroll run."})
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the membership organization."})
+
+    def save(self, *args, **kwargs):
+        if self.run_id and self.run.status != PayrollRun.Status.DRAFT:
+            raise ValidationError("Employee scope can only change while the payroll run is a draft.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.run.status != PayrollRun.Status.DRAFT:
+            raise ValidationError("Employee scope can only change while the payroll run is a draft.")
+        return super().delete(*args, **kwargs)
 
 
 class PayrollStatement(models.Model):

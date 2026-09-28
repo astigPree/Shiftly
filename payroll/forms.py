@@ -279,8 +279,11 @@ class PayrollBulkRuleAssignmentForm(forms.Form):
 class EmployeePayProfileForm(forms.ModelForm):
     class Meta:
         model = EmployeePayProfile
-        fields = ["work_location", "payroll_region", "payroll_timezone", "wage_order_reference", "minimum_wage_confirmed", "night_differential_eligible", "rest_day", "rank_and_file", "active_for_payroll"]
+        fields = ["employment_status", "pay_basis", "minimum_daily_rate", "work_location", "payroll_region", "payroll_timezone", "wage_order_reference", "minimum_wage_confirmed", "night_differential_eligible", "rest_day", "rank_and_file", "active_for_payroll"]
         labels = {
+            "employment_status": "Employment status",
+            "pay_basis": "Primary pay basis",
+            "minimum_daily_rate": "Reviewed minimum daily base (PHP)",
             "work_location": "Work location",
             "payroll_region": "Payroll region",
             "minimum_wage_confirmed": "Hourly rate checked against the applicable wage order",
@@ -292,6 +295,9 @@ class EmployeePayProfileForm(forms.ModelForm):
             "active_for_payroll": "Include this employee in payroll",
         }
         help_texts = {
+            "employment_status": "Classification only; it does not infer statutory coverage.",
+            "pay_basis": "Monthly and mixed bases remain reviewer-configured until conversion rules are approved.",
+            "minimum_daily_rate": "Optional reviewer-entered statutory base for this employee's wage region.",
             "work_location": "The employee's usual work location.",
             "payroll_region": "The wage-order region for this work location.",
             "payroll_timezone": "Used to apply payroll rules by the employee's local work date. Blank uses the organization timezone.",
@@ -562,10 +568,16 @@ class PayrollHolidayForm(forms.ModelForm):
 
 class PayrollRunForm(forms.ModelForm):
     request_key = forms.UUIDField(widget=forms.HiddenInput)
+    employees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.none(), required=False,
+        label="Employees in this run",
+        help_text="Choose the employees for this period. Leave the scope as all active employees to include everyone configured for payroll.",
+        widget=forms.SelectMultiple(attrs={"size": 6}),
+    )
 
     class Meta:
         model = PayrollRun
-        fields = ["run_type", "period_start", "period_end", "pay_date", "parent_run"]
+        fields = ["run_type", "scope_mode", "period_start", "period_end", "pay_date", "parent_run"]
         widgets = {
             "period_start": forms.DateInput(attrs={"type": "date"}),
             "period_end": forms.DateInput(attrs={"type": "date"}),
@@ -580,6 +592,13 @@ class PayrollRunForm(forms.ModelForm):
             organization=organization, status=PayrollRun.Status.FINALIZED
         )
         self.fields["parent_run"].required = False
+        self.fields["employees"].queryset = Employee.objects.filter(
+            organization=organization, status=Employee.Status.ACTIVE,
+        ).order_by("last_name", "first_name")
+        self.fields["employees"].label_from_instance = lambda employee: f"{employee.full_name} · {employee.employee_code}"
+        self.order_fields([
+            "run_type", "scope_mode", "employees", "period_start", "period_end", "pay_date", "parent_run", "request_key",
+        ])
 
     def clean(self):
         cleaned = super().clean()
@@ -593,6 +612,10 @@ class PayrollRunForm(forms.ModelForm):
                 self.add_error("period_start", "An off-cycle correction uses the linked run's original pay period.")
         if cleaned.get("run_type") == PayrollRun.RunType.REGULAR and cleaned.get("parent_run"):
             self.add_error("parent_run", "Only an off-cycle run can be linked to a prior run.")
+        if cleaned.get("scope_mode") == PayrollRun.ScopeMode.SELECTED and not cleaned.get("employees"):
+            self.add_error("employees", "Select at least one active employee for a selected run.")
+        if cleaned.get("scope_mode") == PayrollRun.ScopeMode.ALL_ACTIVE and cleaned.get("employees"):
+            self.add_error("employees", "Clear the employee list when using all active employees.")
         if cleaned.get("run_type") == PayrollRun.RunType.REGULAR and start and end:
             settings_row = PayrollSettings.objects.filter(organization=self.organization).first()
             frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY

@@ -14,6 +14,7 @@
   {% if run.status == 'REVIEW' %}<form method="post" class="payroll-header-actions" data-payroll-confirm data-confirm-title="Return this run to draft?" data-confirm-description="You can update the draft and complete any missing statutory reviews. Submit it for review again before finalizing." data-confirm-action="Return to draft" data-confirm-danger="false">{% csrf_token %}<input type="hidden" name="action" value="return_to_draft"><button class="button-secondary" type="submit">Return to draft</button></form>{% endif %}
 
   <div class="payroll-warning-box"><strong>Calculation scope</strong><span>Hourly base pay, configured daily overtime, reviewed rest-day/holiday premiums, and ordinary-day night differential are calculated from approved attendance. Tax withholding and statutory contributions remain manually reviewed line items. Night premium combinations that need manual review block finalization until a corresponding earning line is recorded. No money is transferred.</span></div>
+  <div class="payroll-info-box"><strong>Employee scope</strong><span>{{ run.get_scope_mode_display }}{% if run.scope_mode == "SELECTED" %} · {{ run.employee_memberships.count }} employee{{ run.employee_memberships.count|pluralize }} selected for this period{% else %} · the run evaluates active payroll employees{% endif %}</span></div>
 
   <section class="payroll-total-grid" aria-label="Payroll totals">
     <article class="payroll-total-card"><span>Employees</span><strong>{{ run.statements.count }}</strong><small>Statements in this run</small></article>

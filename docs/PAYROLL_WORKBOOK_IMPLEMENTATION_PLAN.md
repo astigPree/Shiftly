@@ -28,11 +28,35 @@ The workbook also contains calculation and reference problems. Treat it as evide
 
 ## Current implementation status (2026-09-27)
 
-The application now supports effective-dated hourly or daily compensation, reviewed date-level payroll inputs for daily-paid employees, reusable dated earning/deduction components, component-safe recalculation, component-aware CSV columns, and payslip display of reviewed daily inputs. Existing legacy hourly rates and finalized statements remain compatible. The checklist below marks those verified implementation items; open boxes are deliberate gaps or acceptance work that still requires policy decisions, additional tests, or independent payroll review.
+The application now supports effective-dated hourly, daily, and monthly compensation metadata, reviewed date-level payroll inputs for daily-paid employees, reusable dated earning/deduction components, component-safe recalculation, component-aware CSV columns, and payslip display of reviewed daily inputs. It also has additive schema support for employee pay-basis/status, statutory coverage evidence, reviewer-gated statutory rule versions, effective-dated payment methods, append-only obligations, and selected employee scope per payroll run. Existing legacy hourly rates and finalized statements remain compatible. The checklist below marks verified behavior; open boxes are deliberate gaps or acceptance work that still requires policy decisions, UI wiring, calculation services, additional tests, or independent payroll review.
 
 Synthetic acceptance inputs for this slice are recorded in [`PAYROLL_REFERENCE_CASES.md`](PAYROLL_REFERENCE_CASES.md). They contain no workbook employee identities or production balances.
 
 Automatic SSS/PhilHealth/Pag-IBIG/withholding calculations, contribution cutoff allocation, loan and cash-advance balances, cash denomination preparation, workbook comparison/import, and the policy decisions D1–D11 remain deliberately manual or unimplemented. Do not describe those areas as automatic payroll features until their tasks below are completed and independently reviewed.
+
+## Owner decisions received (2026-09-28)
+
+The follow-up answers resolve the remaining product decisions that can be represented safely in the application. They do **not** constitute legal approval of Philippine payroll amounts. The workbook and the photographed timecards remain reference material; their employee names, balances, and payment examples are not production fixtures.
+
+### Decisions now represented by the payroll foundation
+
+- Regular and probation/part-time employees may run in separate, user-entered periods. A run owns its inclusive start date, end date, pay date, frequency, and optional selected employee scope.
+- Employment status is classification metadata only. It never infers SSS, PhilHealth, Pag-IBIG, or BIR coverage.
+- Employee profiles can identify a primary hourly, daily, monthly, or mixed pay basis and a reviewer-entered minimum daily base. Dated compensation supports hourly, daily, and monthly rate versions; monthly conversion formulas remain reviewer-gated until the owner supplies them.
+- Statutory coverage, identifiers, exemption evidence, dated payment methods, statutory rule versions, and append-only obligation ledgers now have additive schema support. These controls are not automatically populated and are not yet wired into final payroll calculation.
+- A selected run can carry explicit employee memberships. Existing runs default to all active payroll employees for compatibility.
+
+### Rules kept reviewer-gated
+
+- Ordinary overtime defaults remain configurable and review-required; the owner decision of 1.00× is not treated as universal law.
+- Holiday/rest-day and premium stacking uses explicit reviewed rule inputs; legacy 1.3/2.3 values remain shadow-comparison fields only.
+- Night differential is represented as a configurable 10:00 PM–6:00 AM, 10% policy with per-employee eligibility and work-location timezone, but final stacking still requires an approved matrix.
+- SSS, PhilHealth, Pag-IBIG, and BIR versions require effective dates, source, rates/tables, rounding, reviewer, and production approval before automatic use. Until then they remain manual reviewed lines.
+- Obligation repayments are proposed during draft/review and must post only from a finalized run. Cash preparation, denomination rules, retention, named approvers, and bank credentials remain outside this schema slice.
+
+### Manual timecard interpretation
+
+The photographed cards contain morning and afternoon punches, overtime punches, day-off/closed markers, and a signature. The intended mapping is one shift with multiple reviewed work segments plus an optional overtime segment. Raw punches should remain separate from reviewed payroll inputs; a correction is an explicit adjustment with source and reviewer rather than an overwrite.
 
 ## 2. Workbook inventory and evidence
 
@@ -183,7 +207,7 @@ Legend: **Supported** = dedicated functionality exists; **Partial/manual** = rel
 | --- | --- | --- |
 | Employee-specific pay rules | Supported: dated overrides and company default | `PayrollRuleProfile`, `PayrollRuleSet`, `PayrollRuleAssignment`; `resolve_effective_rule()` |
 | Employee hourly rate history | Supported | `EmployeePayRate`, `effective_pay_rate()` |
-| Daily basic rate and calendar/day quantities | Missing as an explicit pay basis | Add compensation basis; do not disguise daily pay as an unexplained hourly rate |
+| Daily basic rate and calendar/day quantities | Supported through dated daily compensation and reviewed period inputs | Complete mixed/monthly conversion services; do not disguise daily pay as an unexplained hourly rate |
 | Actual work, breaks, overnight hours | Supported; stronger than this workbook's aggregate inputs | `_worked_intervals()`, `split_worked_segments()` |
 | Absence/undertime amounts | Partial: time quantities exist; hourly pay already excludes unworked time | Basis-specific pay calculation, reviewed time quantities |
 | Ordinary overtime | Supported using configured daily threshold and multiplier | `calculate_payroll_run()` |
@@ -191,14 +215,14 @@ Legend: **Supported** = dedicated functionality exists; **Partial/manual** = rel
 | Rest/holiday premiums | Partial: reviewed single cases; complicated combinations need manual review | Existing holiday models and exception workflow |
 | Daily allowance/COLA and recurring charges | Manual amounts only | Add structured components and dated employee assignments |
 | Signed adjustments | Positive earning/deduction lines supported; negative amount inputs rejected | Explicit correction/refund types; never relax amount validation globally |
-| SSS/PhilHealth/Pag-IBIG calculations | Manual reviewed lines only; no automatic statutory engine | Add separate reviewed, dated contribution calculations |
-| Statutory review evidence | Supported for SSS, PhilHealth, Pag-IBIG, withholding | Preserve `payroll/statutory.py`; update it deliberately for generated lines |
-| Agency/company loans and cash advances | Manual deductions only | Add obligations, installments, opening balances, and repayment postings |
-| Regular/Probation groups | No dedicated employment-category history; employee status is Active/Inactive | Separate category from pay basis, rule profile, and statutory eligibility |
+| SSS/PhilHealth/Pag-IBIG calculations | Manual reviewed lines only; reviewer-gated statutory rule/coverage schema added | Add approved effective tables, cutoff allocation, and calculation services |
+| Statutory review evidence | Manual review layer plus dated coverage/rule evidence schema | Preserve `payroll/statutory.py`; wire generated lines to approvals deliberately |
+| Agency/company loans and cash advances | Append-only obligation and transaction schema added; no automatic deductions yet | Add preview/finalization posting services, priority/defer rules, and UI |
+| Regular/Probation groups | Effective employee employment-status and pay-basis metadata added | Keep status separate from rule profile and statutory eligibility; add history if needed |
 | Payslips | Supported: employee-owned finalized statements and printable HTML | Add component detail and rate/quantity explanations |
 | Payroll register export | Partial: finalized CSV totals exist | Add classified contribution/allowance/loan columns and reconciliation |
 | Cash denomination report | Missing | Optional preparation report over finalized statements; no transfers |
-| Custom cutoffs | Missing; current weekly/semi-monthly/monthly boundaries are fixed | Only add if confirmed; this workbook does not establish custom cutoff dates |
+| Custom cutoffs | Run dates/pay date are user-entered; frequency validation still applies to regular runs | Add an explicit cutoff policy when the owner supplies its rules; never infer from workbook dates |
 | Fixed monthly salary, 13th month, annual tax engine | Missing; not demonstrated as working calculations in this file | Separate future scope, not prerequisite for daily-register parity |
 
 ### Code map for the implementer
