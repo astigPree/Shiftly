@@ -1,5 +1,6 @@
 import csv
 import uuid
+from collections import Counter
 from datetime import timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -775,6 +776,43 @@ def employee_profile(request, pk):
         profile_status, profile_status_label = "ready", "Payroll ready"
         profile_status_detail = "Required work and wage details are configured."
 
+    current_rule_assignment = employee.payroll_rule_assignments.filter(
+        effective_from__lte=employee_work_date,
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
+    ).select_related("rule_profile").first()
+    default_rule_profile = PayrollRuleProfile.objects.filter(
+        organization=organization, is_default=True, active=True,
+    ).first()
+
+    readiness_items = [
+        {
+            "label": "Compensation configured",
+            "complete": bool(current_compensation),
+            "detail": "An effective hourly or daily amount is active." if current_compensation else "Add an effective hourly or daily amount.",
+        },
+        {
+            "label": "Work location set",
+            "complete": bool(profile.work_location.strip() and profile.payroll_timezone.strip()),
+            "detail": "Work location and timezone are configured." if profile.work_location.strip() and profile.payroll_timezone.strip() else "Set the employee's location and payroll timezone.",
+        },
+        {
+            "label": "Wage-order reference on file",
+            "complete": bool(profile.wage_order_reference.strip()),
+            "detail": "Reference recorded for the employee's work location." if profile.wage_order_reference.strip() else "Record the applicable wage-order reference.",
+        },
+        {
+            "label": "Rule profile resolved",
+            "complete": bool(current_rule_assignment or default_rule_profile),
+            "detail": "An employee override or organization default will be used." if (current_rule_assignment or default_rule_profile) else "Create an active organization default profile.",
+        },
+        {
+            "label": "Statutory and payment review",
+            "complete": bool(profile.minimum_wage_confirmed and profile.night_differential_eligible is not None),
+            "detail": "Employer review inputs are recorded." if profile.minimum_wage_confirmed else "Confirm wage-order and statutory coverage inputs.",
+        },
+    ]
+
     action = request.POST.get("action", "profile") if request.method == "POST" else ""
     form = EmployeePayProfileForm(
         request.POST if request.method == "POST" and action != "assignment" else None,
@@ -840,14 +878,20 @@ def employee_profile(request, pk):
         "profile_status_detail": profile_status_detail,
         "profile_location_display": profile.work_location or "Not set",
         "rule_profiles": PayrollRuleProfile.objects.filter(organization=organization, active=True).order_by("-is_default", "name"),
-        "default_rule_profile": PayrollRuleProfile.objects.filter(organization=organization, is_default=True, active=True).first(),
+        "default_rule_profile": default_rule_profile,
         "rule_assignments": employee.payroll_rule_assignments.select_related("rule_profile", "assigned_by"),
-        "current_rule_assignment": employee.payroll_rule_assignments.filter(
-            effective_from__lte=employee_work_date,
-        ).filter(
-            Q(effective_until__isnull=True) | Q(effective_until__gte=employee_work_date)
-        ).select_related("rule_profile").first(),
+        "current_rule_assignment": current_rule_assignment,
         "assignment_form": assignment_form,
+        "readiness_items": readiness_items,
+        "readiness_complete_count": sum(1 for item in readiness_items if item["complete"]),
+        "profile_audit_events": AuditEvent.objects.filter(
+            organization=organization,
+            target_type__in={
+                "employee_pay_profile", "employee_compensation_version", "employee_pay_rate",
+                "employee_component_assignment", "payroll_rule_assignment", "payroll_period_input",
+            },
+            target_id__in={str(employee.pk), str(profile.pk)} if profile.pk else {str(employee.pk)},
+        ).select_related("actor").order_by("-created_at", "-pk")[:12],
         "component_assignments": employee.payroll_component_assignments.select_related("component", "assigned_by"),
         "period_inputs": employee.payroll_period_inputs.order_by("-work_date", "-pk")[:20],
         "component_count": PayrollComponentDefinition.objects.filter(organization=organization, active=True).count(),
@@ -1003,8 +1047,106 @@ def component_definitions(request):
             return redirect("payroll:component_definitions")
         except ValidationError as error:
             _message_error(request, error)
-    components = PayrollComponentDefinition.objects.filter(organization=organization).order_by("label")
-    return render(request, "payroll/component_definitions.html", {"organization": organization, "form": form, "components": components})
+    all_components = PayrollComponentDefinition.objects.filter(organization=organization)
+    query = request.GET.get("q", "").strip()
+    kind = request.GET.get("kind", "")
+    basis = request.GET.get("basis", "")
+    status = request.GET.get("status", "")
+    if query:
+        all_components = all_components.filter(
+            Q(code__icontains=query) | Q(label__icontains=query) | Q(description__icontains=query)
+        )
+    if kind in PayrollComponentDefinition.Kind.values:
+        all_components = all_components.filter(kind=kind)
+    else:
+        kind = ""
+    if basis in PayrollComponentDefinition.Basis.values:
+        all_components = all_components.filter(basis=basis)
+    else:
+        basis = ""
+    if status == "active":
+        all_components = all_components.filter(active=True)
+    elif status == "inactive":
+        all_components = all_components.filter(active=False)
+    else:
+        status = ""
+    page = Paginator(all_components.order_by("label", "pk"), 10).get_page(request.GET.get("page"))
+    counts = PayrollComponentDefinition.objects.filter(organization=organization).aggregate(
+        total=Count("pk"),
+        active=Count("pk", filter=Q(active=True)),
+        earnings=Count("pk", filter=Q(kind=PayrollComponentDefinition.Kind.EARNING)),
+        deductions=Count("pk", filter=Q(kind=PayrollComponentDefinition.Kind.DEDUCTION)),
+        employer_contributions=Count("pk", filter=Q(kind=PayrollComponentDefinition.Kind.EMPLOYER_CONTRIBUTION)),
+    )
+    return render(request, "payroll/component_definitions.html", {
+        "organization": organization,
+        "form": form,
+        "components": page.object_list,
+        "page": page,
+        "counts": counts,
+        "query": query,
+        "selected_kind": kind,
+        "selected_basis": basis,
+        "selected_status": status,
+        "kind_choices": PayrollComponentDefinition.Kind.choices,
+        "basis_choices": PayrollComponentDefinition.Basis.choices,
+        "page_querystring": _page_querystring(request),
+        "show_form": request.GET.get("add", "1") != "0" or request.method == "POST",
+    })
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
+def component_edit(request, pk):
+    organization = _organization(request)
+    component = get_object_or_404(PayrollComponentDefinition, pk=pk, organization=organization)
+    form = PayrollComponentDefinitionForm(
+        request.POST or None,
+        instance=component,
+        organization=organization,
+        actor=request.user,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            form.save()
+            record_event(
+                organization=organization,
+                actor=request.user,
+                action=AuditEvent.Action.PAYROLL_RULES_UPDATED,
+                target_type="payroll_component_definition",
+                target_id=component.pk,
+                summary=f"Updated payroll component {component.code}.",
+                metadata={"code": component.code, "active": component.active},
+            )
+            messages.success(request, f"{component.label} updated.")
+            return redirect("payroll:component_definitions")
+        except ValidationError as error:
+            _message_error(request, error)
+    return render(request, "payroll/component_edit.html", {
+        "organization": organization,
+        "component": component,
+        "form": form,
+    })
+
+
+@employer_required
+@require_POST
+def component_toggle(request, pk):
+    organization = _organization(request)
+    component = get_object_or_404(PayrollComponentDefinition, pk=pk, organization=organization)
+    component.active = not component.active
+    component.save(update_fields=["active"])
+    record_event(
+        organization=organization,
+        actor=request.user,
+        action=AuditEvent.Action.PAYROLL_RULES_UPDATED,
+        target_type="payroll_component_definition",
+        target_id=component.pk,
+        summary=f"{'Activated' if component.active else 'Deactivated'} payroll component {component.code}.",
+        metadata={"code": component.code, "active": component.active},
+    )
+    messages.success(request, f"{component.label} is now {'active' if component.active else 'inactive'}.")
+    return redirect("payroll:component_definitions")
 
 
 @employer_required
@@ -1238,11 +1380,21 @@ def run_detail(request, pk):
             return redirect("payroll:run_detail", pk=run.pk)
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
-    paginator = Paginator(statement_query, 30)
+    statement_search = request.GET.get("q", "").strip()
+    if statement_search:
+        statement_query = statement_query.filter(
+            Q(employee__first_name__icontains=statement_search)
+            | Q(employee__last_name__icontains=statement_search)
+            | Q(employee__employee_code__icontains=statement_search)
+        )
+    page_size = request.GET.get("page_size", "25")
+    if page_size not in {"10", "25", "50"}:
+        page_size = "25"
+    paginator = Paginator(statement_query, int(page_size))
     page_number = request.GET.get('page')
     if invalid_statement_id:
         ids = list(statement_query.values_list('pk', flat=True))
-        page_number = ids.index(invalid_statement_id) // 30 + 1
+        page_number = ids.index(invalid_statement_id) // int(page_size) + 1
     statement_page = paginator.get_page(page_number)
     for statement in statement_page.object_list:
         statement.rule_profile_summary = _statement_rule_profile_summary(statement)
@@ -1259,6 +1411,29 @@ def run_detail(request, pk):
         "exception": item,
         "form": PayrollExceptionResolutionForm(run=run, exception=item, prefix=f"exception-{item.pk}"),
     } for item in exceptions if not item.resolved_at and not item.superseded_at]
+    active_exceptions = [item for item in exceptions if not item.resolved_at and not item.superseded_at]
+    exception_counts = Counter(item.code for item in active_exceptions)
+    exception_labels = {
+        "MONTHLY_CALCULATION_NOT_CONFIGURED": ("Monthly calculation not configured", "Employees require a compensation or payroll-basis review."),
+        "MONTHLY_INPUT_NOT_SUPPORTED": ("Monthly period input required", "Add a reviewed period input before recalculating this statement."),
+        "NO_ATTENDANCE": ("Missing attendance", "No approved attendance or reviewed period input was found."),
+        "NO_PAYROLL_TIME": ("Missing attendance", "No approved attendance or reviewed period input was found."),
+        "TIMESHEET_REJECTED": ("Rejected timesheet", "Review the source timesheet and acknowledge the exclusion."),
+        "NIGHT_PREMIUM_STACKING_REVIEW": ("Night premium review", "Record a reviewed earning line before finalization."),
+    }
+    exception_summary = []
+    for code, count in exception_counts.most_common():
+        label, description = exception_labels.get(code, (code.replace("_", " ").title(), "Review this payroll exception."))
+        exception_summary.append({"code": code, "label": label, "description": description, "count": count})
+    active_exception_by_employee = Counter(item.employee_id for item in active_exceptions if item.employee_id)
+    for statement in statement_page.object_list:
+        statement.statement_exception_count = active_exception_by_employee.get(statement.employee_id, 0)
+        statement.statement_status = "Blocked" if statement.statement_exception_count > 1 else ("Needs review" if statement.statement_exception_count else "Ready")
+        snapshot = statement.snapshot or {}
+        compensation_versions = snapshot.get("compensation_versions") or {}
+        first_compensation = next(iter(compensation_versions.values()), {}) if isinstance(compensation_versions, dict) else {}
+        basis = snapshot.get("pay_basis") or first_compensation.get("basis") or ""
+        statement.pay_basis = {"HOURLY": "Hourly", "DAILY": "Daily", "MONTHLY": "Monthly"}.get(basis, basis.title() if basis else "—")
     adjustment_form = PayrollAdjustmentForm(organization=organization, initial={"effective_date": run.period_start})
     totals = run.statements.aggregate(
         gross=Sum("gross_amount"), deductions=Sum("deduction_amount"),
@@ -1273,6 +1448,10 @@ def run_detail(request, pk):
         "unresolved_exception_count": sum(1 for item in exceptions if not item.resolved_at and not item.superseded_at),
         "preview_history": run.calculation_previews.all()[:5],
         "adjustment_form": adjustment_form,
+        "exception_summary": exception_summary,
+        "statement_search": statement_search,
+        "statement_page_size": page_size,
+        "page_querystring": _page_querystring(request),
         "statutory_pending_count": statutory_pending,
         "finalize_form": FinalizePayrollForm(),
         "void_form": VoidPayrollForm(),

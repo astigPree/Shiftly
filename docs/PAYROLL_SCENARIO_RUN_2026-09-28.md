@@ -90,3 +90,38 @@ employees** for pagination and large-list testing. The original four scenario
 employees were preserved, and 196 additional synthetic employees were added
 with `BULK-NNN` employee codes. Their email pattern and temporary password are
 listed in the ignored credentials file.
+
+The full scenario was then applied to all 200 employees:
+
+- 50 Daily, 50 Hourly, 50 Monthly, and 50 Mixed pay-basis profiles.
+- 200 October compensation versions with reviewed source data.
+- 800 effective-dated statutory coverage records (four agencies per employee).
+- 200 Cash payment methods effective October 1, 2026.
+- 100 reviewed period inputs for Daily and Monthly employees.
+- 200 reviewed cash-advance obligations and 200 proposed installment rows.
+- Selected payroll run `PAY-20261001-20261031` (run ID `3`) containing all 200 employees.
+
+The large run generated 150 statements: 50 Daily statements plus 100 Hourly
+and Mixed statements from approved overnight shifts. Those shifts ran from
+10:00 PM to 3:00 AM with a 30-minute break, producing 100 night entries and
+27,000 night minutes. The run recorded a gross total of `PHP 89,500.00` and
+the expected `MONTHLY_INPUT_NOT_SUPPORTED` exception for 50 Monthly
+employees. No unsupported monthly pay was silently calculated.
+
+## Six-month attendance history
+
+To exercise attendance, timesheet, schedule, and pagination screens with
+historical data, each employee received one completed weekday shift for every
+weekday from **2026-04-01 through 2026-09-28**:
+
+- 129 shifts per employee, **25,800 shifts total**.
+- 25,800 completed attendance sessions.
+- 25,800 approved timesheets.
+- Daily shifts run 9:00 AM–6:00 PM with a 60-minute break.
+- Mixed-basis employees run 10:00 PM–3:00 AM with a 30-minute break, adding
+  6,450 overnight shifts to the history.
+- Historical reviewed compensation was added where an employee did not already
+  have a rate covering the six-month window.
+
+The verification query confirmed every one of the 200 employees has exactly
+129 shifts, completed attendance, and approved timesheets in this date range.

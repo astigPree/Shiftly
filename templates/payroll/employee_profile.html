@@ -35,6 +35,17 @@
   </header>
 
   {% include "payroll/_subnav.html" %}
+  <nav class="payroll-profile-page-tabs" aria-label="Employee payroll sections">
+    <a href="#overview" aria-current="page">{% include "components/icon.html" with icon_name="wallet" icon_class="payroll-button-icon" %} Overview</a>
+    <a href="#work-details-title">Work details</a>
+    <a href="#rate-history-title">Compensation</a>
+    <a href="#component-title">Components</a>
+    <a href="#input-title">Period inputs</a>
+    <a href="#rule-assignment-title">Rule assignment</a>
+    <a href="#audit-history">Audit history</a>
+  </nav>
+
+  <span id="overview" class="payroll-anchor-target" aria-hidden="true"></span>
 
   <form method="post" class="payroll-profile-form" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="profile">
@@ -81,6 +92,11 @@
       </section>
     </div>
   </form>
+
+  <section class="payroll-card payroll-profile-readiness" aria-labelledby="readiness-title">
+    <header class="payroll-card-heading payroll-profile-readiness-heading"><div><h2 id="readiness-title">Payroll readiness</h2><p>Key items required before this employee can be included in a payroll run.</p></div><span class="payroll-profile-readiness-summary">{{ readiness_complete_count }} of {{ readiness_items|length }} complete</span></header>
+    <div class="payroll-profile-readiness-list">{% for item in readiness_items %}<div class="payroll-profile-readiness-row{% if not item.complete %} is-incomplete{% endif %}"><span aria-hidden="true">{% if item.complete %}✓{% else %}!{% endif %}</span><div><strong>{{ item.label }}</strong><small>{{ item.detail }}</small></div><span class="payroll-status payroll-status--{% if item.complete %}ready{% else %}needs-review{% endif %}">{% if item.complete %}Complete{% else %}Needs review{% endif %}</span></div>{% endfor %}</div>
+  </section>
 
   <section class="payroll-card payroll-rule-assignment-card" aria-labelledby="rule-assignment-title">
     <header class="payroll-card-heading">
@@ -165,6 +181,10 @@
   <section class="payroll-card payroll-rate-history" aria-labelledby="input-title">
     <header class="payroll-card-heading"><div><h2 id="input-title">Reviewed period inputs</h2><p>Daily-paid employees use these date-level quantities instead of attendance time.</p></div><a class="table-action-button" href="{% url 'payroll:add_period_input' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add period input</a></header>
     {% if period_inputs %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Work date</th><th>Worked</th><th>Planned</th><th>Undertime</th><th>Overtime</th><th>Source</th></tr></thead><tbody>{% for input in period_inputs %}<tr><td>{{ input.work_date|date:"M j, Y" }}</td><td>{{ input.worked_day_units }}</td><td>{{ input.planned_day_units }}</td><td>{{ input.undertime_minutes }} min</td><td>{{ input.overtime_minutes }} min</td><td>{{ input.source_reference }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><div><h3>No reviewed inputs</h3><p>Add date-level quantities when this employee is paid from a reviewed daily register.</p></div><a class="button-secondary" href="{% url 'payroll:add_period_input' employee.pk %}">Add period input</a></div>{% endif %}
+  </section>
+  <section id="audit-history" class="payroll-card payroll-profile-audit" aria-labelledby="profile-audit-title">
+    <header class="payroll-card-heading"><div><h2 id="profile-audit-title">Audit history</h2><p>Changes to this employee's payroll setup are retained for review.</p></div></header>
+    {% if profile_audit_events %}<div class="payroll-line-list">{% for event in profile_audit_events %}<div class="payroll-line"><span><strong>{{ event.get_action_display }}</strong><small>{{ event.summary }}</small></span><span>{{ event.created_at|date:"M j, Y · g:i A" }}<small>{{ event.actor.get_full_name|default:event.actor.email }}</small></span></div>{% endfor %}</div>{% else %}<div class="payroll-empty-state"><span class="payroll-empty-icon">{% include "components/icon.html" with icon_name="clock" icon_class="icon" %}</span><div><h3>No profile changes yet</h3><p>Saved payroll profile, compensation, component, and rule assignment changes will appear here.</p></div></div>{% endif %}
   </section>
 </div>
 {% endblock %}
