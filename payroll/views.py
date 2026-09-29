@@ -823,9 +823,20 @@ def employee_profile(request, pk):
         {
             "label": "Statutory and payment review",
             "complete": bool(profile.minimum_wage_confirmed and profile.night_differential_eligible is not None),
-            "detail": "Employer review inputs are recorded." if profile.minimum_wage_confirmed else "Confirm wage-order and statutory coverage inputs.",
+            "detail": (
+                "Wage-order, night-differential, and worker-classification checks are recorded."
+                if profile.minimum_wage_confirmed
+                else "Complete the wage-order check, night-differential eligibility, and worker-classification review."
+            ),
         },
     ]
+    incomplete_readiness_items = [item for item in readiness_items if not item["complete"]]
+    if profile_status in {"needs-setup", "needs-review"}:
+        profile_status_detail = (
+            "Complete the requirements below before this employee is included in a final payroll run."
+        )
+    elif profile_status == "ready":
+        profile_status_detail = "All payroll readiness checks are complete for this employee."
 
     action = request.POST.get("action", "profile") if request.method == "POST" else ""
     form = EmployeePayProfileForm(
@@ -900,6 +911,7 @@ def employee_profile(request, pk):
         "current_rule_assignment": current_rule_assignment,
         "assignment_form": assignment_form,
         "readiness_items": readiness_items,
+        "incomplete_readiness_items": incomplete_readiness_items,
         "readiness_complete_count": sum(1 for item in readiness_items if item["complete"]),
         "profile_audit_events": AuditEvent.objects.filter(
             organization=organization,

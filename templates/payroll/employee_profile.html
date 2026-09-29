@@ -13,7 +13,23 @@
       </div>
       <p class="payroll-profile-meta">#{{ employee.employee_code }} <span aria-hidden="true">&middot;</span> {{ employee.job_title|default:"Employee" }}</p>
       <p class="muted">Dated compensation, components, and payroll review history</p>
-      <p class="payroll-profile-status-detail payroll-profile-status-detail--{{ profile_status }}">{{ profile_status_detail }}</p>
+      <section class="payroll-profile-requirements payroll-profile-requirements--{{ profile_status }}" aria-labelledby="profile-requirements-title">
+        <div class="payroll-profile-requirements-heading">
+          <span class="payroll-profile-requirements-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}</span>
+          <div>
+            <strong id="profile-requirements-title">{% if incomplete_readiness_items %}Requirements before payroll{% else %}Payroll readiness complete{% endif %}</strong>
+            <p>{{ profile_status_detail }}</p>
+          </div>
+        </div>
+        {% if incomplete_readiness_items %}
+          <ul class="payroll-profile-requirements-list">
+            {% for item in incomplete_readiness_items %}
+              <li><span class="payroll-profile-requirement-dot" aria-hidden="true">!</span><div><strong>{{ item.label }}</strong><small>{{ item.detail }}</small></div></li>
+            {% endfor %}
+          </ul>
+          <a class="payroll-profile-requirements-link" href="#readiness-title">View full readiness checklist</a>
+        {% endif %}
+      </section>
     </div>
 
     <section class="payroll-profile-summary" aria-label="Employee payroll summary">
