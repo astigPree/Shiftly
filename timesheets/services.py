@@ -8,6 +8,7 @@ from audit.models import AuditEvent
 from audit.services import record_event
 from schedules.models import Shift
 from attendance.models import AttendanceSession
+from attendance.services import effective_attendance_values
 from .calculations import TimesheetCalculationError, calculate_timesheet
 from .models import Timesheet, TimesheetApproval
 
@@ -19,7 +20,8 @@ def generate_timesheet(attendance_session):
         .select_related("shift", "employee", "organization")
         .get(pk=attendance_session.pk)
     )
-    if session.clock_out_at is None or session.status != AttendanceSession.Status.COMPLETED:
+    effective = effective_attendance_values(session)
+    if effective["clock_out_at"] is None:
         raise ValidationError("A timesheet is created only after clock-out.")
     shift = Shift.objects.select_for_update().get(pk=session.shift_id)
     existing = Timesheet.objects.filter(shift=shift).first()
@@ -38,7 +40,13 @@ def generate_timesheet(attendance_session):
     status = Timesheet.Status.PENDING
     review_reason = ""
     try:
-        calculated = calculate_timesheet(shift, session, break_sessions)
+        calculated = calculate_timesheet(
+            shift,
+            session,
+            effective["breaks"],
+            clock_in_at=effective["clock_in_at"],
+            clock_out_at=effective["clock_out_at"],
+        )
         values = {
             "scheduled_minutes": calculated.scheduled_minutes,
             "break_minutes": calculated.break_minutes,
@@ -64,6 +72,52 @@ def generate_timesheet(attendance_session):
             )
     except IntegrityError:
         return Timesheet.objects.get(shift=shift)
+
+
+@transaction.atomic
+def recalculate_timesheet(timesheet, *, attendance_session=None, correction=None):
+    """Refresh generated values after a reviewed attendance correction."""
+    session = attendance_session or timesheet.attendance_session
+    effective = effective_attendance_values(session)
+    values = {
+        "scheduled_minutes": 0,
+        "break_minutes": 0,
+        "worked_minutes": 0,
+        "payable_minutes": 0,
+        "late_minutes": 0,
+        "undertime_minutes": 0,
+    }
+    status = Timesheet.Status.PENDING
+    review_reason = ""
+    try:
+        calculated = calculate_timesheet(
+            timesheet.shift,
+            session,
+            effective["breaks"],
+            clock_in_at=effective["clock_in_at"],
+            clock_out_at=effective["clock_out_at"],
+        )
+        values = {
+            "scheduled_minutes": calculated.scheduled_minutes,
+            "break_minutes": calculated.break_minutes,
+            "worked_minutes": calculated.worked_minutes,
+            "payable_minutes": calculated.payable_minutes,
+            "late_minutes": calculated.late_minutes,
+            "undertime_minutes": calculated.undertime_minutes,
+        }
+    except TimesheetCalculationError as error:
+        status = Timesheet.Status.NEEDS_REVIEW
+        review_reason = str(error)
+
+    # Timesheet details are immutable through the public model API. This
+    # service is the audited recalculation path for a correction.
+    Timesheet.objects.filter(pk=timesheet.pk).update(
+        **values,
+        status=status,
+        review_reason=review_reason,
+        updated_at=timezone.now(),
+    )
+    return Timesheet.objects.get(pk=timesheet.pk)
 
 
 @transaction.atomic

@@ -3,17 +3,18 @@ from django.utils import timezone
 
 from schedules.models import Shift
 
-from .models import BreakSession
-from .services import attendance_state
+from .models import AttendanceCorrection, BreakSession
+from .services import attendance_state, effective_attendance_values
 
 
 def _last_activity(session):
     if session is None:
         return None, ""
-    if session.clock_out_at:
-        return session.clock_out_at, "Clocked out"
+    effective = effective_attendance_values(session)
+    if effective["clock_out_at"]:
+        return effective["clock_out_at"], "Clocked out"
 
-    breaks = list(session.breaks.all())
+    breaks = effective["breaks"]
     open_break = next((item for item in breaks if item.ended_at is None), None)
     if open_break:
         return open_break.started_at, "Break started"
@@ -23,7 +24,7 @@ def _last_activity(session):
         latest_break = max(completed_breaks, key=lambda item: item.ended_at)
         return latest_break.ended_at, "Break ended"
 
-    return session.clock_in_at, "Clocked in"
+    return effective["clock_in_at"], "Clocked in"
 
 
 def _matches_status(row, status_filter):
@@ -53,7 +54,11 @@ def get_employer_attendance_dashboard(
             Prefetch(
                 "attendance_session__breaks",
                 queryset=BreakSession.objects.order_by("started_at"),
-            )
+            ),
+            Prefetch(
+                "attendance_session__corrections",
+                queryset=AttendanceCorrection.objects.order_by("-created_at", "-pk"),
+            ),
         )
         .order_by("scheduled_start", "employee__last_name")
     )
@@ -63,10 +68,12 @@ def get_employer_attendance_dashboard(
     for shift in shifts:
         state = attendance_state(shift, at=updated_at)
         session = getattr(shift, "attendance_session", None)
-        late_clock_in = bool(session and session.clock_in_at > shift.scheduled_start)
+        effective = effective_attendance_values(session) if session else None
+        effective_clock_in = effective["clock_in_at"] if effective else None
+        late_clock_in = bool(effective_clock_in and effective_clock_in > shift.scheduled_start)
         late_minutes = 0
         if late_clock_in:
-            late_seconds = (session.clock_in_at - shift.scheduled_start).total_seconds()
+            late_seconds = (effective_clock_in - shift.scheduled_start).total_seconds()
             late_minutes = max(1, int((late_seconds + 59) // 60))
 
         exceptions = []
@@ -102,6 +109,9 @@ def get_employer_attendance_dashboard(
             "last_activity_label": last_activity_label,
             "activity_text": activity_text,
             "exceptions": exceptions,
+            "can_edit_attendance": bool(session and effective and effective["clock_out_at"]),
+            "effective_clock_in_at": effective["clock_in_at"] if effective else None,
+            "effective_clock_out_at": effective["clock_out_at"] if effective else None,
         }
         all_rows.append(row)
 

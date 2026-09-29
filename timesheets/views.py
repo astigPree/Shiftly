@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from accounts.permissions import employee_required, employer_required, organization_for_user
+from attendance.models import AttendanceCorrection
 from .forms import EmployeeTimesheetFilterForm, RejectTimesheetForm, TimesheetFilterForm
 from .models import Timesheet, TimesheetApproval
 from .services import review_timesheet
@@ -34,6 +35,7 @@ def _with_details(queryset):
         "employee", "organization", "shift", "attendance_session", "attendance_session__shift"
     ).prefetch_related(
         "attendance_session__breaks",
+        Prefetch("attendance_session__corrections", queryset=AttendanceCorrection.objects.select_related("created_by")),
         Prefetch("approvals", queryset=TimesheetApproval.objects.select_related("reviewer")),
     )
 

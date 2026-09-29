@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
@@ -131,3 +132,57 @@ class BreakSession(models.Model):
 
     def __str__(self):
         return f"Break started {self.started_at}"
+
+
+class AttendanceCorrection(models.Model):
+    """Append-only employer correction for an attendance session.
+
+    The punch and break rows remain immutable.  Each correction stores the
+    effective values before and after the change so payroll can use the latest
+    reviewed values while the original employee punch remains auditable.
+    """
+
+    attendance_session = models.ForeignKey(
+        AttendanceSession,
+        on_delete=models.PROTECT,
+        related_name="corrections",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="attendance_corrections_created",
+    )
+    original_clock_in_at = models.DateTimeField()
+    original_clock_out_at = models.DateTimeField(null=True, blank=True)
+    corrected_clock_in_at = models.DateTimeField()
+    corrected_clock_out_at = models.DateTimeField(null=True, blank=True)
+    original_breaks = models.JSONField(default=list)
+    corrected_breaks = models.JSONField(default=list)
+    reason = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [
+            models.Index(fields=["attendance_session", "-created_at"], name="att_corr_session_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.corrected_clock_out_at and self.corrected_clock_out_at <= self.corrected_clock_in_at:
+            raise ValidationError({"corrected_clock_out_at": "Clock-out must be after clock-in."})
+        if not self.reason.strip():
+            raise ValidationError({"reason": "A correction reason is required."})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Attendance corrections are append-only.")
+        self.reason = self.reason.strip()
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Attendance corrections are append-only.")
+
+    def __str__(self):
+        return f"Attendance correction for session {self.attendance_session_id}"

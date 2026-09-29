@@ -6,14 +6,15 @@ from zoneinfo import ZoneInfo
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 
 from accounts.models import User
 from accounts.permissions import organization_for_user
 from audit.models import AuditEvent
 from audit.services import record_event
-from attendance.models import AttendanceSession
+from attendance.models import AttendanceCorrection, AttendanceSession
+from attendance.services import effective_attendance_values
 from employees.models import Employee
 from timesheets.models import Timesheet
 from schedules.models import Shift
@@ -257,19 +258,21 @@ def _apply_component_lines(*, statement, employee, run, actor, worked_days, paya
     return lines
 
 
-def _worked_intervals(session, breaks):
-    if session.clock_out_at is None or session.clock_out_at <= session.clock_in_at:
+def _worked_intervals(session, breaks, *, clock_in_at=None, clock_out_at=None):
+    clock_in_at = clock_in_at or session.clock_in_at
+    clock_out_at = clock_out_at if clock_out_at is not None else session.clock_out_at
+    if clock_out_at is None or clock_out_at <= clock_in_at:
         raise ValidationError("A completed attendance interval is required for payroll.")
-    cursor = session.clock_in_at
+    cursor = clock_in_at
     result = []
     for pause in sorted(breaks, key=lambda item: item.started_at):
-        if pause.ended_at is None or pause.started_at < cursor or pause.ended_at > session.clock_out_at:
+        if pause.ended_at is None or pause.started_at < cursor or pause.ended_at > clock_out_at:
             raise ValidationError("The attendance breaks are incomplete or inconsistent.")
         if pause.started_at > cursor:
             result.append((cursor, pause.started_at))
         cursor = pause.ended_at
-    if cursor < session.clock_out_at:
-        result.append((cursor, session.clock_out_at))
+    if cursor < clock_out_at:
+        result.append((cursor, clock_out_at))
     return result
 
 
@@ -321,11 +324,13 @@ def _offset_transition_boundaries(start, end, zone):
     return boundaries
 
 
-def split_worked_segments(session, breaks, *, zone_name, organization, rule_set, employee=None, period_start=None, period_end=None):
+def split_worked_segments(session, breaks, *, zone_name, organization, rule_set, employee=None, period_start=None, period_end=None, clock_in_at=None, clock_out_at=None):
     """Split worked intervals at local midnight and night-window boundaries."""
     zone = ZoneInfo(zone_name)
     chunks = []
-    for interval_start, interval_end in _worked_intervals(session, breaks):
+    for interval_start, interval_end in _worked_intervals(
+        session, breaks, clock_in_at=clock_in_at, clock_out_at=clock_out_at
+    ):
         cursor = interval_start.astimezone(datetime_timezone.utc)
         interval_end = interval_end.astimezone(datetime_timezone.utc)
         offset_boundaries = _offset_transition_boundaries(cursor, interval_end, zone)
@@ -604,16 +609,18 @@ def calculate_payroll_run(run, *, actor):
         record_event(organization=organization, actor=actor, action=AuditEvent.Action.PAYROLL_RUN_RECALCULATED, target_type="payroll_run", target_id=run.pk, summary=f"Recorded payroll preview {run.reference}.")
         return run
 
-    zone = ZoneInfo(organization.timezone)
     # Search a two-day margin because employee work-location dates can differ from
     # the organization's calendar date around midnight.
-    start_local = datetime.combine(run.period_start - timedelta(days=2), time.min).replace(tzinfo=zone)
-    end_local = datetime.combine(run.period_end + timedelta(days=3), time.min).replace(tzinfo=zone)
     timesheets = Timesheet.objects.filter(
         organization=organization,
-        attendance_session__clock_out_at__gt=start_local.astimezone(datetime_timezone.utc),
-        attendance_session__clock_in_at__lt=end_local.astimezone(datetime_timezone.utc),
-    ).select_related("employee", "employee__payroll_profile", "shift", "attendance_session", "employee__organization").prefetch_related("attendance_session__breaks").order_by("employee_id", "shift__work_date", "pk")
+        # Use the scheduled work-date window here instead of raw punch bounds.
+        # A corrected open session can have an effective clock-out while its
+        # original raw clock-out remains null by design.
+        shift__work_date__range=(run.period_start - timedelta(days=2), run.period_end + timedelta(days=2)),
+    ).select_related("employee", "employee__payroll_profile", "shift", "attendance_session", "employee__organization").prefetch_related(
+        "attendance_session__breaks",
+        Prefetch("attendance_session__corrections", queryset=AttendanceCorrection.objects.order_by("-created_at", "-pk")),
+    ).order_by("employee_id", "shift__work_date", "pk")
     if scoped_employee_ids is not None:
         timesheets = timesheets.filter(employee_id__in=scoped_employee_ids)
 
@@ -667,8 +674,14 @@ def calculate_payroll_run(run, *, actor):
         profile = getattr(timesheet.employee, "payroll_profile", None)
         payroll_timezone = profile.payroll_timezone if profile and profile.payroll_timezone else organization.timezone
         payroll_zone = ZoneInfo(payroll_timezone)
-        local_start_date = timesheet.attendance_session.clock_in_at.astimezone(payroll_zone).date()
-        local_end_date = timesheet.attendance_session.clock_out_at.astimezone(payroll_zone).date()
+        effective = effective_attendance_values(timesheet.attendance_session)
+        effective_clock_in = effective["clock_in_at"]
+        effective_clock_out = effective["clock_out_at"]
+        if effective_clock_out is None:
+            _add_exception(run, code="ATTENDANCE_DATA_INVALID", description=f"{timesheet.employee.full_name}: attendance has no effective clock-out.", employee=timesheet.employee, timesheet=timesheet)
+            continue
+        local_start_date = effective_clock_in.astimezone(payroll_zone).date()
+        local_end_date = effective_clock_out.astimezone(payroll_zone).date()
         if local_end_date < run.period_start or local_start_date > run.period_end:
             continue
         if timesheet.status != Timesheet.Status.APPROVED:
@@ -693,7 +706,7 @@ def calculate_payroll_run(run, *, actor):
         # Split using the rule version in force for each local work date.
         all_segments = []
         try:
-            payroll_start_date = timesheet.attendance_session.clock_in_at.astimezone(payroll_zone).date()
+            payroll_start_date = effective_clock_in.astimezone(payroll_zone).date()
             broad_rule = effective_rule_set(organization, payroll_start_date, employee=timesheet.employee) or PayrollRuleSet.objects.filter(
                 organization=organization,
                 effective_from__lte=run.period_end,
@@ -702,13 +715,15 @@ def calculate_payroll_run(run, *, actor):
                 raise ValidationError("No payroll rule version covers this employee's shift date.")
             all_segments = split_worked_segments(
                 timesheet.attendance_session,
-                list(timesheet.attendance_session.breaks.all()),
+                effective["breaks"],
                 zone_name=payroll_timezone,
                 organization=organization,
                 rule_set=broad_rule,
                 employee=timesheet.employee,
                 period_start=run.period_start,
                 period_end=run.period_end,
+                clock_in_at=effective_clock_in,
+                clock_out_at=effective_clock_out,
             )
         except (ValidationError, ValueError) as error:
             _add_exception(run, code="ATTENDANCE_DATA_INVALID", description=f"{timesheet.employee.full_name}: {error}", employee=timesheet.employee, timesheet=timesheet, work_date=local_start_date)
@@ -909,6 +924,7 @@ def calculate_payroll_run(run, *, actor):
         time_inputs = []
         for timesheet, segments in bucket["entries"]:
             session = timesheet.attendance_session
+            effective = effective_attendance_values(session)
             for item in segments:
                 rule = item["rule"]
                 rule_profile = item.get("rule_profile")
@@ -953,12 +969,12 @@ def calculate_payroll_run(run, *, actor):
                 "status": timesheet.status,
                 "source_payable_minutes": timesheet.payable_minutes,
                 "attendance": {
-                    "clock_in_utc": session.clock_in_at.astimezone(datetime_timezone.utc).isoformat(),
-                    "clock_out_utc": session.clock_out_at.astimezone(datetime_timezone.utc).isoformat(),
+                    "clock_in_utc": effective["clock_in_at"].astimezone(datetime_timezone.utc).isoformat(),
+                    "clock_out_utc": effective["clock_out_at"].astimezone(datetime_timezone.utc).isoformat(),
                     "breaks": [{
                         "start_utc": pause.started_at.astimezone(datetime_timezone.utc).isoformat(),
                         "end_utc": pause.ended_at.astimezone(datetime_timezone.utc).isoformat() if pause.ended_at else None,
-                    } for pause in session.breaks.all()],
+                    } for pause in effective["breaks"]],
                 },
                 "segments": [{
                     "work_date": item["work_date"].isoformat(),

@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -14,13 +15,24 @@ from employees.models import Employee
 from schedules.models import Shift
 from timesheets.models import Timesheet
 from .dashboard import get_employer_attendance_dashboard
-from .models import AttendanceSession, BreakSession
-from .services import attendance_state, clock_in, clock_out, end_break, last_activity, start_break
+from .forms import AttendanceCorrectionForm
+from .models import AttendanceCorrection, AttendanceSession, BreakSession
+from .services import (
+    attendance_state,
+    clock_in,
+    clock_out,
+    correct_attendance,
+    effective_attendance_values,
+    end_break,
+    last_activity,
+    start_break,
+)
 
 
 def _with_attendance(queryset):
     return queryset.select_related("attendance_session").prefetch_related(
-        Prefetch("attendance_session__breaks", queryset=BreakSession.objects.order_by("started_at"))
+        Prefetch("attendance_session__breaks", queryset=BreakSession.objects.order_by("started_at")),
+        Prefetch("attendance_session__corrections", queryset=AttendanceCorrection.objects.order_by("-created_at", "-pk")),
     )
 
 
@@ -91,6 +103,100 @@ def attendance_list(request):
     )
 
 
+def _attendance_correction_context(request, session, form=None):
+    organization = organization_for_user(request.user)
+    effective = effective_attendance_values(session)
+    timezone_name = getattr(getattr(session.employee, "payroll_profile", None), "payroll_timezone", "") or organization.timezone
+    initial_breaks = [(item.started_at, item.ended_at) for item in effective["breaks"]]
+    if form is None:
+        form = AttendanceCorrectionForm(
+            timezone_name=timezone_name,
+            initial={
+                "clock_in_at": form_datetime_value(effective["clock_in_at"], timezone_name),
+                "clock_out_at": form_datetime_value(effective["clock_out_at"], timezone_name),
+            },
+            initial_breaks=initial_breaks,
+        )
+    locked = _attendance_is_locked(session)
+    return {
+        "session": session,
+        "shift": session.shift,
+        "employee": session.employee,
+        "organization": organization,
+        "timezone_name": timezone_name,
+        "effective": effective,
+        "corrections": session.corrections.select_related("created_by"),
+        "form": form,
+        "is_locked": locked,
+    }
+
+
+def form_datetime_value(value, timezone_name):
+    if value is None:
+        return ""
+    return timezone.localtime(value, ZoneInfo(timezone_name)).strftime("%Y-%m-%dT%H:%M")
+
+
+def _attendance_is_locked(session):
+    from payroll.models import PayrollRun, PayrollTimeEntry
+
+    return PayrollTimeEntry.objects.filter(
+        timesheet__attendance_session_id=session.pk,
+        statement__run__status=PayrollRun.Status.FINALIZED,
+    ).exists()
+
+
+@employer_required
+def correct_attendance_page(request, session_pk):
+    organization = organization_for_user(request.user)
+    session = get_object_or_404(
+        AttendanceSession.objects.filter(organization=organization)
+        .select_related("employee", "employee__payroll_profile", "shift", "organization")
+        .prefetch_related(
+            Prefetch("breaks", queryset=BreakSession.objects.order_by("started_at", "id")),
+            Prefetch("corrections", queryset=AttendanceCorrection.objects.select_related("created_by").order_by("-created_at", "-pk")),
+        ),
+        pk=session_pk,
+    )
+    effective = effective_attendance_values(session)
+    timezone_name = getattr(getattr(session.employee, "payroll_profile", None), "payroll_timezone", "") or organization.timezone
+    initial_breaks = [(item.started_at, item.ended_at) for item in effective["breaks"]]
+    if request.method == "POST":
+        form = AttendanceCorrectionForm(
+            request.POST,
+            timezone_name=timezone_name,
+            initial_breaks=initial_breaks,
+        )
+        if form.is_valid():
+            try:
+                correct_attendance(
+                    session=session,
+                    actor=request.user,
+                    corrected_clock_in_at=form.cleaned_data["corrected_clock_in_at"],
+                    corrected_clock_out_at=form.cleaned_data["corrected_clock_out_at"],
+                    corrected_breaks=form.cleaned_data["corrected_breaks"],
+                    reason=form.cleaned_data["reason"],
+                )
+            except ValidationError as error:
+                form.add_error(None, " ".join(error.messages))
+            else:
+                messages.success(request, "Attendance corrected. The timesheet was recalculated and returned for review.")
+                # Keep the employer on the correction record so the new
+                # effective values and audit entry are immediately visible.
+                return redirect(reverse("attendance:correct", args=[session.pk]))
+    else:
+        form = AttendanceCorrectionForm(
+            timezone_name=timezone_name,
+            initial={
+                "clock_in_at": form_datetime_value(effective["clock_in_at"], timezone_name),
+                "clock_out_at": form_datetime_value(effective["clock_out_at"], timezone_name),
+            },
+            initial_breaks=initial_breaks,
+        )
+    context = _attendance_correction_context(request, session, form=form)
+    return render(request, "attendance/correct.html", context, status=400 if request.method == "POST" and form.errors else 200)
+
+
 @employee_required
 @require_GET
 def my_attendance(request):
@@ -117,7 +223,8 @@ def my_attendance(request):
     for shift in shifts:
         session = getattr(shift, "attendance_session", None)
         state = attendance_state(shift, at=now)
-        breaks = list(session.breaks.all()) if session else []
+        effective = effective_attendance_values(session) if session else None
+        breaks = effective["breaks"] if effective else []
         completed_break_seconds = sum(
             int((item.ended_at - item.started_at).total_seconds())
             for item in breaks if item.ended_at
@@ -126,8 +233,10 @@ def my_attendance(request):
         worked_seconds = 0
         break_seconds = completed_break_seconds
         if session:
-            end = session.clock_out_at or now
-            elapsed = max(0, int((end - session.clock_in_at).total_seconds()))
+            effective_clock_in = effective["clock_in_at"]
+            effective_clock_out = effective["clock_out_at"]
+            end = effective_clock_out or now
+            elapsed = max(0, int((end - effective_clock_in).total_seconds()))
             if active_break:
                 break_seconds += max(0, int((now - active_break.started_at).total_seconds()))
                 elapsed -= max(0, int((now - active_break.started_at).total_seconds()))
@@ -143,6 +252,7 @@ def my_attendance(request):
             {
                 "shift": shift,
                 "session": session,
+                "effective_clock_out_at": effective["clock_out_at"] if effective else None,
                 "timesheet": getattr(session, "timesheet", None) if session else None,
                 "state": state,
                 "show_clock_in": show_clock_in,
@@ -153,7 +263,7 @@ def my_attendance(request):
                 "breaks": breaks,
                 "worked_seconds": worked_seconds,
                 "break_seconds": break_seconds,
-                "work_timer_running": bool(session and not session.clock_out_at and session.status == AttendanceSession.Status.WORKING),
+                "work_timer_running": bool(session and not effective["clock_out_at"] and session.status == AttendanceSession.Status.WORKING),
                 "break_timer_running": bool(active_break),
                 "active_break": active_break,
                 "worked_duration_label": _duration_label(worked_seconds),
@@ -161,14 +271,14 @@ def my_attendance(request):
                 "scheduled_duration_label": _employee_duration_label(shift.scheduled_minutes),
             }
         )
-    has_open_session = any(card["session"] and not card["session"].clock_out_at for card in cards)
+    has_open_session = any(card["session"] and not card["effective_clock_out_at"] for card in cards)
     if has_open_session:
         for card in cards:
             if card["session"] is None:
                 card["show_clock_in"] = False
                 card["can_clock_in"] = False
     today_card = next((card for card in cards if card["shift"].work_date == today), None)
-    active_card = next((card for card in cards if card["session"] and not card["session"].clock_out_at), None)
+    active_card = next((card for card in cards if card["session"] and not card["effective_clock_out_at"]), None)
     clockable_card = next((card for card in cards if card["can_clock_in"]), None)
     upcoming_card = next(
         (

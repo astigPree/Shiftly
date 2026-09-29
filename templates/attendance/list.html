@@ -79,7 +79,7 @@
     {% if page.object_list %}
       <div class="attendance-table-wrap">
         <table class="attendance-list-table">
-          <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col" class="attendance-actions-heading">Actions</th></tr></thead>
+          <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Clock in</th><th scope="col">Clock out</th><th scope="col">Last activity</th><th scope="col" class="attendance-actions-heading">Actions</th></tr></thead>
           <tbody>
             {% for row in page.object_list %}
               <tr>
@@ -92,13 +92,17 @@
                   {% if row.shift.is_overnight %}<span class="attendance-overnight">Overnight</span>{% endif %}
                 </td>
                 <td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span></td>
+                <td>{% if row.effective_clock_in_at %}<span class="attendance-shift-time">{{ row.effective_clock_in_at|timezone:organization.timezone|date:"g:i A" }}</span>{% else %}<span class="attendance-muted">—</span>{% endif %}</td>
+                <td>{% if row.effective_clock_out_at %}<span class="attendance-shift-time">{{ row.effective_clock_out_at|timezone:organization.timezone|date:"g:i A" }}</span>{% else %}<span class="attendance-muted">—</span>{% endif %}</td>
                 <td>
                   <span class="attendance-activity{% if row.state.code == 'LATE' or row.state.code == 'ABSENT' %} attendance-activity--exception{% endif %}">
                     {% if row.last_activity_at %}{{ row.last_activity_label }} {{ row.last_activity_at|timezone:organization.timezone|date:"g:i A" }}{% else %}{{ row.activity_text }}{% endif %}
                   </span>
                   {% for exception in row.exceptions %}<span class="attendance-exception">{{ exception }}</span>{% endfor %}
                 </td>
-                <td class="attendance-actions-cell"><a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a></td>
+                <td class="attendance-actions-cell">
+                  {% if row.can_edit_attendance %}<a class="table-action-button" href="{% url 'attendance:correct' row.session.pk %}">Edit attendance</a>{% else %}<a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a>{% endif %}
+                </td>
               </tr>
             {% endfor %}
           </tbody>

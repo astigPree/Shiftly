@@ -1,4 +1,6 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as datetime_timezone
+
+from types import SimpleNamespace
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
@@ -6,7 +8,55 @@ from django.utils import timezone
 
 from employees.models import Employee
 from schedules.models import Shift
-from .models import AttendanceSession, BreakSession
+from .models import AttendanceCorrection, AttendanceSession, BreakSession
+
+
+def effective_attendance_values(session):
+    """Return the latest effective punch and break values for payroll.
+
+    Raw AttendanceSession and BreakSession rows are never rewritten.  The
+    newest correction, when present, overlays those raw values.
+    """
+    prefetched = getattr(session, "_prefetched_objects_cache", {}).get("corrections")
+    if prefetched is not None:
+        correction = prefetched[0] if prefetched else None
+    else:
+        correction = (
+            AttendanceCorrection.objects.filter(attendance_session_id=session.pk)
+            .order_by("-created_at", "-pk")
+            .first()
+        )
+    if correction is None:
+        breaks = list(session.breaks.all())
+        return {
+            "clock_in_at": session.clock_in_at,
+            "clock_out_at": session.clock_out_at,
+            "breaks": breaks,
+            "correction": None,
+        }
+    breaks = [
+        SimpleNamespace(
+            started_at=datetime.fromisoformat(item["start"]),
+            ended_at=datetime.fromisoformat(item["end"]) if item.get("end") else None,
+        )
+        for item in correction.corrected_breaks
+    ]
+    return {
+        "clock_in_at": correction.corrected_clock_in_at,
+        "clock_out_at": correction.corrected_clock_out_at,
+        "breaks": breaks,
+        "correction": correction,
+    }
+
+
+def _serialize_breaks(breaks):
+    return [
+        {
+            "start": item.started_at.astimezone(datetime_timezone.utc).isoformat(),
+            "end": item.ended_at.astimezone(datetime_timezone.utc).isoformat() if item.ended_at else None,
+        }
+        for item in breaks
+    ]
 
 
 def _require_owner(employee, actor):
@@ -67,6 +117,8 @@ def _locked_owned_session(session, employee, actor):
 def start_break(*, session, employee, actor, at=None):
     now = at or timezone.now()
     session = _locked_owned_session(session, employee, actor)
+    if effective_attendance_values(session)["clock_out_at"] is not None:
+        raise ValidationError("This attendance session was corrected by your employer and is closed.")
     if session.clock_out_at is not None or session.status != AttendanceSession.Status.WORKING:
         raise ValidationError("A break can only start while you are working.")
     if BreakSession.objects.filter(attendance_session=session, ended_at__isnull=True).exists():
@@ -84,6 +136,8 @@ def start_break(*, session, employee, actor, at=None):
 def end_break(*, session, employee, actor, at=None):
     now = at or timezone.now()
     session = _locked_owned_session(session, employee, actor)
+    if effective_attendance_values(session)["clock_out_at"] is not None:
+        raise ValidationError("This attendance session was corrected by your employer and is closed.")
     if session.clock_out_at is not None or session.status != AttendanceSession.Status.ON_BREAK:
         raise ValidationError("There is no break to end.")
     break_session = (
@@ -106,6 +160,8 @@ def end_break(*, session, employee, actor, at=None):
 def clock_out(*, session, employee, actor, at=None):
     now = at or timezone.now()
     session = _locked_owned_session(session, employee, actor)
+    if effective_attendance_values(session)["clock_out_at"] is not None:
+        raise ValidationError("This attendance session was corrected by your employer and is closed.")
     if session.clock_out_at is not None or session.status != AttendanceSession.Status.WORKING:
         raise ValidationError("Clock-out is available only while working. End any open break first.")
     if now <= session.clock_in_at:
@@ -121,6 +177,85 @@ def clock_out(*, session, employee, actor, at=None):
     return session
 
 
+@transaction.atomic
+def correct_attendance(*, session, actor, corrected_clock_in_at, corrected_clock_out_at, corrected_breaks, reason):
+    """Record an employer correction and refresh any generated timesheet."""
+    from accounts.models import User
+    from accounts.permissions import organization_for_user
+    from audit.models import AuditEvent
+    from audit.services import record_event
+    from payroll.models import PayrollRun, PayrollTimeEntry
+    from timesheets.services import recalculate_timesheet
+
+    if not actor.is_authenticated or actor.role != User.Role.EMPLOYER:
+        raise PermissionDenied("Only an employer can correct attendance.")
+    organization = organization_for_user(actor)
+    if organization is None or organization.pk != session.organization_id:
+        raise PermissionDenied("You cannot correct attendance from another organization.")
+    locked_session = (
+        AttendanceSession.objects.select_for_update()
+        .select_related("employee", "shift", "organization")
+        .get(pk=session.pk, organization=organization)
+    )
+    if corrected_clock_out_at and corrected_clock_out_at <= corrected_clock_in_at:
+        raise ValidationError("Clock-out must be after clock-in.")
+    if PayrollTimeEntry.objects.filter(
+        timesheet__attendance_session_id=locked_session.pk,
+        statement__run__status=PayrollRun.Status.FINALIZED,
+    ).exists():
+        raise ValidationError("This attendance is locked because it is included in finalized payroll.")
+
+    current = effective_attendance_values(locked_session)
+    normalized_breaks = list(corrected_breaks or [])
+    original_breaks = _serialize_breaks(current["breaks"])
+    corrected_break_payload = _serialize_breaks(
+        [SimpleNamespace(started_at=start, ended_at=end) for start, end in normalized_breaks]
+    )
+    if (
+        current["clock_in_at"] == corrected_clock_in_at
+        and current["clock_out_at"] == corrected_clock_out_at
+        and original_breaks == corrected_break_payload
+    ):
+        raise ValidationError("Change a punch or break value before saving the correction.")
+
+    correction = AttendanceCorrection.objects.create(
+        attendance_session=locked_session,
+        created_by=actor,
+        original_clock_in_at=current["clock_in_at"],
+        original_clock_out_at=current["clock_out_at"],
+        corrected_clock_in_at=corrected_clock_in_at,
+        corrected_clock_out_at=corrected_clock_out_at,
+        original_breaks=original_breaks,
+        corrected_breaks=corrected_break_payload,
+        reason=reason,
+    )
+    timesheet = getattr(locked_session, "timesheet", None)
+    if timesheet is not None:
+        recalculate_timesheet(timesheet, attendance_session=locked_session, correction=correction)
+    elif corrected_clock_out_at:
+        from timesheets.services import generate_timesheet
+
+        generate_timesheet(locked_session)
+
+    record_event(
+        organization=organization,
+        actor=actor,
+        action=AuditEvent.Action.ATTENDANCE_CORRECTED,
+        target_type="attendance_correction",
+        target_id=correction.pk,
+        summary=f"Corrected attendance for {locked_session.employee.employee_code}.",
+        metadata={
+            "attendance_session_id": locked_session.pk,
+            "reason": reason.strip(),
+            "original_clock_in_at": current["clock_in_at"].isoformat() if current["clock_in_at"] else None,
+            "original_clock_out_at": current["clock_out_at"].isoformat() if current["clock_out_at"] else None,
+            "corrected_clock_in_at": corrected_clock_in_at.isoformat(),
+            "corrected_clock_out_at": corrected_clock_out_at.isoformat() if corrected_clock_out_at else None,
+        },
+    )
+    return correction
+
+
 def attendance_state(shift, *, at=None):
     now = at or timezone.now()
     if shift.status == Shift.Status.CANCELLED:
@@ -132,7 +267,8 @@ def attendance_state(shift, *, at=None):
         if now < shift.scheduled_end:
             return {"code": "LATE", "label": "Late", "missing_clock_out": False}
         return {"code": "ABSENT", "label": "Absent", "missing_clock_out": False}
-    if session.clock_out_at is not None:
+    effective = effective_attendance_values(session)
+    if effective["clock_out_at"] is not None:
         return {"code": "COMPLETED", "label": "Completed", "missing_clock_out": False}
     if session.status == AttendanceSession.Status.ON_BREAK:
         code, label = "ON_BREAK", "On break"
@@ -148,13 +284,14 @@ def attendance_state(shift, *, at=None):
 def last_activity(session):
     if session is None:
         return None
-    if session.clock_out_at:
-        return session.clock_out_at
-    breaks = list(session.breaks.all())
+    effective = effective_attendance_values(session)
+    if effective["clock_out_at"]:
+        return effective["clock_out_at"]
+    breaks = effective["breaks"]
     open_break = next((item for item in breaks if item.ended_at is None), None)
     if open_break:
         return open_break.started_at
     completed_breaks = [item for item in breaks if item.ended_at is not None]
     latest_break = max(completed_breaks, key=lambda item: item.ended_at) if completed_breaks else None
-    return latest_break.ended_at if latest_break else session.clock_in_at
+    return latest_break.ended_at if latest_break else effective["clock_in_at"]
 from datetime import timedelta

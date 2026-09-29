@@ -19,13 +19,15 @@ def _minutes_floor(seconds):
     return max(0, int(seconds // 60))
 
 
-def calculate_timesheet(shift, attendance_session, breaks):
+def calculate_timesheet(shift, attendance_session, breaks, *, clock_in_at=None, clock_out_at=None):
     """Calculate whole minutes from the immutable UTC event instants."""
     if attendance_session.shift_id != shift.pk:
         raise TimesheetCalculationError("The attendance session does not belong to the shift.")
     if attendance_session.employee_id != shift.employee_id or attendance_session.organization_id != shift.organization_id:
         raise TimesheetCalculationError("The attendance session does not match the shift employee or organization.")
-    if attendance_session.clock_out_at is None or attendance_session.status != attendance_session.Status.COMPLETED:
+    clock_in = clock_in_at or attendance_session.clock_in_at
+    clock_out = clock_out_at if clock_out_at is not None else attendance_session.clock_out_at
+    if clock_out is None:
         raise TimesheetCalculationError("The attendance session is incomplete.")
     if shift.status != shift.Status.SCHEDULED:
         raise TimesheetCalculationError("An attended shift is marked cancelled.")
@@ -34,8 +36,6 @@ def calculate_timesheet(shift, attendance_session, breaks):
     if shift_seconds <= 0 or shift.scheduled_break_minutes * 60 > shift_seconds:
         raise TimesheetCalculationError("The scheduled shift duration or break allowance is inconsistent.")
 
-    clock_in = attendance_session.clock_in_at
-    clock_out = attendance_session.clock_out_at
     if clock_out <= clock_in:
         raise TimesheetCalculationError("Clock-out must be after clock-in.")
     elapsed_seconds = (clock_out - clock_in).total_seconds()

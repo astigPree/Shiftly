@@ -25,6 +25,7 @@ class AuditEvent(models.Model):
         SHIFT_CANCELLED = "SHIFT_CANCELLED", _("Shift cancelled")
         TIMESHEET_APPROVED = "TIMESHEET_APPROVED", _("Timesheet approved")
         TIMESHEET_REJECTED = "TIMESHEET_REJECTED", _("Timesheet rejected")
+        ATTENDANCE_CORRECTED = "ATTENDANCE_CORRECTED", _("Attendance corrected")
         PAYROLL_RULES_UPDATED = "PAYROLL_RULES_UPDATED", _("Payroll rules updated")
         PAYROLL_PROFILE_UPDATED = "PAYROLL_PROFILE_UPDATED", _("Employee payroll profile updated")
         PAYROLL_RATE_ADDED = "PAYROLL_RATE_ADDED", _("Employee pay rate added")

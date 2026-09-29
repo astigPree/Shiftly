@@ -1,5 +1,13 @@
 {% load tz %}
 <ol class="attendance-timeline" aria-label="Attendance events in time order">
+  {% if correction %}
+    <li class="timeline-event timeline-event-correction">
+      <span class="timeline-marker" aria-hidden="true"></span>
+      <span class="timeline-label">Employer correction recorded</span>
+      <time datetime="{{ correction.created_at|timezone:organization.timezone|date:'c' }}">{{ correction.created_at|timezone:organization.timezone|date:"M j, g:i A T" }}</time>
+      <span class="timeline-note">{{ correction.reason }}</span>
+    </li>
+  {% endif %}
   <li class="timeline-event">
     <span class="timeline-marker" aria-hidden="true"></span>
     <span class="timeline-label">Clocked in</span>
