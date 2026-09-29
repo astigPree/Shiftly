@@ -143,10 +143,9 @@
       </table>
     </div>
     {% else %}
-    <div class="payroll-rate-empty-state">
+    <div class="payroll-rate-empty-state payroll-rate-empty-state--single">
       <span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
-      <div><h3>No compensation configured</h3><p>Add {{ employee.first_name }}'s first effective hourly or daily compensation before including them in payroll calculations.</p></div>
-      <a class="table-action-button" href="{% url 'payroll:add_compensation' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add compensation</a>
+      <div><h3>No compensation configured</h3><p>Use <strong>Add compensation</strong> above to add {{ employee.first_name }}'s first effective hourly or daily amount before including them in payroll calculations.</p></div>
     </div>
     {% endif %}
   </section>
@@ -158,7 +157,7 @@
 
   <section class="payroll-card payroll-rate-history" aria-labelledby="input-title">
     <header class="payroll-card-heading"><div><h2 id="input-title">Reviewed period inputs</h2><p>Daily-paid employees use these date-level quantities instead of attendance time.</p></div><a class="table-action-button" href="{% url 'payroll:add_period_input' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add period input</a></header>
-    {% if period_inputs %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Work date</th><th>Worked</th><th>Planned</th><th>Undertime</th><th>Overtime</th><th>Source</th></tr></thead><tbody>{% for input in period_inputs %}<tr><td>{{ input.work_date|date:"M j, Y" }}</td><td>{{ input.worked_day_units }}</td><td>{{ input.planned_day_units }}</td><td>{{ input.undertime_minutes }} min</td><td>{{ input.overtime_minutes }} min</td><td>{{ input.source_reference }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span><div><h3>No reviewed inputs</h3><p>Add date-level quantities when this employee is paid from a reviewed daily register.</p></div><a class="button-secondary" href="{% url 'payroll:add_period_input' employee.pk %}">Add period input</a></div>{% endif %}
+    {% if period_inputs %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Work date</th><th>Worked</th><th>Planned</th><th>Undertime</th><th>Overtime</th><th>Source</th></tr></thead><tbody>{% for input in period_inputs %}<tr><td>{{ input.work_date|date:"M j, Y" }}</td><td>{{ input.worked_day_units }}</td><td>{{ input.planned_day_units }}</td><td>{{ input.undertime_minutes }} min</td><td>{{ input.overtime_minutes }} min</td><td>{{ input.source_reference }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state payroll-rate-empty-state--single"><span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span><div><h3>No reviewed inputs</h3><p>Use <strong>Add period input</strong> above to add date-level quantities when this employee is paid from a reviewed daily register.</p></div></div>{% endif %}
   </section>
   <section id="audit-history" class="payroll-card payroll-profile-audit" aria-labelledby="profile-audit-title">
     <header class="payroll-card-heading"><div><h2 id="profile-audit-title">Audit history</h2><p>Changes to this employee's payroll setup are retained for review.</p></div></header>
