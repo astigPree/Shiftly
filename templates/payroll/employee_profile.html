@@ -50,6 +50,7 @@
 
   <form method="post" class="payroll-profile-form" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="profile">
+    {% if form.non_field_errors %}<div class="field-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     <div class="payroll-profile-form-layout">
       <section class="payroll-card payroll-profile-card" aria-labelledby="work-details-title">
         <header class="payroll-profile-card-heading">
@@ -57,6 +58,9 @@
           <div><h2 id="work-details-title">Work details</h2><p>Set where payroll rules and local work dates apply.</p></div>
         </header>
         <div class="payroll-profile-field-grid">
+          {% include "components/form_field.html" with field=form.employment_status %}
+          {% include "components/form_field.html" with field=form.pay_basis %}
+          {% include "components/form_field.html" with field=form.minimum_daily_rate %}
           {% include "components/form_field.html" with field=form.work_location %}
           {% include "components/form_field.html" with field=form.payroll_region %}
           {% include "components/form_field.html" with field=form.payroll_timezone %}
