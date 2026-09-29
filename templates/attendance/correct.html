@@ -23,11 +23,20 @@
           <p>Times are entered in the employee’s work timezone and converted safely for payroll.</p>
         </div>
       </div>
+      <div class="attendance-date-guide" role="note">
+        <strong>Shift date: {{ shift.work_date|date:"M j, Y" }}</strong>
+        <span>Enter the calendar date and time in {{ timezone_name }}. An overnight shift may end on the following local date.</span>
+      </div>
+      {% if effective_date_mismatch %}
+        <div class="form-notice form-notice--warning" role="alert">
+          The current effective clock-in is dated {{ effective_local_date|date:"M j, Y" }}, but this shift is dated {{ shift.work_date|date:"M j, Y" }}. The fields below are prefilled with the original punch so you can repair the local date before saving.
+        </div>
+      {% endif %}
       {% if is_locked %}
         <div class="form-notice form-notice--warning" role="status">This attendance is part of finalized payroll and can no longer be changed.</div>
       {% endif %}
       {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
-      <form method="post" class="attendance-correction-form" data-attendance-correction-form{% if is_locked %} aria-disabled="true"{% endif %}>
+      <form method="post" class="attendance-correction-form" data-attendance-correction-form data-toast-feedback="manual"{% if is_locked %} aria-disabled="true"{% endif %}>
         {% csrf_token %}
         <fieldset{% if is_locked %} disabled{% endif %}>
           <legend class="visually-hidden">Attendance correction</legend>
@@ -98,8 +107,8 @@
                 <div class="history-row"><strong>{{ correction.created_at|timezone:timezone_name|date:"M j, Y, g:i A" }}</strong><span>{{ correction.created_by.get_full_name|default:correction.created_by.email }}</span></div>
                 <p>{{ correction.reason }}</p>
                 <dl class="history-values">
-                  <div><dt>Clock-in</dt><dd>{{ correction.original_clock_in_at|timezone:timezone_name|date:"g:i A" }} → {{ correction.corrected_clock_in_at|timezone:timezone_name|date:"g:i A" }}</dd></div>
-                  <div><dt>Clock-out</dt><dd>{% if correction.original_clock_out_at %}{{ correction.original_clock_out_at|timezone:timezone_name|date:"g:i A" }}{% else %}Not recorded{% endif %} → {% if correction.corrected_clock_out_at %}{{ correction.corrected_clock_out_at|timezone:timezone_name|date:"g:i A" }}{% else %}Not recorded{% endif %}</dd></div>
+                  <div><dt>Clock-in</dt><dd>{{ correction.original_clock_in_at|timezone:timezone_name|date:"M j, g:i A" }} → {{ correction.corrected_clock_in_at|timezone:timezone_name|date:"M j, g:i A" }}</dd></div>
+                  <div><dt>Clock-out</dt><dd>{% if correction.original_clock_out_at %}{{ correction.original_clock_out_at|timezone:timezone_name|date:"M j, g:i A" }}{% else %}Not recorded{% endif %} → {% if correction.corrected_clock_out_at %}{{ correction.corrected_clock_out_at|timezone:timezone_name|date:"M j, g:i A" }}{% else %}Not recorded{% endif %}</dd></div>
                   <div><dt>Break intervals</dt><dd>{{ correction.original_breaks|length }} → {{ correction.corrected_breaks|length }}</dd></div>
                 </dl>
               </li>

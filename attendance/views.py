@@ -108,6 +108,11 @@ def _attendance_correction_context(request, session, form=None):
     effective = effective_attendance_values(session)
     timezone_name = getattr(getattr(session.employee, "payroll_profile", None), "payroll_timezone", "") or organization.timezone
     initial_breaks = [(item.started_at, item.ended_at) for item in effective["breaks"]]
+    effective_local_date = (
+        timezone.localtime(effective["clock_in_at"], ZoneInfo(timezone_name)).date()
+        if effective["clock_in_at"]
+        else None
+    )
     if form is None:
         form = AttendanceCorrectionForm(
             timezone_name=timezone_name,
@@ -125,6 +130,10 @@ def _attendance_correction_context(request, session, form=None):
         "organization": organization,
         "timezone_name": timezone_name,
         "effective": effective,
+        "effective_local_date": effective_local_date,
+        "effective_date_mismatch": bool(
+            effective_local_date and effective_local_date != session.shift.work_date
+        ),
         "corrections": session.corrections.select_related("created_by"),
         "form": form,
         "is_locked": locked,
@@ -161,6 +170,11 @@ def correct_attendance_page(request, session_pk):
     effective = effective_attendance_values(session)
     timezone_name = getattr(getattr(session.employee, "payroll_profile", None), "payroll_timezone", "") or organization.timezone
     initial_breaks = [(item.started_at, item.ended_at) for item in effective["breaks"]]
+    effective_local_date = (
+        timezone.localtime(effective["clock_in_at"], ZoneInfo(timezone_name)).date()
+        if effective["clock_in_at"]
+        else None
+    )
     if request.method == "POST":
         form = AttendanceCorrectionForm(
             request.POST,
@@ -185,13 +199,23 @@ def correct_attendance_page(request, session_pk):
                 # effective values and audit entry are immediately visible.
                 return redirect(reverse("attendance:correct", args=[session.pk]))
     else:
+        form_clock_in = effective["clock_in_at"]
+        form_clock_out = effective["clock_out_at"]
+        form_breaks = initial_breaks
+        if effective_local_date and effective_local_date != session.shift.work_date:
+            # A legacy correction may have been saved with the wrong local
+            # calendar date. Start the repair form from the immutable employee
+            # punch so the employer does not have to manually reconstruct it.
+            form_clock_in = session.clock_in_at
+            form_clock_out = session.clock_out_at
+            form_breaks = [(item.started_at, item.ended_at) for item in session.breaks.all()]
         form = AttendanceCorrectionForm(
             timezone_name=timezone_name,
             initial={
-                "clock_in_at": form_datetime_value(effective["clock_in_at"], timezone_name),
-                "clock_out_at": form_datetime_value(effective["clock_out_at"], timezone_name),
+                "clock_in_at": form_datetime_value(form_clock_in, timezone_name),
+                "clock_out_at": form_datetime_value(form_clock_out, timezone_name),
             },
-            initial_breaks=initial_breaks,
+            initial_breaks=form_breaks,
         )
     context = _attendance_correction_context(request, session, form=form)
     return render(request, "attendance/correct.html", context, status=400 if request.method == "POST" and form.errors else 200)

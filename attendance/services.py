@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone as datetime_timezone
 
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
@@ -57,6 +58,12 @@ def _serialize_breaks(breaks):
         }
         for item in breaks
     ]
+
+
+def _session_work_timezone(session):
+    profile = getattr(session.employee, "payroll_profile", None)
+    timezone_name = getattr(profile, "payroll_timezone", "") or session.organization.timezone
+    return ZoneInfo(timezone_name), timezone_name
 
 
 def _require_owner(employee, actor):
@@ -194,11 +201,26 @@ def correct_attendance(*, session, actor, corrected_clock_in_at, corrected_clock
         raise PermissionDenied("You cannot correct attendance from another organization.")
     locked_session = (
         AttendanceSession.objects.select_for_update()
-        .select_related("employee", "shift", "organization")
+        .select_related("employee", "employee__payroll_profile", "shift", "organization")
         .get(pk=session.pk, organization=organization)
     )
     if corrected_clock_out_at and corrected_clock_out_at <= corrected_clock_in_at:
         raise ValidationError("Clock-out must be after clock-in.")
+    work_timezone, timezone_name = _session_work_timezone(locked_session)
+    corrected_clock_in_date = timezone.localtime(corrected_clock_in_at, work_timezone).date()
+    if corrected_clock_in_date != locked_session.shift.work_date:
+        work_date_label = f"{locked_session.shift.work_date:%b} {locked_session.shift.work_date.day}, {locked_session.shift.work_date:%Y}"
+        raise ValidationError(
+            f"Corrected clock-in must be on {work_date_label} "
+            f"in {timezone_name}."
+        )
+    if corrected_clock_out_at:
+        corrected_clock_out_date = timezone.localtime(corrected_clock_out_at, work_timezone).date()
+        latest_allowed_date = timezone.localtime(locked_session.shift.scheduled_end, work_timezone).date()
+        if corrected_clock_out_date < locked_session.shift.work_date or corrected_clock_out_date > latest_allowed_date:
+            raise ValidationError(
+                "Corrected clock-out must stay within the shift's local work-date window."
+            )
     if PayrollTimeEntry.objects.filter(
         timesheet__attendance_session_id=locked_session.pk,
         statement__run__status=PayrollRun.Status.FINALIZED,

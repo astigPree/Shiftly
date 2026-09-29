@@ -90,9 +90,12 @@ class AttendanceCorrectionForm(forms.Form):
     def _localize(self, value):
         if value is None:
             return None
-        if timezone.is_naive(value):
-            return timezone.make_aware(value, self.work_timezone).astimezone(datetime_timezone.utc)
-        return value.astimezone(datetime_timezone.utc)
+        # ``datetime-local`` contains a wall-clock value with no offset. Django
+        # attaches the project timezone (UTC here) while cleaning a
+        # DateTimeField, so do not trust that attached offset. Interpret the
+        # submitted wall-clock value in the employee's work timezone first.
+        wall_clock = value.replace(tzinfo=None) if timezone.is_aware(value) else value
+        return timezone.make_aware(wall_clock, self.work_timezone).astimezone(datetime_timezone.utc)
 
     def clean(self):
         cleaned = super().clean()

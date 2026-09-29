@@ -48,6 +48,10 @@
 
   function attachSubmissionFeedback(form) {
     if (form.dataset.authForm !== undefined) return;
+    // Forms with a confirmation workflow own their submit feedback. Attaching
+    // the generic listener here would show a loading toast before the form's
+    // own handler decides whether a network request should happen.
+    if (form.dataset.toastFeedback === "manual" || form.dataset.toastFeedback === "off") return;
 
     form.addEventListener("submit", (event) => {
       if (event.defaultPrevented) return;

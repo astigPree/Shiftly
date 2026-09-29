@@ -864,6 +864,24 @@
   line-height: 1.5;
 }
 
+.attendance-date-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin: 0 0 18px;
+  padding: 11px 13px;
+  color: #365777;
+  background: #f1f7ff;
+  border: 1px solid #d7e7fb;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.attendance-date-guide strong {
+  color: #173f70;
+}
+
 .attendance-correction-side {
   display: grid;
   gap: 18px;
