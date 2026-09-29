@@ -1,10 +1,4 @@
 {% extends "layouts/employer.html" %}
 {% load form_tags %}
-{% block title %}Edit component · Shiftly{% endblock %}
-{% block app_content %}
-<div class="payroll-page payroll-component-edit-page">
-  <a class="payroll-back-link" href="{% url 'payroll:component_definitions' %}">← Components</a>
-  <header class="payroll-page-header"><div><p class="payroll-eyebrow">{{ organization.name }} · Payroll</p><h1>Edit component</h1><p class="muted">Update <strong>{{ component.code|upper }}</strong> without changing finalized payroll snapshots.</p></div></header>
-  <section class="payroll-card payroll-component-edit-card"><header class="payroll-card-heading"><div><h2>{{ component.label }}</h2><p>Keep the code stable so exports and employee assignments remain traceable.</p></div></header><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Cancel</a><button class="button-link" type="submit">Save changes</button></div></form></section>
-</div>
-{% endblock %}
+{% block title %}Edit component | Shiftly{% endblock %}
+{% block app_content %}<div class="payroll-page payroll-component-edit-page"><a class="payroll-back-link" href="{% url 'payroll:component_definitions' %}">&larr; Components</a><header class="payroll-page-header"><div><p class="payroll-eyebrow">{{ organization.name }} &middot; Payroll</p><h1>Edit component</h1><p class="muted">Update <strong>{{ component.code|upper }}</strong> without changing finalized payroll snapshots.</p></div></header><section class="payroll-card payroll-component-edit-card"><header class="payroll-card-heading"><div><h2>{{ component.label }}</h2><p>Keep the code stable so exports and employee assignments remain traceable.</p></div></header><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Cancel</a><button class="button-link" type="submit">Save changes</button></div></form></section></div>{% endblock %}

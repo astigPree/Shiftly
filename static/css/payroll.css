@@ -1214,3 +1214,39 @@
   .payroll-run-header { flex-direction: column; align-items: flex-start; }
   .payroll-run-header .payroll-header-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
 }
+
+/* Modal and table fixes for payroll detail actions. */
+.employer-shell .app-topbar { z-index: 30; background: var(--color-white); }
+.payroll-search-icon { position: absolute; left: 10px; bottom: 10px; width: 17px; height: 17px; color: var(--color-text-muted); pointer-events: none; }
+.payroll-search-field > .payroll-search-icon + input { padding-left: 32px; }
+.payroll-component-dialog, .payroll-holiday-dialog, .payroll-bulk-assignment-dialog, .payroll-manual-line-dialog, .payroll-statement-dialog { width: min(620px, calc(100% - 28px)); max-height: min(90vh, 760px); overflow: auto; }
+.payroll-component-dialog > form, .payroll-holiday-dialog > form, .payroll-bulk-assignment-dialog > form, .payroll-manual-line-dialog > form { display: grid; gap: 12px; padding: 24px; }
+.payroll-dialog-close { display: inline-grid; width: 32px; height: 32px; place-items: center; color: var(--color-text-muted); background: transparent; border: 0; border-radius: 50%; font-size: 24px; line-height: 1; cursor: pointer; }
+.payroll-dialog-close:hover { color: var(--color-gray-900); background: var(--color-gray-100); }
+.payroll-component-dialog .payroll-card-heading, .payroll-holiday-dialog .payroll-card-heading, .payroll-bulk-assignment-dialog .payroll-card-heading, .payroll-manual-line-dialog .payroll-card-heading { grid-column: 1 / -1; margin-bottom: 2px; }
+.payroll-component-dialog .payroll-component-form > .field, .payroll-component-dialog .payroll-component-form > .form-field { grid-column: 1 / -1; }
+.payroll-bulk-assignment-dialog .payroll-dialog-actions, .payroll-manual-line-dialog .payroll-dialog-actions { grid-column: 1 / -1; }
+.payroll-bulk-dialog-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.payroll-bulk-dialog-fields .field, .payroll-bulk-dialog-fields .form-field { min-width: 0; margin: 0; }
+.payroll-bulk-dialog-fields .field:last-child, .payroll-bulk-dialog-fields .form-field:last-child { grid-column: 1 / -1; }
+.payroll-bulk-selected { padding: 9px 11px; color: var(--color-primary-700); background: var(--color-primary-50); border: 1px solid var(--color-primary-100); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 650; }
+.payroll-employee-table-heading { align-items: center; }
+.payroll-heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+.payroll-heading-actions .button-secondary { white-space: nowrap; }
+.payroll-holiday-dialog .payroll-holiday-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.payroll-holiday-dialog .payroll-holiday-form .field, .payroll-holiday-dialog .payroll-holiday-form .form-field { min-width: 0; margin: 0; }
+.payroll-holiday-dialog .payroll-holiday-form .payroll-dialog-actions { grid-column: 1 / -1; }
+.payroll-manual-line-dialog .payroll-adjustment-form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.payroll-manual-line-dialog .payroll-adjustment-form .field, .payroll-manual-line-dialog .payroll-adjustment-form .form-field { min-width: 0; margin: 0; }
+.payroll-manual-line-dialog .payroll-adjustment-form .payroll-dialog-actions { margin-top: 3px; }
+.payroll-statement-dialog { width: min(760px, calc(100% - 28px)); }
+.payroll-statement-dialog > div { padding: 24px; }
+.payroll-statement-dialog .payroll-dialog-actions { padding-top: 0; }
+.statement-modal-content { display: grid; gap: 12px; }
+.statement-modal-content .payroll-card-heading { align-items: flex-start; margin: 0; }
+.statement-modal-content .payroll-line-list { max-height: 52vh; overflow-y: auto; padding-right: 3px; }
+@media (max-width: 620px) {
+  .payroll-bulk-dialog-fields, .payroll-holiday-dialog .payroll-holiday-form, .payroll-manual-line-dialog .payroll-adjustment-form { grid-template-columns: minmax(0, 1fr); }
+  .payroll-bulk-dialog-fields .field:last-child, .payroll-bulk-dialog-fields .form-field:last-child, .payroll-holiday-dialog .payroll-holiday-form .payroll-dialog-actions, .payroll-manual-line-dialog .payroll-adjustment-form .payroll-dialog-actions { grid-column: auto; }
+  .payroll-heading-actions { align-items: flex-start; justify-content: flex-start; flex-direction: column; }
+}

@@ -56,4 +56,8 @@
   document.querySelectorAll(".payroll-print-button").forEach((button) => {
     button.addEventListener("click", () => window.print());
   });
+
+  document.querySelectorAll("dialog[data-payroll-autopen='true']").forEach((dialog) => {
+    if (dialog instanceof HTMLDialogElement) dialog.showModal();
+  });
 })();

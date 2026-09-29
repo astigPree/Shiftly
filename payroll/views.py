@@ -1091,7 +1091,7 @@ def component_definitions(request):
         "kind_choices": PayrollComponentDefinition.Kind.choices,
         "basis_choices": PayrollComponentDefinition.Basis.choices,
         "page_querystring": _page_querystring(request),
-        "show_form": request.GET.get("add", "1") != "0" or request.method == "POST",
+        "show_form": request.method == "POST" or request.GET.get("add") == "1",
     })
 
 
@@ -1199,7 +1199,7 @@ def holiday_calendar(request):
     if query:
         holidays = holidays.filter(name__icontains=query)
     page = Paginator(holidays.order_by("date", "name"), 20).get_page(request.GET.get("page"))
-    show_form = request.GET.get("add") == "1" or request.method == "POST"
+    show_form = request.method == "POST" or request.GET.get("add") == "1"
     return render(request, "payroll/holiday_calendar.html", {
         "organization": organization,
         "form": form,
@@ -1301,6 +1301,7 @@ def run_detail(request, pk):
     run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
     invalid_statutory_form = None
     invalid_statement_id = None
+    invalid_adjustment_form = None
     if request.method == "POST":
         action = request.POST.get("action")
         try:
@@ -1326,6 +1327,7 @@ def run_detail(request, pk):
                     add_adjustment(run=run, actor=request.user, **form.cleaned_data)
                     messages.success(request, "Payroll line added to the draft.")
                 else:
+                    invalid_adjustment_form = form
                     for errors in form.errors.values():
                         for error in errors:
                             messages.error(request, error)
@@ -1376,7 +1378,7 @@ def run_detail(request, pk):
                 messages.error(request, "Choose a valid payroll action.")
         except ValidationError as error:
             _message_error(request, error)
-        if invalid_statutory_form is None:
+        if invalid_statutory_form is None and invalid_adjustment_form is None:
             return redirect("payroll:run_detail", pk=run.pk)
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
@@ -1434,7 +1436,7 @@ def run_detail(request, pk):
         first_compensation = next(iter(compensation_versions.values()), {}) if isinstance(compensation_versions, dict) else {}
         basis = snapshot.get("pay_basis") or first_compensation.get("basis") or ""
         statement.pay_basis = {"HOURLY": "Hourly", "DAILY": "Daily", "MONTHLY": "Monthly"}.get(basis, basis.title() if basis else "—")
-    adjustment_form = PayrollAdjustmentForm(organization=organization, initial={"effective_date": run.period_start})
+    adjustment_form = invalid_adjustment_form or PayrollAdjustmentForm(organization=organization, initial={"effective_date": run.period_start})
     totals = run.statements.aggregate(
         gross=Sum("gross_amount"), deductions=Sum("deduction_amount"),
         contributions=Sum("employer_contribution_amount"), net=Sum("net_amount"),
@@ -1448,6 +1450,7 @@ def run_detail(request, pk):
         "unresolved_exception_count": sum(1 for item in exceptions if not item.resolved_at and not item.superseded_at),
         "preview_history": run.calculation_previews.all()[:5],
         "adjustment_form": adjustment_form,
+        "manual_line_form_invalid": invalid_adjustment_form is not None,
         "exception_summary": exception_summary,
         "statement_search": statement_search,
         "statement_page_size": page_size,

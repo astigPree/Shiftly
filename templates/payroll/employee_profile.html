@@ -1,6 +1,7 @@
 {% extends "layouts/employer.html" %}
-{% load form_tags %}
+{% load static form_tags %}
 {% block title %}Pay profile · {{ employee.full_name }} | Shiftly{% endblock %}
+{% block scripts %}<script src="{% static 'js/payroll-confirmation.js' %}" defer></script>{% endblock %}
 {% block app_content %}
 <div class="payroll-page payroll-employee-profile-page">
   <header class="payroll-profile-header">
@@ -99,35 +100,11 @@
   </section>
 
   <section class="payroll-card payroll-rule-assignment-card" aria-labelledby="rule-assignment-title">
-    <header class="payroll-card-heading">
-      <div><h2 id="rule-assignment-title">Payroll rule profile</h2><p>Employees inherit the organization default unless a dated override is assigned here.</p></div>
-      <span class="payroll-status payroll-status--{% if current_rule_assignment %}finalized{% else %}needs-review{% endif %}">{% if current_rule_assignment %}{{ current_rule_assignment.rule_profile.name }}{% else %}Inherited default{% endif %}</span>
-    </header>
+    <header class="payroll-card-heading"><div><h2 id="rule-assignment-title">Payroll rule profile</h2><p>Employees inherit the organization default unless a dated override is assigned here.</p></div><div class="payroll-heading-actions"><span class="payroll-status payroll-status--{% if current_rule_assignment %}finalized{% else %}needs-review{% endif %}">{% if current_rule_assignment %}{{ current_rule_assignment.rule_profile.name }}{% else %}Inherited default{% endif %}</span><button class="button-secondary" type="button" data-payroll-dialog-open="rule-assignment-dialog">Assign override</button></div></header>
     <div class="payroll-info-box"><strong>Current resolution</strong><span>{% if current_rule_assignment %}This employee uses an explicit assignment from {{ current_rule_assignment.effective_from|date:"M j, Y" }}.{% elif default_rule_profile %}No employee override is active; payroll uses the organization's default profile.{% else %}Create an organization default profile in Payroll settings before running payroll.{% endif %}</span></div>
-    <form method="post" class="payroll-assignment-form" novalidate>
-      {% csrf_token %}<input type="hidden" name="action" value="assignment">
-      <div class="payroll-profile-field-grid">
-        {% include "components/form_field.html" with field=assignment_form.rule_profile %}
-        {% include "components/form_field.html" with field=assignment_form.effective_from %}
-        {% include "components/form_field.html" with field=assignment_form.effective_until %}
-        {% include "components/form_field.html" with field=assignment_form.reason full_width=True %}
-      </div>
-      <button class="button-link" type="submit">Assign rule profile</button>
-    </form>
-    {% if rule_assignments %}
-    <div class="payroll-table-wrap" tabindex="0" aria-label="Payroll rule assignment history">
-      <table class="payroll-table payroll-assignment-table">
-        <thead><tr><th scope="col">Profile</th><th scope="col">Effective period</th><th scope="col">Reason</th><th scope="col">Assigned by</th></tr></thead>
-        <tbody>{% for assignment in rule_assignments %}<tr>
-          <td><strong>{{ assignment.rule_profile.name }}</strong><small>{{ assignment.rule_profile.code }}</small></td>
-          <td>{{ assignment.effective_from|date:"M j, Y" }} – {% if assignment.effective_until %}{{ assignment.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td>
-          <td>{{ assignment.reason|default:"—" }}</td>
-          <td>{{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.email }}</td>
-        </tr>{% endfor %}</tbody>
-      </table>
-    </div>
-    {% endif %}
+    {% if rule_assignments %}<div class="payroll-table-wrap" tabindex="0" aria-label="Payroll rule assignment history"><table class="payroll-table payroll-assignment-table"><thead><tr><th>Profile</th><th>Effective period</th><th>Reason</th><th>Assigned by</th></tr></thead><tbody>{% for assignment in rule_assignments %}<tr><td><strong>{{ assignment.rule_profile.name }}</strong><small>{{ assignment.rule_profile.code }}</small></td><td>{{ assignment.effective_from|date:"M j, Y" }} &ndash; {% if assignment.effective_until %}{{ assignment.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td><td>{{ assignment.reason|default:"&mdash;" }}</td><td>{{ assignment.assigned_by.get_full_name|default:assignment.assigned_by.email }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
   </section>
+  <dialog id="rule-assignment-dialog" class="payroll-dialog payroll-rule-assignment-dialog" aria-labelledby="rule-assignment-dialog-heading"{% if assignment_form.errors %} data-payroll-autopen="true"{% endif %}><form method="post" class="payroll-assignment-form" novalidate>{% csrf_token %}<input type="hidden" name="action" value="assignment"><header class="payroll-card-heading"><div><p class="payroll-eyebrow">Employee override</p><h2 id="rule-assignment-dialog-heading">Assign a rule profile</h2><p>Choose the effective dates for this employee-specific payroll rule.</p></div><button class="payroll-dialog-close" type="button" data-payroll-dialog-close aria-label="Close">&times;</button></header><div class="payroll-profile-field-grid">{% include "components/form_field.html" with field=assignment_form.rule_profile %}{% include "components/form_field.html" with field=assignment_form.effective_from %}{% include "components/form_field.html" with field=assignment_form.effective_until %}{% include "components/form_field.html" with field=assignment_form.reason full_width=True %}</div><div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-dialog-close>Cancel</button><button class="button-link" type="submit">Assign rule profile</button></div></form></dialog>
 
   <section class="payroll-card payroll-rate-history" aria-labelledby="rate-history-title">
     <header class="payroll-card-heading">
@@ -171,16 +148,13 @@
   </section>
 
   <section class="payroll-card payroll-rate-history" aria-labelledby="component-title">
-    <header class="payroll-card-heading">
-      <div><h2 id="component-title">Recurring pay components</h2><p>Allowances and deductions are assigned by date and calculated from the selected basis.</p></div>
-      <a class="table-action-button" href="{% url 'payroll:add_component_assignment' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Assign component</a>
-    </header>
-    {% if component_assignments %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Component</th><th>Amount</th><th>Basis</th><th>Effective period</th><th>Source</th></tr></thead><tbody>{% for assignment in component_assignments %}<tr><td><strong>{{ assignment.component.label }}</strong><small>{{ assignment.component.get_kind_display }}</small></td><td>{{ currency_symbol }}{{ assignment.amount|floatformat:2 }}</td><td>{{ assignment.get_basis_display|default:assignment.component.get_basis_display }}</td><td>{{ assignment.effective_from|date:"M j, Y" }} – {% if assignment.effective_until %}{{ assignment.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td><td>{{ assignment.source_reference|default:"—" }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><div><h3>No recurring components assigned</h3><p>Create a shared component first, then assign a dated amount to this employee.</p></div><a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Manage components</a></div>{% endif %}
+    <header class="payroll-card-heading"><div><h2 id="component-title">Recurring pay components</h2><p>Allowances and deductions are assigned by date and calculated from the selected basis.</p></div><a class="table-action-button" href="{% url 'payroll:add_component_assignment' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Assign component</a></header>
+    {% if component_assignments %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Component</th><th>Amount</th><th>Basis</th><th>Effective period</th><th>Source</th></tr></thead><tbody>{% for assignment in component_assignments %}<tr><td><strong>{{ assignment.component.label }}</strong><small>{{ assignment.component.get_kind_display }}</small></td><td>{{ currency_symbol }}{{ assignment.amount|floatformat:2 }}</td><td>{{ assignment.get_basis_display|default:assignment.component.get_basis_display }}</td><td>{{ assignment.effective_from|date:"M j, Y" }} &ndash; {% if assignment.effective_until %}{{ assignment.effective_until|date:"M j, Y" }}{% else %}Current{% endif %}</td><td>{{ assignment.source_reference|default:"&mdash;" }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="wallet" icon_class="icon" %}</span><div><h3>No recurring components assigned</h3><p>Create a shared component first, then assign a dated amount to this employee.</p></div><a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Manage components</a></div>{% endif %}
   </section>
 
   <section class="payroll-card payroll-rate-history" aria-labelledby="input-title">
     <header class="payroll-card-heading"><div><h2 id="input-title">Reviewed period inputs</h2><p>Daily-paid employees use these date-level quantities instead of attendance time.</p></div><a class="table-action-button" href="{% url 'payroll:add_period_input' employee.pk %}">{% include "components/icon.html" with icon_name="plus" icon_class="payroll-profile-add-icon" %}Add period input</a></header>
-    {% if period_inputs %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Work date</th><th>Worked</th><th>Planned</th><th>Undertime</th><th>Overtime</th><th>Source</th></tr></thead><tbody>{% for input in period_inputs %}<tr><td>{{ input.work_date|date:"M j, Y" }}</td><td>{{ input.worked_day_units }}</td><td>{{ input.planned_day_units }}</td><td>{{ input.undertime_minutes }} min</td><td>{{ input.overtime_minutes }} min</td><td>{{ input.source_reference }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><div><h3>No reviewed inputs</h3><p>Add date-level quantities when this employee is paid from a reviewed daily register.</p></div><a class="button-secondary" href="{% url 'payroll:add_period_input' employee.pk %}">Add period input</a></div>{% endif %}
+    {% if period_inputs %}<div class="payroll-table-wrap"><table class="payroll-table"><thead><tr><th>Work date</th><th>Worked</th><th>Planned</th><th>Undertime</th><th>Overtime</th><th>Source</th></tr></thead><tbody>{% for input in period_inputs %}<tr><td>{{ input.work_date|date:"M j, Y" }}</td><td>{{ input.worked_day_units }}</td><td>{{ input.planned_day_units }}</td><td>{{ input.undertime_minutes }} min</td><td>{{ input.overtime_minutes }} min</td><td>{{ input.source_reference }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="payroll-rate-empty-state"><span class="payroll-rate-empty-icon">{% include "components/icon.html" with icon_name="calendar" icon_class="icon" %}</span><div><h3>No reviewed inputs</h3><p>Add date-level quantities when this employee is paid from a reviewed daily register.</p></div><a class="button-secondary" href="{% url 'payroll:add_period_input' employee.pk %}">Add period input</a></div>{% endif %}
   </section>
   <section id="audit-history" class="payroll-card payroll-profile-audit" aria-labelledby="profile-audit-title">
     <header class="payroll-card-heading"><div><h2 id="profile-audit-title">Audit history</h2><p>Changes to this employee's payroll setup are retained for review.</p></div></header>
