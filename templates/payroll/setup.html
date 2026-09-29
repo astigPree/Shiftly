@@ -29,11 +29,12 @@
         <summary>Create rule profile</summary>
         <form method="post" class="payroll-rule-profile-form" novalidate>
           {% csrf_token %}<input type="hidden" name="action" value="profile">
+          {% if profile_form.non_field_errors %}<div class="field-error" role="alert">{{ profile_form.non_field_errors }}</div>{% endif %}
           {% include "components/form_field.html" with field=profile_form.code %}
           {% include "components/form_field.html" with field=profile_form.name %}
           {% include "components/form_field.html" with field=profile_form.description %}
-          <div class="payroll-inline-check">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label></div>
-          <div class="payroll-inline-check">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label></div>
+          <div class="payroll-inline-check{% if profile_form.is_default.errors %} form-field--invalid{% endif %}">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label>{% if profile_form.is_default.errors %}<div class="field-error" role="alert">{{ profile_form.is_default.errors }}</div>{% endif %}</div>
+          <div class="payroll-inline-check{% if profile_form.active.errors %} form-field--invalid{% endif %}">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label>{% if profile_form.active.errors %}<div class="field-error" role="alert">{{ profile_form.active.errors }}</div>{% endif %}</div>
           <button class="button-secondary" type="submit">Create profile</button>
         </form>
       </details>
@@ -46,6 +47,7 @@
     </header>
     <form method="post" class="payroll-config-form" novalidate>
       {% csrf_token %}<input type="hidden" name="action" value="settings">
+      {% if settings_form.non_field_errors %}<div class="field-error" role="alert">{{ settings_form.non_field_errors }}</div>{% endif %}
       <div class="payroll-config-fields">
         <div class="payroll-readonly-setting"><span>Currency</span><strong>Philippine peso (PHP)</strong><small>Fixed for this release</small></div>
         {% include "components/form_field.html" with field=settings_form.frequency %}
@@ -57,6 +59,7 @@
 
   <form method="post" class="payroll-rule-form" novalidate data-payroll-confirm data-confirm-title="Save this payroll rule version?" data-confirm-description="These values will be used for future payroll calculations from the effective date. Review the percentage, multipliers, dates, and source evidence before saving." data-confirm-action="Save rule version" data-confirm-danger="false">
     {% csrf_token %}<input type="hidden" name="action" value="rules"><input type="hidden" name="rule_profile" value="{% if selected_rule_profile %}{{ selected_rule_profile.pk }}{% endif %}">
+    {% if rule_form.non_field_errors %}<div class="field-error" role="alert">{{ rule_form.non_field_errors }}</div>{% endif %}
     <section class="payroll-card payroll-rule-card" aria-labelledby="payroll-rules-title">
       <header class="payroll-card-heading">
         <div><h2 id="payroll-rules-title">Pay rules{% if selected_rule_profile %} · {{ selected_rule_profile.name }}{% endif %}</h2><p>Set the effective period and premium values used by payroll calculations.</p></div>
