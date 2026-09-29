@@ -49,6 +49,7 @@ class PayrollRuleSetForm(forms.ModelForm):
         max_digits=6,
         decimal_places=2,
         widget=forms.NumberInput(attrs={"step": "0.01", "inputmode": "decimal"}),
+        help_text="Enter a percentage with up to two decimal places, for example 10.00%.",
     )
 
     class Meta:
@@ -84,7 +85,7 @@ class PayrollRuleSetForm(forms.ModelForm):
             Decimal(self.instance.regular_day_minutes) / Decimal("60")
         )
         self.initial["night_differential_rate"] = (
-            Decimal(self.instance.night_differential_rate) * Decimal("100")
+            (Decimal(self.instance.night_differential_rate) * Decimal("100")).quantize(Decimal("0.01"))
         )
         self.fields["overtime_multiplier"].help_text = "Multiplier applied to eligible ordinary overtime."
         self.fields["rest_day_multiplier"].help_text = "Multiplier applied to eligible work on the employee's rest day."

@@ -1,5 +1,5 @@
 {% extends "layouts/employer.html" %}
-{% load form_tags %}
+{% load static form_tags %}
 {% block title %}Payroll settings | Shiftly{% endblock %}
 {% block app_content %}
 <div class="payroll-page payroll-settings-page">
@@ -55,7 +55,7 @@
     </form>
   </section>
 
-  <form method="post" class="payroll-rule-form" novalidate>
+  <form method="post" class="payroll-rule-form" novalidate data-payroll-confirm data-confirm-title="Save this payroll rule version?" data-confirm-description="These values will be used for future payroll calculations from the effective date. Review the percentage, multipliers, dates, and source evidence before saving." data-confirm-action="Save rule version" data-confirm-danger="false">
     {% csrf_token %}<input type="hidden" name="action" value="rules"><input type="hidden" name="rule_profile" value="{% if selected_rule_profile %}{{ selected_rule_profile.pk }}{% endif %}">
     <section class="payroll-card payroll-rule-card" aria-labelledby="payroll-rules-title">
       <header class="payroll-card-heading">
@@ -109,5 +109,17 @@
       </section>
     </div>
   </form>
+  <dialog id="payroll-confirm-dialog" class="payroll-dialog" aria-labelledby="payroll-confirm-title" aria-describedby="payroll-confirm-description">
+    <div>
+      <p class="payroll-eyebrow">Important payroll change</p>
+      <h2 id="payroll-confirm-title">Confirm action</h2>
+      <p id="payroll-confirm-description"></p>
+      <div class="payroll-dialog-actions">
+        <button class="button-secondary" type="button" data-payroll-confirm-cancel>Review again</button>
+        <button class="button-link" type="button" data-payroll-confirm-submit>Save rule version</button>
+      </div>
+    </div>
+  </dialog>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/payroll-confirmation.js' %}" defer></script>{% endblock %}
