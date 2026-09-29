@@ -78,13 +78,22 @@ def _organization(request):
     return organization_for_user(request.user)
 
 
-def _message_error(request, error):
-    if hasattr(error, "message_dict"):
-        for errors in error.message_dict.values():
+def _message_error(request, error, form=None):
+    """Expose validation failures in the page message area and, when possible, on the form."""
+    message_dict = getattr(error, "message_dict", None)
+    if message_dict:
+        for field_name, errors in message_dict.items():
             for message in errors:
+                if form is not None:
+                    form.add_error(field_name if field_name in form.fields else None, message)
                 messages.error(request, message)
-    else:
-        for message in getattr(error, "messages", [str(error)]):
+        return
+
+    error_messages = getattr(error, "messages", None) or [str(error)]
+    for message in error_messages:
+        if message:
+            if form is not None:
+                form.add_error(None, message)
             messages.error(request, message)
 
 
@@ -409,6 +418,10 @@ def run_list(request):
 @employer_required
 @require_http_methods(["GET", "POST"])
 def employee_payroll_list(request):
+    selected_employee_ids = {
+        value for value in request.POST.getlist("employees")
+        if value.isdigit()
+    } if request.method == "POST" and request.POST.get("action") == "bulk_assignment" else set()
     organization = _organization(request)
     bulk_form = PayrollBulkRuleAssignmentForm(
         request.POST if request.method == "POST" and request.POST.get("action") == "bulk_assignment" else None,
@@ -457,7 +470,7 @@ def employee_payroll_list(request):
             messages.success(request, f"Assigned {profile.name} to {len(employees_to_assign)} employees.")
             return redirect("payroll:employee_list")
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, bulk_form)
     try:
         organization_today = timezone.localdate(timezone=ZoneInfo(organization.timezone))
     except (ZoneInfoNotFoundError, TypeError, ValueError):
@@ -574,6 +587,7 @@ def employee_payroll_list(request):
             payroll_status, status_detail = "ready", "Pay profile complete"
         rows.append({
             "employee": employee,
+            "selected": str(employee.pk) in selected_employee_ids,
             "profile": profile,
             "rate": employee._current_rate,
             "rate_effective_from": employee._current_rate_from,
@@ -680,7 +694,7 @@ def setup(request):
             messages.success(request, f"Payroll rule profile {profile.name} was created.")
             return redirect(f"{reverse('payroll:setup')}?profile={profile.pk}")
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, profile_form)
     if action == "rules" and request.method == "POST" and rule_form.is_valid():
         try:
             with transaction.atomic():
@@ -707,7 +721,7 @@ def setup(request):
             messages.success(request, "Payroll rule version saved. A run cannot be finalized until the effective rules have review evidence.")
             return redirect("payroll:setup")
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, rule_form)
     return render(request, "payroll/setup.html", {
         "organization": organization,
         "settings_form": settings_form,
@@ -854,12 +868,15 @@ def employee_profile(request, pk):
             messages.success(request, "Payroll rule profile assignment saved.")
             return redirect("payroll:employee_profile", pk=employee.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, assignment_form)
     if request.method == "POST" and action != "assignment" and form.is_valid():
-        form.save()
-        record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_PROFILE_UPDATED, target_type="employee_pay_profile", target_id=profile.pk, summary=f"Updated payroll profile for {employee.employee_code}.", metadata={"region": profile.payroll_region, "timezone": profile.payroll_timezone, "minimum_wage_confirmed": profile.minimum_wage_confirmed})
-        messages.success(request, "Employee payroll profile saved.")
-        return redirect("payroll:employee_profile", pk=employee.pk)
+        try:
+            form.save()
+            record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_PROFILE_UPDATED, target_type="employee_pay_profile", target_id=profile.pk, summary=f"Updated payroll profile for {employee.employee_code}.", metadata={"region": profile.payroll_region, "timezone": profile.payroll_timezone, "minimum_wage_confirmed": profile.minimum_wage_confirmed})
+            messages.success(request, "Employee payroll profile saved.")
+            return redirect("payroll:employee_profile", pk=employee.pk)
+        except ValidationError as error:
+            _message_error(request, error, form)
     return render(request, "payroll/employee_profile.html", {
         "organization": organization,
         "employee": employee,
@@ -930,7 +947,7 @@ def add_pay_rate(request, pk):
             messages.success(request, "Hourly rate added to the employee's pay history.")
             return redirect("payroll:employee_profile", pk=employee.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/pay_rate_form.html", {"organization": organization, "employee": employee, "form": form})
 
 
@@ -969,7 +986,7 @@ def add_compensation(request, pk):
             messages.success(request, "Compensation version added to the employee's pay history.")
             return redirect("payroll:employee_profile", pk=employee.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/compensation_form.html", {"organization": organization, "employee": employee, "form": form})
 
 
@@ -1009,7 +1026,7 @@ def add_component_assignment(request, pk):
             messages.success(request, "Pay component assignment saved.")
             return redirect("payroll:employee_profile", pk=employee.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/component_assignment_form.html", {"organization": organization, "employee": employee, "form": form})
 
 
@@ -1031,7 +1048,7 @@ def add_period_input(request, pk):
             messages.success(request, "Reviewed period input saved. It will be included in a matching daily payroll run.")
             return redirect("payroll:employee_profile", pk=employee.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/period_input_form.html", {"organization": organization, "employee": employee, "form": form})
 
 
@@ -1046,7 +1063,7 @@ def component_definitions(request):
             messages.success(request, f"{component.label} is available for employee assignments.")
             return redirect("payroll:component_definitions")
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     all_components = PayrollComponentDefinition.objects.filter(organization=organization)
     query = request.GET.get("q", "").strip()
     kind = request.GET.get("kind", "")
@@ -1121,7 +1138,7 @@ def component_edit(request, pk):
             messages.success(request, f"{component.label} updated.")
             return redirect("payroll:component_definitions")
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/component_edit.html", {
         "organization": organization,
         "component": component,
@@ -1286,7 +1303,7 @@ def run_create_submit(request):
             messages.success(request, "Payroll draft created. Review exceptions and add any itemized manual adjustments.")
             return redirect("payroll:run_detail", pk=run.pk)
         except ValidationError as error:
-            _message_error(request, error)
+            _message_error(request, error, form)
     return render(request, "payroll/run_form.html", {
         "organization": organization,
         "form": form,
@@ -1302,8 +1319,13 @@ def run_detail(request, pk):
     invalid_statutory_form = None
     invalid_statement_id = None
     invalid_adjustment_form = None
+    invalid_exception_form = None
+    invalid_exception_id = None
+    invalid_finalize_form = None
+    invalid_void_form = None
     if request.method == "POST":
         action = request.POST.get("action")
+        action_form = None
         try:
             if action == "recalculate":
                 calculate_payroll_run(run, actor=request.user)
@@ -1311,6 +1333,7 @@ def run_detail(request, pk):
             elif action == "statutory_review":
                 statement = get_object_or_404(PayrollStatement, pk=request.POST.get('statement_id'), run=run)
                 form = StatutoryReviewForm(request.POST, statement=statement, prefix=f'statutory-{statement.pk}')
+                action_form = form
                 if form.is_valid():
                     try:
                         record_statutory_review(statement=statement, actor=request.user, **form.cleaned_data)
@@ -1323,6 +1346,7 @@ def run_detail(request, pk):
                     messages.error(request, 'Check the statutory review fields and try again.')
             elif action == "adjustment":
                 form = PayrollAdjustmentForm(request.POST, organization=organization)
+                action_form = form
                 if form.is_valid():
                     add_adjustment(run=run, actor=request.user, **form.cleaned_data)
                     messages.success(request, "Payroll line added to the draft.")
@@ -1339,17 +1363,21 @@ def run_detail(request, pk):
                 messages.success(request, 'Payroll returned to draft. Review any changed amounts before submitting again.')
             elif action == "finalize":
                 form = FinalizePayrollForm(request.POST)
+                action_form = form
                 if form.is_valid():
                     finalize_payroll_run(run=run, actor=request.user, **form.cleaned_data)
                     messages.success(request, "Payroll run finalized. Employee payslips are now available.")
                 else:
+                    invalid_finalize_form = form
                     messages.error(request, "Add review evidence before finalizing this payroll run.")
             elif action == "void":
                 form = VoidPayrollForm(request.POST)
+                action_form = form
                 if form.is_valid():
                     void_payroll_run(run=run, actor=request.user, **form.cleaned_data)
                     messages.success(request, "Payroll run voided and retained in history.")
                 else:
+                    invalid_void_form = form
                     messages.error(request, "Add a reason before voiding this payroll run.")
             elif action == "resolve_exception":
                 exception = get_object_or_404(PayrollException, pk=request.POST.get("exception_id"), run=run)
@@ -1359,6 +1387,7 @@ def run_detail(request, pk):
                     exception=exception,
                     prefix=f"exception-{exception.pk}",
                 )
+                action_form = form
                 if form.is_valid():
                     resolve_payroll_exception(
                         exception=exception,
@@ -1368,6 +1397,8 @@ def run_detail(request, pk):
                     )
                     messages.success(request, "Exception review recorded with its resolution evidence.")
                 else:
+                    invalid_exception_form = form
+                    invalid_exception_id = exception.pk
                     for errors in form.errors.values():
                         for error in errors:
                             messages.error(request, error)
@@ -1377,8 +1408,26 @@ def run_detail(request, pk):
             else:
                 messages.error(request, "Choose a valid payroll action.")
         except ValidationError as error:
-            _message_error(request, error)
-        if invalid_statutory_form is None and invalid_adjustment_form is None:
+            if action == "adjustment" and action_form is not None:
+                invalid_adjustment_form = action_form
+            elif action == "statutory_review" and action_form is not None:
+                invalid_statutory_form = action_form
+                invalid_statement_id = getattr(statement, "pk", None)
+            elif action == "finalize" and action_form is not None:
+                invalid_finalize_form = action_form
+            elif action == "void" and action_form is not None:
+                invalid_void_form = action_form
+            elif action == "resolve_exception" and action_form is not None:
+                invalid_exception_form = action_form
+                invalid_exception_id = getattr(exception, "pk", None)
+            _message_error(request, error, action_form)
+        if all(form is None for form in (
+            invalid_statutory_form,
+            invalid_adjustment_form,
+            invalid_exception_form,
+            invalid_finalize_form,
+            invalid_void_form,
+        )):
             return redirect("payroll:run_detail", pk=run.pk)
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
@@ -1411,7 +1460,7 @@ def run_detail(request, pk):
     exceptions = list(run.exceptions.select_related("employee", "timesheet", "resolution_line").order_by("superseded_at", "resolved_at", "employee__last_name", "pk"))
     exception_rows = [{
         "exception": item,
-        "form": PayrollExceptionResolutionForm(run=run, exception=item, prefix=f"exception-{item.pk}"),
+        "form": invalid_exception_form if item.pk == invalid_exception_id else PayrollExceptionResolutionForm(run=run, exception=item, prefix=f"exception-{item.pk}"),
     } for item in exceptions if not item.resolved_at and not item.superseded_at]
     active_exceptions = [item for item in exceptions if not item.resolved_at and not item.superseded_at]
     exception_counts = Counter(item.code for item in active_exceptions)
@@ -1456,8 +1505,10 @@ def run_detail(request, pk):
         "statement_page_size": page_size,
         "page_querystring": _page_querystring(request),
         "statutory_pending_count": statutory_pending,
-        "finalize_form": FinalizePayrollForm(),
-        "void_form": VoidPayrollForm(),
+        "finalize_form": invalid_finalize_form or FinalizePayrollForm(),
+        "void_form": invalid_void_form or VoidPayrollForm(),
+        "finalize_form_invalid": invalid_finalize_form is not None,
+        "void_form_invalid": invalid_void_form is not None,
         "totals": {key: value or Decimal("0.00") for key, value in totals.items()},
     })
 

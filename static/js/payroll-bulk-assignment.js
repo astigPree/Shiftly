@@ -19,6 +19,9 @@
   };
   document.querySelectorAll("[data-bulk-employee]").forEach((checkbox) => checkbox.addEventListener("change", sync));
   document.querySelectorAll('[data-payroll-dialog-open="bulk-rule-assignment-dialog"]').forEach((button) => button.addEventListener("click", () => { sync(); dialog.showModal(); }));
-  if (dialog.dataset.payrollAutopen === "true") { sync(); dialog.showModal(); }
+  if (dialog.dataset.payrollAutopen === "true") {
+    sync();
+    if (!dialog.open) dialog.showModal();
+  }
   dialog.addEventListener("close", sync);
 })();

@@ -168,7 +168,7 @@ class PayrollRuleProfileForm(forms.ModelForm):
             "code": "A short stable identifier, such as standard or union-a.",
             "description": "Describe which employees or agreement this profile covers.",
             "is_default": "Employees without an explicit assignment inherit this profile.",
-            "active": "Inactive profiles cannot be newly assigned.",
+            "active": "Inactive profiles cannot be newly assigned. A default profile is always available for assignments.",
         }
         widgets = {
             "description": forms.TextInput(attrs={"placeholder": "e.g. Standard hourly employees"}),
@@ -185,7 +185,11 @@ class PayrollRuleProfileForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         if cleaned.get("is_default") and not cleaned.get("active"):
-            self.add_error("active", "The organization default profile must remain available for assignments.")
+            # A profile cannot be the organization fallback while unavailable for
+            # assignments. Treat selecting the default checkbox as the user's
+            # intent to enable the profile instead of rejecting the submission
+            # with an error that used to look like a silent page reload.
+            cleaned["active"] = True
         return cleaned
 
     def save(self, commit=True):
