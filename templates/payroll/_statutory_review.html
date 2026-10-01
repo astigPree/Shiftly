@@ -1,25 +1,49 @@
-<details class="payroll-statutory-review"{% if statement.statutory_form.errors %} open{% endif %}>
-  <summary>{{ statement.employee.full_name }} · Statutory items · {% if statement.statutory_complete %}Reviewed{% elif run.status == 'FINALIZED' %}No structured review recorded{% else %}Needs review{% endif %}</summary>
-  <p class="form-help">Review SSS, PhilHealth, Pag-IBIG, and withholding tax for this employee and cutoff. Amounts come from your reviewed manual lines. Missing registration details do not automatically remove contributions.</p>
+<details id="statutory-review-{{ statement.pk }}" class="payroll-statutory-review"{% if statement.statutory_form.errors %} open{% endif %}>
+  <summary>
+    <span class="payroll-statutory-summary-label">
+      <strong>{{ statement.employee.full_name }}</strong>
+      <small>Statutory items &middot; {{ statement.statutory_reviewed_count }} of {{ statement.statutory_total_count }} reviewed</small>
+    </span>
+    <span class="payroll-status payroll-status--{% if statement.statutory_complete %}finalized{% else %}review{% endif %}">{% if statement.statutory_complete %}Reviewed{% elif run.status == 'FINALIZED' %}Review unavailable{% else %}Needs review{% endif %}</span>
+  </summary>
+  <div class="payroll-statutory-intro">
+    <span class="payroll-statutory-intro-icon" aria-hidden="true">i</span>
+    <p>Review each item for this employee and cutoff. Use a reviewed manual line when an amount applies, or record a documented zero or exemption.</p>
+  </div>
   <div class="payroll-statutory-items">
     {% for row in statement.statutory_rows %}
-    <article>
-      <header><strong>{{ row.label }}</strong><span class="payroll-status {% if row.current %}payroll-status--finalized{% else %}payroll-status--review{% endif %}">{{ row.status }}</span></header>
+    <article class="payroll-statutory-item{% if row.current %} is-reviewed{% else %} needs-review{% endif %}">
+      <header>
+        <div class="payroll-statutory-item-title"><span class="payroll-statutory-item-icon" aria-hidden="true">{% if row.current %}&check;{% else %}!{% endif %}</span><strong>{{ row.label }}</strong></div>
+        <span class="payroll-status {% if row.current %}payroll-status--finalized{% else %}payroll-status--review{% endif %}">{{ row.status }}</span>
+      </header>
       {% if row.review %}
-      <p>{{ row.registration_label }}</p>
-      <dl>
-        <div><dt>Employee</dt><dd>{{ run.currency }} {{ row.review.employee.amount }} · {{ row.employee_treatment_label }}</dd></div>
-        <div><dt>Employer</dt><dd>{{ run.currency }} {{ row.review.employer.amount }} · {{ row.employer_treatment_label }}</dd></div>
+      <div class="payroll-statutory-amounts">
+        <div><small>Employee</small><strong>{{ run.currency }} {{ row.review.employee.amount }}</strong><span>{{ row.employee_treatment_label }}</span></div>
+        <div><small>Employer</small><strong>{{ run.currency }} {{ row.review.employer.amount }}</strong><span>{{ row.employer_treatment_label }}</span></div>
+      </div>
+      <dl class="payroll-statutory-meta">
+        <div><dt>Registration</dt><dd>{{ row.registration_label }}</dd></div>
+        <div><dt>Reviewed by</dt><dd>{{ row.review.reviewed_by }}</dd></div>
       </dl>
-      <p>{{ row.review.review_note }}</p>
-      <p class="form-help">Source: {{ row.review.source_reference }} · Reviewed by {{ row.review.reviewed_by }}</p>
-      {% if row.review.registration_follow_up %}<p class="form-help">Registration follow-up: {{ row.review.registration_follow_up }}</p>{% endif %}
+      <p class="payroll-statutory-note">{{ row.review.review_note }}</p>
+      <p class="payroll-statutory-source">Source: {{ row.review.source_reference }}</p>
+      {% if row.review.registration_follow_up %}<p class="payroll-statutory-source">Follow-up: {{ row.review.registration_follow_up }}</p>{% endif %}
+      {% else %}
+      <div class="payroll-statutory-empty">
+        <strong>Review needed</strong>
+        <p>Choose this item in the review form below and record the reviewed treatment.</p>
+      </div>
       {% endif %}
     </article>
     {% endfor %}
   </div>
   {% if run.status == 'DRAFT' %}
-  <form method="post" class="payroll-statutory-form" novalidate>
+  <div class="payroll-statutory-form-heading">
+    <div><span class="payroll-statutory-form-step">Next</span><div><strong>Record a statutory review</strong><p>Save one agency at a time. The cards above update after each save.</p></div></div>
+    <span>{{ statement.statutory_reviewed_count }} of {{ statement.statutory_total_count }} complete</span>
+  </div>
+  <form method="post" class="payroll-statutory-form" data-statutory-review-form data-toast-feedback="off" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="statutory_review"><input type="hidden" name="statement_id" value="{{ statement.pk }}">
     {% if statement.statutory_form.non_field_errors %}<div class="field-error" role="alert">{{ statement.statutory_form.non_field_errors }}</div>{% endif %}
     {% for field in statement.statutory_form %}{% include 'components/form_field.html' with field=field %}{% endfor %}

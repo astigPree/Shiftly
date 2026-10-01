@@ -10,9 +10,10 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Case, Count, DateField, Exists, OuterRef, Q, Subquery, Sum, Value, When
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -1432,6 +1433,8 @@ def run_create_submit(request):
 def run_detail(request, pk):
     organization = _organization(request)
     run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    ajax_statutory_review = False
+    ajax_statement_id = None
     invalid_statutory_form = None
     invalid_statement_id = None
     invalid_adjustment_form = None
@@ -1441,6 +1444,7 @@ def run_detail(request, pk):
     invalid_void_form = None
     if request.method == "POST":
         action = request.POST.get("action")
+        ajax_statutory_review = action == "statutory_review" and request.headers.get("X-Requested-With") == "XMLHttpRequest"
         action_form = None
         try:
             if action == "recalculate":
@@ -1448,18 +1452,21 @@ def run_detail(request, pk):
                 messages.success(request, "Payroll preview recalculated from the current approved timesheets and rules.")
             elif action == "statutory_review":
                 statement = get_object_or_404(PayrollStatement, pk=request.POST.get('statement_id'), run=run)
+                ajax_statement_id = statement.pk
                 form = StatutoryReviewForm(request.POST, statement=statement, prefix=f'statutory-{statement.pk}')
                 action_form = form
                 if form.is_valid():
                     try:
                         record_statutory_review(statement=statement, actor=request.user, **form.cleaned_data)
-                        messages.success(request, 'Statutory review saved for this employee and payroll period.')
+                        if not ajax_statutory_review:
+                            messages.success(request, 'Statutory review saved for this employee and payroll period.')
                     except ValidationError as error:
                         form.add_error(None, error)
                 if form.errors:
                     invalid_statutory_form = form
                     invalid_statement_id = statement.pk
-                    messages.error(request, 'Check the statutory review fields and try again.')
+                    if not ajax_statutory_review:
+                        messages.error(request, 'Check the statutory review fields and try again.')
             elif action == "adjustment":
                 form = PayrollAdjustmentForm(request.POST, organization=organization)
                 action_form = form
@@ -1536,7 +1543,8 @@ def run_detail(request, pk):
             elif action == "resolve_exception" and action_form is not None:
                 invalid_exception_form = action_form
                 invalid_exception_id = getattr(exception, "pk", None)
-            _message_error(request, error, action_form)
+            if not ajax_statutory_review:
+                _message_error(request, error, action_form)
         if all(form is None for form in (
             invalid_statutory_form,
             invalid_adjustment_form,
@@ -1544,7 +1552,8 @@ def run_detail(request, pk):
             invalid_finalize_form,
             invalid_void_form,
         )):
-            return redirect("payroll:run_detail", pk=run.pk)
+            if not ajax_statutory_review:
+                return redirect("payroll:run_detail", pk=run.pk)
 
     statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
     statement_search = request.GET.get("q", "").strip()
@@ -1559,9 +1568,11 @@ def run_detail(request, pk):
         page_size = "25"
     paginator = Paginator(statement_query, int(page_size))
     page_number = request.GET.get('page')
-    if invalid_statement_id:
+    if invalid_statement_id or (ajax_statutory_review and ajax_statement_id):
         ids = list(statement_query.values_list('pk', flat=True))
-        page_number = ids.index(invalid_statement_id) // int(page_size) + 1
+        target_statement_id = invalid_statement_id or ajax_statement_id
+        if target_statement_id in ids:
+            page_number = ids.index(target_statement_id) // int(page_size) + 1
     statement_page = paginator.get_page(page_number)
     for statement in statement_page.object_list:
         statement.rule_profile_summary = _statement_rule_profile_summary(statement)
@@ -1575,6 +1586,27 @@ def run_detail(request, pk):
         not all(row['current'] for row in statutory_review_rows(statement))
         for statement in run.statements.select_related('run').prefetch_related('lines')
     )
+    if ajax_statutory_review:
+        ajax_statement = next((item for item in statement_page.object_list if item.pk == (invalid_statement_id or ajax_statement_id)), None)
+        if ajax_statement is not None:
+            statutory_html = render_to_string(
+                "payroll/_statutory_review.html",
+                {"statement": ajax_statement, "run": run},
+                request=request,
+            )
+            return JsonResponse({
+                "ok": invalid_statutory_form is None,
+                "html": statutory_html,
+                "message": "Statutory review saved for this employee and payroll period." if invalid_statutory_form is None else "Check the statutory review fields and try again.",
+                "pending_count": statutory_pending,
+                "reviewed_count": ajax_statement.statutory_reviewed_count,
+                "total_count": ajax_statement.statutory_total_count,
+                "complete": ajax_statement.statutory_complete,
+            })
+        return JsonResponse({
+            "ok": False,
+            "message": "The statutory review panel could not be refreshed. Refresh the page and try again.",
+        }, status=409)
     exceptions = list(run.exceptions.select_related("employee", "timesheet", "resolution_line").order_by("superseded_at", "resolved_at", "employee__last_name", "pk"))
     exception_rows = [{
         "exception": item,

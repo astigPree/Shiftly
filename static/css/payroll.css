@@ -1619,6 +1619,52 @@
 .payroll-manual-line-value { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 150px; color: var(--color-gray-900); text-align: right; white-space: nowrap; }
 .payroll-manual-line-value form { margin: 0; }
 .payroll-empty-state--compact { padding: 14px; }
+.payroll-statutory-review > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 10px 12px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-statutory-review[open] > summary { border-color: var(--color-primary-200); background: var(--color-primary-50); }
+.payroll-statutory-summary-label { display: grid; gap: 3px; min-width: 0; }
+.payroll-statutory-summary-label strong { color: var(--color-gray-900); }
+.payroll-statutory-summary-label small { color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 400; }
+.payroll-statutory-intro { display: flex; align-items: flex-start; gap: 9px; margin: 12px 0; padding: 11px 13px; color: var(--color-text-muted); background: var(--color-info-bg); border: 1px solid var(--color-primary-100); border-radius: var(--radius-md); }
+.payroll-statutory-intro-icon { display: inline-grid; flex: 0 0 22px; width: 22px; height: 22px; place-items: center; color: var(--color-primary-700); border: 2px solid currentColor; border-radius: 50%; font-size: var(--text-xs); font-weight: 800; }
+.payroll-statutory-intro p { margin: 0; font-size: var(--text-sm); line-height: 1.45; }
+.payroll-statutory-items { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px; margin-block: 12px 16px; }
+.payroll-statutory-items article.payroll-statutory-item { align-self: start; min-width: 0; padding: 14px; background: var(--color-surface); box-shadow: 0 2px 8px rgb(15 23 42 / 4%); }
+.payroll-statutory-item.is-reviewed { border-color: var(--color-success-border); }
+.payroll-statutory-item.needs-review { border-color: var(--color-warning-border); }
+.payroll-statutory-item header { align-items: center; }
+.payroll-statutory-item-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.payroll-statutory-item-title strong { overflow-wrap: anywhere; }
+.payroll-statutory-item-icon { display: inline-grid; flex: 0 0 24px; width: 24px; height: 24px; place-items: center; color: var(--color-warning); background: var(--color-warning-bg); border-radius: 50%; font-size: var(--text-xs); font-weight: 800; }
+.payroll-statutory-item.is-reviewed .payroll-statutory-item-icon { color: var(--color-white); background: var(--color-success); }
+.payroll-statutory-amounts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.payroll-statutory-amounts > div { display: grid; gap: 3px; padding: 9px; background: var(--color-gray-50); border-radius: var(--radius-md); }
+.payroll-statutory-amounts small, .payroll-statutory-amounts span { color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.35; }
+.payroll-statutory-amounts strong { color: var(--color-gray-900); font-size: var(--text-base); }
+.payroll-statutory-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--color-border); }
+.payroll-statutory-meta > div { min-width: 0; }
+.payroll-statutory-meta dt { color: var(--color-text-muted); font-size: var(--text-xs); }
+.payroll-statutory-meta dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: var(--text-sm); }
+.payroll-statutory-note { margin: 10px 0 0; color: var(--color-gray-700); font-size: var(--text-sm); line-height: 1.45; }
+.payroll-statutory-source { margin: 7px 0 0; color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }
+.payroll-statutory-empty { display: grid; gap: 3px; margin-top: 14px; padding: 11px; background: var(--color-warning-bg); border-radius: var(--radius-md); }
+.payroll-statutory-empty strong { color: var(--color-gray-900); }
+.payroll-statutory-empty p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.4; }
+.payroll-statutory-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0 9px; padding: 12px 14px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.payroll-statutory-form-heading > div { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.payroll-statutory-form-heading > div > div { min-width: 0; }
+.payroll-statutory-form-heading strong, .payroll-statutory-form-heading p { display: block; }
+.payroll-statutory-form-heading p { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.payroll-statutory-form-heading > span { color: var(--color-primary-700); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; }
+.payroll-statutory-form-step { display: inline-grid; flex: 0 0 42px; min-height: 24px; place-items: center; color: var(--color-primary-700); background: var(--color-primary-100); border-radius: 999px; font-size: var(--text-xs); font-weight: 800; }
+.payroll-statutory-form { border: 1px solid var(--color-border); }
+@media (max-width: 720px) {
+  .payroll-statutory-items { grid-template-columns: minmax(0, 1fr); }
+  .payroll-statutory-form-heading { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 460px) {
+  .payroll-statutory-review > summary { align-items: flex-start; }
+  .payroll-statutory-amounts, .payroll-statutory-meta { grid-template-columns: minmax(0, 1fr); }
+}
 .payroll-empty-state--compact .payroll-empty-icon { width: 34px; height: 34px; }
 
 @media (max-width: 1180px) {
