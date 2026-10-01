@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django import forms
+from django.db.models import Q
 from django.utils import timezone
 
 from employees.models import Employee
@@ -598,7 +599,10 @@ class PayrollRunForm(forms.ModelForm):
         )
         self.fields["parent_run"].required = False
         self.fields["employees"].queryset = Employee.objects.filter(
-            organization=organization, status=Employee.Status.ACTIVE,
+            organization=organization,
+            status=Employee.Status.ACTIVE,
+        ).filter(
+            Q(payroll_profile__isnull=True) | Q(payroll_profile__active_for_payroll=True),
         ).order_by("last_name", "first_name")
         self.fields["employees"].label_from_instance = lambda employee: f"{employee.full_name} · {employee.employee_code}"
         self.order_fields([
@@ -626,18 +630,18 @@ class PayrollRunForm(forms.ModelForm):
             frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY
             if frequency == PayrollSettings.Frequency.WEEKLY:
                 if start.weekday() != 0 or end != start + timedelta(days=6):
-                    self.add_error("period_start", "Weekly payroll periods run Monday through Sunday.")
+                    self.add_error("period_end", "Weekly payroll periods run Monday through Sunday.")
             elif frequency == PayrollSettings.Frequency.SEMI_MONTHLY:
                 last_day = (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
                 valid = (start.day == 1 and end == start.replace(day=15)) or (
                     start.day == 16 and end == last_day
                 )
                 if not valid:
-                    self.add_error("period_start", "Semi-monthly periods run from the 1st–15th or 16th–month end.")
+                    self.add_error("period_end", "Semi-monthly periods run from the 1st-15th or 16th-month end.")
             elif frequency == PayrollSettings.Frequency.MONTHLY:
                 last_day = (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
                 if start.day != 1 or end != last_day:
-                    self.add_error("period_start", "Monthly payroll periods run from the first through the last day of a month.")
+                    self.add_error("period_end", "Monthly payroll periods must run from the first through the last day of the month. Use the last calendar day.")
         if start and end and cleaned.get("pay_date") and cleaned["pay_date"] < end:
             self.add_error("pay_date", "Pay date must be on or after the end of the payroll period.")
         return cleaned

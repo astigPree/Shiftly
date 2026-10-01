@@ -9,11 +9,11 @@
       <h1>Payroll</h1>
       <p class="muted">Prepare, review, and keep a record of employee pay runs.</p>
     </div>
-    {% if payroll_readiness.can_create_run %}
+      {% if payroll_readiness.settings_complete %}
       <a class="button-link" href="{% url 'payroll:run_create' %}">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}Create payroll run</a>
-    {% else %}
-      <button class="button-link payroll-button-disabled" type="button" disabled aria-describedby="payroll-readiness-summary" title="Complete payroll readiness before creating a run">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}Create payroll run</button>
-    {% endif %}
+      {% else %}
+      <a class="button-link payroll-button-disabled" href="{% url payroll_readiness.next_setup_url %}" aria-describedby="payroll-readiness-summary" title="Save payroll settings before creating a run">{% include "components/icon.html" with icon_name="plus" icon_class="button-icon" %}Create payroll run</a>
+      {% endif %}
   </header>
 
   {% include "payroll/_subnav.html" %}
@@ -26,7 +26,7 @@
   <section class="payroll-card payroll-readiness" aria-labelledby="payroll-readiness-title" id="payroll-readiness-summary">
     <header class="payroll-readiness-header">
       <span class="payroll-feature-icon">{% include "components/icon.html" with icon_name="check-circle" icon_class="icon" %}</span>
-      <div class="payroll-readiness-heading"><h2 id="payroll-readiness-title">Payroll readiness</h2><p>Complete the required setup before creating a payroll run.</p></div>
+      <div class="payroll-readiness-heading"><h2 id="payroll-readiness-title">Payroll readiness</h2><p>Review setup warnings before submitting or finalizing a payroll run.</p></div>
       <div class="payroll-readiness-progress">
         <span>{{ payroll_readiness.complete_count }} of {{ payroll_readiness.total_count }} complete</span>
         <div class="payroll-progress-track" role="progressbar" aria-label="Payroll setup progress" aria-valuemin="0" aria-valuemax="{{ payroll_readiness.total_count }}" aria-valuenow="{{ payroll_readiness.complete_count }}">
@@ -124,10 +124,10 @@
         <div class="payroll-empty-copy"><h3>No payroll runs match these filters</h3><p>Try a wider period or remove one of the selected filters.</p></div>
         <a class="button-secondary" href="{% url 'payroll:run_list' %}">Clear filters</a>
       </div>
-      {% elif payroll_readiness.can_create_run %}
+      {% elif payroll_readiness.settings_complete %}
       <div class="payroll-empty-state">
         <span class="payroll-empty-icon" aria-hidden="true">{% include "components/icon.html" with icon_name="file" icon_class="icon" %}</span>
-        <div class="payroll-empty-copy"><h3>Ready for your first payroll run</h3><p>Create a draft to review approved hours, configured premiums, deductions, and exceptions before finalization.</p><p class="payroll-empty-hint">Use the <strong>Create payroll run</strong> button above to get started.</p></div>
+        <div class="payroll-empty-copy"><h3>Ready for your first payroll draft</h3><p>Create a draft to review approved hours, configured premiums, deductions, and exceptions before finalization. Setup warnings stay visible during review.</p><p class="payroll-empty-hint">Use the <strong>Create payroll run</strong> button above to get started.</p></div>
       </div>
       {% else %}
       <div class="payroll-empty-state payroll-empty-state--setup">

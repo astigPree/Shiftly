@@ -72,6 +72,7 @@ from .services import (
     return_payroll_to_draft,
     void_payroll_run,
 )
+from timesheets.models import Timesheet
 
 
 def _organization(request):
@@ -165,6 +166,91 @@ def _period_bounds(reference_date, frequency, period):
         current_start, current_end = reference_date.replace(day=16), month_end
         previous_start, previous_end = month_start, reference_date.replace(day=15)
     return (previous_start, previous_end) if period == "previous" else (current_start, current_end)
+
+
+def _organization_local_date(organization):
+    try:
+        return timezone.localdate(timezone=ZoneInfo(organization.timezone))
+    except (ZoneInfoNotFoundError, TypeError, ValueError):
+        return timezone.localdate()
+
+
+def _run_form_context(organization, form, payroll_readiness):
+    """Build the reviewable, server-rendered data used by the create-run preflight."""
+    organization_today = _organization_local_date(organization)
+    settings_row = PayrollSettings.objects.filter(organization=organization).first()
+    frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY
+    preview_start, preview_end = _period_bounds(organization_today, frequency, "previous")
+    preview_pay_date = preview_end + timedelta(days=5)
+
+    employees = form.fields["employees"].queryset.select_related("payroll_profile")
+    employee_options = []
+    for employee in employees:
+        profile = getattr(employee, "payroll_profile", None)
+        compensation = effective_compensation(employee, organization_today)
+        warnings = []
+        if not profile or not profile.work_location.strip() or not profile.payroll_region.strip():
+            warnings.append("Work details incomplete")
+        if not profile or not profile.wage_order_reference.strip() or not profile.minimum_wage_confirmed:
+            warnings.append("Wage review required")
+        if not compensation:
+            warnings.append("Compensation missing")
+        basis = compensation["basis"] if compensation else (profile.pay_basis if profile else "")
+        amount = compensation["amount"] if compensation else None
+        employee_options.append({
+            "employee": employee,
+            "basis": basis,
+            "amount": amount,
+            "warnings": warnings,
+            "status": "needs-review" if warnings else "ready",
+            "status_label": "Needs attention" if warnings else "Ready",
+        })
+
+    timesheet_scope = Timesheet.objects.filter(
+        organization=organization,
+        employee__status=Employee.Status.ACTIVE,
+        shift__work_date__range=(preview_start, preview_end),
+    )
+    approved_timesheets = timesheet_scope.filter(status=Timesheet.Status.APPROVED).count()
+    timesheets_needing_review = timesheet_scope.exclude(status=Timesheet.Status.APPROVED).count()
+    timesheet_counts = {
+        row["employee_id"]: row
+        for row in timesheet_scope.values("employee_id").annotate(
+            approved=Count("id", filter=Q(status=Timesheet.Status.APPROVED)),
+            needs_review=Count("id", filter=~Q(status=Timesheet.Status.APPROVED)),
+        )
+    }
+    for option in employee_options:
+        counts = timesheet_counts.get(option["employee"].pk, {})
+        option["approved_timesheets"] = counts.get("approved", 0)
+        option["timesheets_needing_review"] = counts.get("needs_review", 0)
+    period_input_count = PayrollPeriodInput.objects.filter(
+        organization=organization,
+        period_start=preview_start,
+        period_end=preview_end,
+        reviewed_at__isnull=False,
+    ).count()
+    selected_employee_ids = {
+        str(value) for value in (form["employees"].value() or [])
+    }
+    for option in employee_options:
+        option["selected"] = str(option["employee"].pk) in selected_employee_ids
+    return {
+        "payroll_readiness": payroll_readiness,
+        "payroll_frequency_label": settings_row.get_frequency_display() if settings_row else "Semi-monthly",
+        "payroll_frequency": frequency,
+        "payroll_currency": settings_row.currency if settings_row else "PHP",
+        "eligible_employee_count": len(employee_options),
+        "preview_start": preview_start,
+        "preview_end": preview_end,
+        "preview_pay_date": preview_pay_date,
+        "preview_approved_timesheets": approved_timesheets,
+        "preview_timesheets_needing_review": timesheets_needing_review,
+        "preview_period_inputs": period_input_count,
+        "employee_options": employee_options,
+        "selected_employee_ids": selected_employee_ids,
+        "organization_today": organization_today,
+    }
 
 
 def _payroll_readiness(organization):
@@ -1283,12 +1369,28 @@ def holiday_edit(request, pk):
 @require_GET
 def run_create(request):
     organization = _organization(request)
-    form = PayrollRunForm(organization=organization, initial={"run_type": PayrollRun.RunType.REGULAR, "request_key": uuid.uuid4()})
-    return render(request, "payroll/run_form.html", {
+    today = _organization_local_date(organization)
+    settings_row = PayrollSettings.objects.filter(organization=organization).first()
+    frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY
+    period_start, period_end = _period_bounds(today, frequency, "previous")
+    form = PayrollRunForm(
+        organization=organization,
+        initial={
+            "run_type": PayrollRun.RunType.REGULAR,
+            "scope_mode": PayrollRun.ScopeMode.ALL_ACTIVE,
+            "period_start": period_start,
+            "period_end": period_end,
+            "pay_date": period_end + timedelta(days=5),
+            "request_key": uuid.uuid4(),
+        },
+    )
+    readiness = _payroll_readiness(organization)
+    context = {
         "organization": organization,
         "form": form,
-        "payroll_readiness": _payroll_readiness(organization),
-    })
+    }
+    context.update(_run_form_context(organization, form, readiness))
+    return render(request, "payroll/run_form.html", context)
 
 
 @employer_required
@@ -1316,11 +1418,13 @@ def run_create_submit(request):
             return redirect("payroll:run_detail", pk=run.pk)
         except ValidationError as error:
             _message_error(request, error, form)
-    return render(request, "payroll/run_form.html", {
+    readiness = _payroll_readiness(organization)
+    context = {
         "organization": organization,
         "form": form,
-        "payroll_readiness": _payroll_readiness(organization),
-    })
+    }
+    context.update(_run_form_context(organization, form, readiness))
+    return render(request, "payroll/run_form.html", context)
 
 
 @employer_required
@@ -1462,6 +1566,8 @@ def run_detail(request, pk):
     for statement in statement_page.object_list:
         statement.rule_profile_summary = _statement_rule_profile_summary(statement)
         statement.statutory_rows = statutory_review_rows(statement)
+        statement.statutory_reviewed_count = sum(1 for row in statement.statutory_rows if row["current"])
+        statement.statutory_total_count = len(statement.statutory_rows)
         statement.statutory_complete = all(row['current'] for row in statement.statutory_rows)
         statement.statutory_form = invalid_statutory_form if statement.pk == invalid_statement_id else StatutoryReviewForm(
             statement=statement, prefix=f'statutory-{statement.pk}')
@@ -1498,6 +1604,12 @@ def run_detail(request, pk):
         basis = snapshot.get("pay_basis") or first_compensation.get("basis") or ""
         statement.pay_basis = {"HOURLY": "Hourly", "DAILY": "Daily", "MONTHLY": "Monthly"}.get(basis, basis.title() if basis else "—")
     adjustment_form = invalid_adjustment_form or PayrollAdjustmentForm(organization=organization, initial={"effective_date": run.period_start})
+    manual_lines = PayrollLine.objects.filter(
+        statement__run=run,
+        source="MANUAL",
+    ).select_related("statement__employee", "created_by").prefetch_related(
+        "exception_resolutions",
+    ).order_by("-effective_date", "-created_at")
     totals = run.statements.aggregate(
         gross=Sum("gross_amount"), deductions=Sum("deduction_amount"),
         contributions=Sum("employer_contribution_amount"), net=Sum("net_amount"),
@@ -1511,6 +1623,7 @@ def run_detail(request, pk):
         "unresolved_exception_count": sum(1 for item in exceptions if not item.resolved_at and not item.superseded_at),
         "preview_history": run.calculation_previews.all()[:5],
         "adjustment_form": adjustment_form,
+        "manual_lines": manual_lines,
         "manual_line_form_invalid": invalid_adjustment_form is not None,
         "exception_summary": exception_summary,
         "statement_search": statement_search,
