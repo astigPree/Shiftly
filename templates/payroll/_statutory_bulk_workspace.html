@@ -1,0 +1,97 @@
+<div class="statutory-bulk-workspace" data-statutory-workspace data-run-revision="{{ run.review_revision }}">
+  <div class="statutory-bulk-toolbar">
+    <div>
+      <p class="payroll-eyebrow">Run-level review</p>
+      <h3>Review statutory assessments in bulk</h3>
+      <p class="muted">Confirm normal reviewed amounts together. Rows with missing or ambiguous evidence stay in the exception queue.</p>
+    </div>
+    {% if run.status == "DRAFT" %}
+    <form method="post" action="{% url 'payroll:statutory_generate' run.pk %}" data-statutory-generate-form>
+      {% csrf_token %}
+      <button class="button-secondary" type="submit" data-statutory-generate-button>{% include "components/icon.html" with icon_name="refresh" icon_class="button-icon" %} Generate assessments</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if statutory_assessment_count %}
+  <div class="statutory-bulk-metrics" aria-label="Assessment summary">
+    <div><strong>{{ statutory_assessment_counts.total }}</strong><span>assessments</span></div>
+    <div class="is-ready"><strong>{{ statutory_assessment_counts.ready }}</strong><span>ready to review</span></div>
+    <div class="is-warning"><strong>{{ statutory_assessment_counts.attention }}</strong><span>need attention</span></div>
+    <div class="is-reviewed"><strong>{{ statutory_assessment_counts.reviewed }}</strong><span>reviewed</span></div>
+  </div>
+
+  <form method="get" class="statutory-bulk-filters" data-statutory-filter-form>
+    <input type="search" name="stat_q" value="{{ statutory_assessment_filters.q }}" placeholder="Search employee or code" aria-label="Search statutory assessments">
+    <select name="stat_agency" aria-label="Filter by agency">
+      <option value="">All agencies</option>
+      {% for value,label in statutory_agencies %}<option value="{{ value }}"{% if statutory_assessment_filters.agency == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="stat_status" aria-label="Filter by status">
+      <option value="">All statuses</option>
+      {% for value,label in statutory_assessment_statuses %}<option value="{{ value }}"{% if statutory_assessment_filters.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="stat_source" aria-label="Filter by source">
+      <option value="">All sources</option>
+      {% for value,label in statutory_assessment_sources %}<option value="{{ value }}"{% if statutory_assessment_filters.source == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+    <select name="stat_page_size" aria-label="Assessments per page">
+      <option value="25"{% if statutory_assessment_page_size == "25" %} selected{% endif %}>25 / page</option>
+      <option value="50"{% if statutory_assessment_page_size == "50" %} selected{% endif %}>50 / page</option>
+      <option value="100"{% if statutory_assessment_page_size == "100" %} selected{% endif %}>100 / page</option>
+    </select>
+    <button class="button-secondary" type="submit">Apply filters</button>
+  </form>
+
+  {% if run.status == "DRAFT" %}
+  <div class="statutory-bulk-selection-bar" data-statutory-selection-bar>
+    <span><strong data-statutory-selected-count>0</strong> selected</span>
+    <button class="table-action-button" type="button" data-statutory-select-visible>Select visible</button>
+    <button class="table-action-button" type="button" data-statutory-select-all>Select all matching</button>
+    <button class="button-link" type="button" data-statutory-open-bulk-review>Review selected</button>
+  </div>
+  {% endif %}
+
+  <div class="payroll-table-wrap statutory-bulk-table-wrap" tabindex="0">
+    <table class="payroll-table statutory-bulk-table">
+      <thead><tr><th class="statutory-select-column"><span class="visually-hidden">Select</span><input type="checkbox" data-statutory-toggle-visible aria-label="Select visible assessments"></th><th>Employee</th><th>Agency</th><th>Reviewed amounts</th><th>Source</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+      {% for assessment in statutory_assessment_page.object_list %}
+      <tr data-statutory-row data-assessment-id="{{ assessment.pk }}" data-assessment-status="{{ assessment.status }}">
+        <td class="statutory-select-column"><input type="checkbox" data-statutory-checkbox value="{{ assessment.pk }}"{% if assessment.status == "REVIEWED" or assessment.status == "SUPERSEDED" %} disabled{% endif %} aria-label="Select {{ assessment.statement.employee.full_name }} {{ assessment.get_agency_display }}"></td>
+        <td><strong>{{ assessment.statement.employee.full_name }}</strong><small>#{{ assessment.statement.employee.employee_code }}</small></td>
+        <td><span class="statutory-agency-badge">{{ assessment.get_agency_display }}</span></td>
+        <td><strong>{{ run.currency }} {{ assessment.employee_amount|floatformat:2 }}</strong><small>Employee{% if assessment.employer_amount %} · {{ run.currency }} {{ assessment.employer_amount|floatformat:2 }} employer{% endif %}</small></td>
+        <td><span class="statutory-source-label">{{ assessment.get_source_type_display }}</span>{% if assessment.employee_line %}<small>{{ assessment.employee_line.label }}</small>{% elif assessment.status != "REVIEWED" %}<small>Evidence required</small>{% endif %}</td>
+        <td><span class="payroll-status payroll-status--{% if assessment.status == 'REVIEWED' %}finalized{% elif assessment.status == 'READY' %}ready{% else %}needs-review{% endif %}" data-statutory-row-status>{{ assessment.get_status_display }}</span></td>
+        <td>{% if assessment.status == "NEEDS_REVIEW" or assessment.status == "SUPERSEDED" %}<a class="table-action-button" href="{% url 'payroll:statutory_exception' run.pk assessment.pk %}">Open exception</a>{% else %}<span class="muted">Bulk review</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7"><div class="payroll-empty-state payroll-empty-state--compact"><span class="payroll-empty-icon">{% include "components/icon.html" with icon_name="search" icon_class="icon" %}</span><div><h3>No assessments match these filters</h3><p>Clear a filter or generate a fresh assessment queue.</p></div></div></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if statutory_assessment_page.paginator.num_pages > 1 %}
+  <footer class="payroll-table-footer"><span>Showing {{ statutory_assessment_page.start_index }}–{{ statutory_assessment_page.end_index }} of {{ statutory_assessment_page.paginator.count }} assessments</span><nav class="payroll-pagination" aria-label="Statutory assessment pages">{% if statutory_assessment_page.has_previous %}<a class="table-action-button" href="?stat_q={{ statutory_assessment_filters.q|urlencode }}&amp;stat_agency={{ statutory_assessment_filters.agency }}&amp;stat_status={{ statutory_assessment_filters.status }}&amp;stat_source={{ statutory_assessment_filters.source }}&amp;stat_page_size={{ statutory_assessment_page_size }}&amp;stat_page={{ statutory_assessment_page.previous_page_number }}#statutory-review">Previous</a>{% endif %}<span>Page {{ statutory_assessment_page.number }} of {{ statutory_assessment_page.paginator.num_pages }}</span>{% if statutory_assessment_page.has_next %}<a class="table-action-button" href="?stat_q={{ statutory_assessment_filters.q|urlencode }}&amp;stat_agency={{ statutory_assessment_filters.agency }}&amp;stat_status={{ statutory_assessment_filters.status }}&amp;stat_source={{ statutory_assessment_filters.source }}&amp;stat_page_size={{ statutory_assessment_page_size }}&amp;stat_page={{ statutory_assessment_page.next_page_number }}#statutory-review">Next</a>{% endif %}</nav></footer>
+  {% endif %}
+  {% else %}
+  <div class="statutory-bulk-empty payroll-empty-state">
+    <span class="payroll-empty-icon">{% include "components/icon.html" with icon_name="shield" icon_class="icon" %}</span>
+    <div><h3>Assessment queue not generated</h3><p>Generate the run-level queue once. Existing reviewed manual statutory lines will be mapped, while incomplete rows will be clearly marked for individual follow-up.</p></div>
+  </div>
+  {% endif %}
+
+  {% if run.status == "DRAFT" and statutory_assessment_count %}
+  <dialog id="bulk-statutory-dialog" class="payroll-dialog statutory-bulk-dialog" aria-labelledby="bulk-statutory-heading" aria-describedby="bulk-statutory-description">
+    <form method="post" action="{% url 'payroll:statutory_bulk_review' run.pk %}" data-statutory-bulk-form>
+      {% csrf_token %}<input type="hidden" name="selection_scope" value="visible" data-statutory-selection-scope><input type="hidden" name="expected_revision" value="{{ run.review_revision }}"><input type="hidden" name="stat_q" value="{{ statutory_assessment_filters.q }}"><input type="hidden" name="stat_agency" value="{{ statutory_assessment_filters.agency }}"><input type="hidden" name="stat_status" value="{{ statutory_assessment_filters.status }}"><input type="hidden" name="stat_source" value="{{ statutory_assessment_filters.source }}"><input type="hidden" name="stat_page_size" value="{{ statutory_assessment_page_size }}">
+      <div class="payroll-card-heading"><div><p class="payroll-eyebrow">Bulk statutory review</p><h2 id="bulk-statutory-heading">Confirm selected assessments</h2><p id="bulk-statutory-description">One review note and source will be applied to the selected rows. The run remains a draft.</p></div><button class="payroll-dialog-close" type="button" data-payroll-dialog-close aria-label="Close">&times;</button></div>
+      <div class="statutory-bulk-dialog-summary"><strong data-statutory-dialog-count>0 assessments</strong><span data-statutory-dialog-agencies>Selected agencies will appear here.</span></div>
+      <div data-statutory-bulk-selected-inputs></div>
+      {% for field in statutory_bulk_form %}{% include "components/form_field.html" with field=field %}{% endfor %}
+      <div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-dialog-close>Cancel</button><button class="button-link" type="submit" data-statutory-bulk-submit>Confirm reviewed assessments</button></div>
+    </form>
+  </dialog>
+  {% endif %}
+</div>

@@ -22,7 +22,7 @@ from accounts.permissions import employee_required, employer_required, organizat
 from audit.models import AuditEvent
 from audit.services import record_event
 from employees.models import Employee
-from .statutory import record_statutory_review, statutory_review_rows
+from .statutory import AGENCIES, record_statutory_review, statutory_review_rows
 
 from .forms import (
     EmployeeCompensationForm,
@@ -39,6 +39,7 @@ from .forms import (
     PayrollRuleProfileForm,
     PayrollRuleSetForm,
     PayrollRunForm,
+    PayrollStatutoryBulkReviewForm,
     PayrollSettingsForm,
     PayrollPeriodInputForm,
     StatutoryReviewForm,
@@ -59,6 +60,7 @@ from .models import (
     PayrollRun,
     PayrollSettings,
     PayrollStatement,
+    PayrollStatutoryAssessment,
     PayrollPeriodInput,
 )
 from .services import (
@@ -72,6 +74,10 @@ from .services import (
     submit_for_review,
     return_payroll_to_draft,
     void_payroll_run,
+)
+from .statutory_assessments import (
+    bulk_review_statutory_assessments,
+    generate_statutory_assessments,
 )
 from timesheets.models import Timesheet
 
@@ -110,6 +116,62 @@ def _page_querystring(request):
     params = request.GET.copy()
     params.pop("page", None)
     return params.urlencode()
+
+
+def _statutory_assessment_queryset(run):
+    return PayrollStatutoryAssessment.objects.filter(
+        statement__run=run,
+    ).select_related(
+        "statement__employee", "employee_line", "employer_line", "reviewed_by",
+    )
+
+
+def _statutory_workspace_context(run, request, *, form=None):
+    """Build the paginated bulk workspace without loading every row into a template."""
+    assessments = _statutory_assessment_queryset(run).order_by(
+        "statement__employee__last_name", "statement__employee__first_name", "agency", "pk"
+    )
+    search = request.GET.get("stat_q", "").strip() if request.method == "GET" else request.POST.get("stat_q", "").strip()
+    agency = request.GET.get("stat_agency", "").strip() if request.method == "GET" else request.POST.get("stat_agency", "").strip()
+    status = request.GET.get("stat_status", "").strip() if request.method == "GET" else request.POST.get("stat_status", "").strip()
+    source = request.GET.get("stat_source", "").strip() if request.method == "GET" else request.POST.get("stat_source", "").strip()
+    if search:
+        assessments = assessments.filter(
+            Q(statement__employee__first_name__icontains=search)
+            | Q(statement__employee__last_name__icontains=search)
+            | Q(statement__employee__employee_code__icontains=search)
+        )
+    if agency:
+        assessments = assessments.filter(agency=agency)
+    if status:
+        assessments = assessments.filter(status=status)
+    if source:
+        assessments = assessments.filter(source_type=source)
+    all_assessments = _statutory_assessment_queryset(run)
+    counts = {
+        "total": all_assessments.count(),
+        "ready": all_assessments.filter(status=PayrollStatutoryAssessment.Status.READY).count(),
+        "attention": all_assessments.filter(status__in=[PayrollStatutoryAssessment.Status.NEEDS_REVIEW, PayrollStatutoryAssessment.Status.SUPERSEDED]).count(),
+        "reviewed": all_assessments.filter(status=PayrollStatutoryAssessment.Status.REVIEWED).count(),
+        "proposed": all_assessments.filter(status=PayrollStatutoryAssessment.Status.PROPOSED).count(),
+    }
+    page_size = request.GET.get("stat_page_size", "25") if request.method == "GET" else request.POST.get("stat_page_size", "25")
+    if page_size not in {"25", "50", "100"}:
+        page_size = "25"
+    page = Paginator(assessments, int(page_size)).get_page(
+        request.GET.get("stat_page") if request.method == "GET" else request.POST.get("stat_page")
+    )
+    return {
+        "statutory_assessment_page": page,
+        "statutory_assessment_filters": {"q": search, "agency": agency, "status": status, "source": source},
+        "statutory_assessment_counts": counts,
+        "statutory_assessment_page_size": page_size,
+        "statutory_bulk_form": form or PayrollStatutoryBulkReviewForm(),
+        "statutory_assessment_count": counts["total"],
+        "statutory_agencies": AGENCIES,
+        "statutory_assessment_statuses": PayrollStatutoryAssessment.Status.choices,
+        "statutory_assessment_sources": PayrollStatutoryAssessment.SourceType.choices,
+    }
 
 
 def _ensure_default_rule_profile(organization, actor):
@@ -198,6 +260,8 @@ def _run_form_context(organization, form, payroll_readiness):
             warnings.append("Compensation missing")
         basis = compensation["basis"] if compensation else (profile.pay_basis if profile else "")
         amount = compensation["amount"] if compensation else None
+        if basis == EmployeeCompensationVersion.Basis.MONTHLY:
+            warnings.append("Monthly calculation is not configured")
         employee_options.append({
             "employee": employee,
             "basis": basis,
@@ -251,6 +315,7 @@ def _run_form_context(organization, form, payroll_readiness):
         "employee_options": employee_options,
         "selected_employee_ids": selected_employee_ids,
         "organization_today": organization_today,
+        "finalized_run_count": form.fields["parent_run"].queryset.count(),
     }
 
 
@@ -294,6 +359,7 @@ def _payroll_readiness(organization):
     missing_profile_count = 0
     missing_rate_count = 0
     incomplete_profile_count = 0
+    unsupported_monthly_count = 0
     for employee in active_employees:
         profile = getattr(employee, "payroll_profile", None)
         if profile and not profile.active_for_payroll:
@@ -330,7 +396,20 @@ def _payroll_readiness(organization):
         ), None)
         if not current_rate and not current_compensation:
             missing_rate_count += 1
-        if profile_complete and (current_rate or current_compensation):
+        monthly_unsupported = bool(
+            current_compensation
+            and current_compensation.basis == EmployeeCompensationVersion.Basis.MONTHLY
+        )
+        if monthly_unsupported:
+            unsupported_monthly_count += 1
+        supported_compensation = bool(
+            current_compensation
+            and current_compensation.basis in {
+                EmployeeCompensationVersion.Basis.HOURLY,
+                EmployeeCompensationVersion.Basis.DAILY,
+            }
+        ) or bool(current_rate and not current_compensation)
+        if profile_complete and supported_compensation:
             ready_count += 1
 
     employee_complete = expected_count > 0 and ready_count == expected_count
@@ -347,6 +426,8 @@ def _payroll_readiness(organization):
             problems.append(f"{missing_rate_count} missing compensation record(s)")
         if incomplete_profile_count:
             problems.append(f"{incomplete_profile_count} profile(s) need review")
+        if unsupported_monthly_count:
+            problems.append(f"{unsupported_monthly_count} monthly calculation(s) unavailable")
         if problems:
             employee_detail += " · " + " · ".join(problems)
         if excluded_count:
@@ -447,8 +528,16 @@ def run_list(request):
     if to_date:
         matching_runs = matching_runs.filter(period_start__lte=to_date)
     employee_id = request.GET.get("employee", "")
+    employee_query = request.GET.get("employee_q", "").strip()[:100]
     if employee_id.isdigit() and Employee.objects.filter(pk=employee_id, organization=organization).exists():
         matching_runs = matching_runs.filter(statements__employee_id=employee_id).distinct()
+    elif employee_query:
+        matching_runs = matching_runs.filter(
+            Q(statements__employee__first_name__icontains=employee_query)
+            | Q(statements__employee__last_name__icontains=employee_query)
+            | Q(statements__employee__employee_code__icontains=employee_query)
+        ).distinct()
+        employee_id = ""
     else:
         employee_id = ""
 
@@ -465,15 +554,24 @@ def run_list(request):
     run_ids = [run.pk for run in page.object_list]
     summary_by_run = {
         row["run_id"]: row for row in PayrollStatement.objects.filter(run_id__in=run_ids)
-        .values("run_id").annotate(employee_count=Count("pk"), gross=Sum("gross_amount"), net=Sum("net_amount"))
+        .values("run_id").annotate(statement_count=Count("pk"), gross=Sum("gross_amount"), net=Sum("net_amount"))
     }
+    membership_counts = dict(
+        PayrollRun.objects.filter(pk__in=run_ids)
+        .values_list("pk")
+        .annotate(count=Count("employee_memberships"))
+    )
     exception_counts = dict(
         PayrollException.objects.filter(run_id__in=run_ids, resolved_at__isnull=True, superseded_at__isnull=True)
         .values_list("run_id").annotate(count=Count("pk"))
     )
     for run in page.object_list:
         summary = summary_by_run.get(run.pk, {})
-        run.employee_count = summary.get("employee_count", 0)
+        # Selected runs snapshot their full employee scope in memberships. A
+        # statement count can be smaller when some employees are blocked, so
+        # it must never be presented as the run's employee scope.
+        run.statement_count = summary.get("statement_count", 0)
+        run.employee_count = membership_counts.get(run.pk) or run.statement_count
         run.gross_total = summary.get("gross") or Decimal("0.00")
         run.net_total = summary.get("net") or Decimal("0.00")
         run.unresolved_count = exception_counts.get(run.pk, 0)
@@ -486,7 +584,7 @@ def run_list(request):
         "summary_status_counts": summary_status_counts,
         "finalized_net": finalized_net,
         "summary_run_count": sum(summary_status_counts.values()),
-        "summary_scope": "Matching date and employee filters" if from_date or to_date or employee_id else "Across all payroll runs",
+        "summary_scope": "Matching date and employee filters" if from_date or to_date or employee_id or employee_query else "Across all payroll runs",
         "current_period_url": _period_shortcut_url(request, "current"),
         "previous_period_url": _period_shortcut_url(request, "previous"),
         "selected_period": selected_period,
@@ -498,7 +596,7 @@ def run_list(request):
         "from_date": from_date_raw if from_date else "",
         "to_date": to_date_raw if to_date else "",
         "employee_id": employee_id,
-        "employees": Employee.objects.filter(organization=organization).order_by("last_name", "first_name"),
+        "employee_query": employee_query,
     })
 
 
@@ -615,14 +713,27 @@ def employee_payroll_list(request):
     payroll_enabled = Q(payroll_profile__isnull=True) | Q(payroll_profile__active_for_payroll=True)
     active_employee = Q(status=Employee.Status.ACTIVE)
     has_compensation = Q(_has_current_rate=True) | Q(_has_current_compensation=True)
-    setup_query = active_employee & payroll_enabled & (required_profile_missing | ~has_compensation)
+    supported_compensation = (
+        Q(_has_current_compensation=True, _current_comp_basis__in=[
+            EmployeeCompensationVersion.Basis.HOURLY,
+            EmployeeCompensationVersion.Basis.DAILY,
+        ])
+        | Q(_has_current_compensation=False, _has_current_rate=True)
+    )
+    monthly_unsupported = Q(
+        _has_current_compensation=True,
+        _current_comp_basis=EmployeeCompensationVersion.Basis.MONTHLY,
+    )
+    setup_query = active_employee & payroll_enabled & (
+        required_profile_missing | ~has_compensation | monthly_unsupported
+    )
     review_query = (
         active_employee & payroll_enabled & ~required_profile_missing
-        & has_compensation & Q(payroll_profile__minimum_wage_confirmed=False)
+        & supported_compensation & Q(payroll_profile__minimum_wage_confirmed=False)
     )
     ready_query = (
         active_employee & payroll_enabled & ~required_profile_missing
-        & has_compensation & Q(payroll_profile__minimum_wage_confirmed=True)
+        & supported_compensation & Q(payroll_profile__minimum_wage_confirmed=True)
     )
     excluded_query = Q(status=Employee.Status.INACTIVE) | Q(payroll_profile__active_for_payroll=False)
 
@@ -647,6 +758,7 @@ def employee_payroll_list(request):
         "ready": ready_query,
         "needs_setup": setup_query,
         "missing_rate": active_employee & payroll_enabled & ~has_compensation,
+        "unsupported_monthly": active_employee & payroll_enabled & monthly_unsupported,
         "missing_location": active_employee & payroll_enabled & (Q(payroll_profile__isnull=True) | Q(payroll_profile__work_location="")),
         "needs_review": review_query,
         "excluded": excluded_query,
@@ -666,6 +778,8 @@ def employee_payroll_list(request):
         resolved_rule_profile = assignment.rule_profile if assignment else default_rule_profile
         if employee.status != Employee.Status.ACTIVE or (profile and not profile.active_for_payroll):
             payroll_status, status_detail = "excluded", "Excluded from payroll"
+        elif employee._has_current_compensation and employee._current_comp_basis == EmployeeCompensationVersion.Basis.MONTHLY:
+            payroll_status, status_detail = "needs-setup", "Monthly calculation unavailable"
         elif not profile or not profile.work_location.strip() or not profile.payroll_region.strip() or not profile.wage_order_reference.strip() or not (employee._has_current_rate or employee._has_current_compensation):
             payroll_status, status_detail = "needs-setup", "Add missing pay details"
         elif not profile.minimum_wage_confirmed:
@@ -696,6 +810,7 @@ def employee_payroll_list(request):
             ("", "All employees"),
             ("ready", "Payroll ready"),
             ("missing_rate", "Missing compensation"),
+            ("unsupported_monthly", "Monthly calculation unavailable"),
             ("missing_location", "Missing work location"),
             ("needs_review", "Needs wage review"),
             ("needs_setup", "Needs setup"),
@@ -722,6 +837,21 @@ def setup(request):
     profiles = PayrollRuleProfile.objects.filter(organization=organization).annotate(
         version_count=Count("rule_versions", distinct=True), employee_count=Count("employee_assignments", distinct=True),
     )
+    employees_with_current_override = PayrollRuleAssignment.objects.filter(
+        organization=organization,
+        effective_from__lte=organization_today,
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gte=organization_today)
+    ).values("employee_id")
+    inherited_default_count = Employee.objects.filter(
+        organization=organization,
+        status=Employee.Status.ACTIVE,
+        payroll_profile__active_for_payroll=True,
+    ).exclude(pk__in=employees_with_current_override).count()
+    for profile in profiles:
+        profile.display_employee_count = profile.employee_count + (
+            inherited_default_count if profile.is_default else 0
+        )
     selected_profile_id = request.POST.get("rule_profile") if request.method == "POST" else request.GET.get("profile")
     if selected_profile_id and selected_profile_id.isdigit():
         selected_rule_profile = profiles.filter(pk=selected_profile_id).first()
@@ -849,6 +979,14 @@ def employee_profile(request, pk):
     current_compensation = effective_compensation(employee, employee_work_date)
     current_rate = current_compensation["source"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.HOURLY else None
     current_daily_compensation = current_compensation["source"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.DAILY else None
+    current_monthly_compensation = current_compensation["source"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.MONTHLY else None
+    supported_compensation = bool(
+        current_compensation
+        and current_compensation["basis"] in {
+            EmployeeCompensationVersion.Basis.HOURLY,
+            EmployeeCompensationVersion.Basis.DAILY,
+        }
+    )
     compensations = employee.compensation_versions.order_by("-effective_from", "-pk")
 
     missing_setup = []
@@ -860,6 +998,8 @@ def employee_profile(request, pk):
         missing_setup.append("Wage order reference")
     if not current_compensation:
         missing_setup.append("Hourly or daily compensation")
+    elif not supported_compensation:
+        missing_setup.append("Supported hourly or daily calculation method")
 
     if employee.status != Employee.Status.ACTIVE:
         profile_status, profile_status_label = "excluded", "Employee inactive"
@@ -889,8 +1029,14 @@ def employee_profile(request, pk):
     readiness_items = [
         {
             "label": "Compensation configured",
-            "complete": bool(current_compensation),
-            "detail": "An effective hourly or daily amount is active." if current_compensation else "Add an effective hourly or daily amount.",
+            "complete": supported_compensation,
+            "detail": (
+                "An effective hourly or daily amount is active."
+                if supported_compensation else
+                "The monthly amount is recorded, but monthly-to-payroll conversion is not supported yet. Add an hourly or daily version or exclude this employee from payroll."
+                if current_monthly_compensation else
+                "Add an effective hourly or daily amount."
+            ),
         },
         {
             "label": "Work location set",
@@ -908,12 +1054,12 @@ def employee_profile(request, pk):
             "detail": "An employee override or organization default will be used." if (current_rule_assignment or default_rule_profile) else "Create an active organization default profile.",
         },
         {
-            "label": "Statutory and payment review",
+            "label": "Pre-run eligibility review",
             "complete": bool(profile.minimum_wage_confirmed and profile.night_differential_eligible is not None),
             "detail": (
-                "Wage-order, night-differential, and worker-classification checks are recorded."
+                "Wage-order, night-differential, and worker-classification checks are recorded. Statutory amounts are reviewed in the payroll run."
                 if profile.minimum_wage_confirmed
-                else "Complete the wage-order check, night-differential eligibility, and worker-classification review."
+                else "Complete the wage-order, night-differential, and worker-classification checks above. Statutory amounts are reviewed after a payroll draft is created."
             ),
         },
     ]
@@ -984,6 +1130,7 @@ def employee_profile(request, pk):
         "compensations": compensations,
         "current_rate": current_rate,
         "current_daily_compensation": current_daily_compensation,
+        "current_monthly_compensation": current_monthly_compensation,
         "current_compensation": current_compensation,
         "current_hourly_amount": current_compensation["amount"] if current_compensation and current_compensation["basis"] == EmployeeCompensationVersion.Basis.HOURLY else None,
         "employee_work_date": employee_work_date,
@@ -1430,6 +1577,170 @@ def run_create_submit(request):
 
 @employer_required
 @require_http_methods(["GET", "POST"])
+def statutory_exception(request, pk, assessment_pk):
+    organization = _organization(request)
+    run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    assessment = get_object_or_404(
+        PayrollStatutoryAssessment.objects.select_related("statement", "statement__employee", "statement__run"),
+        pk=assessment_pk,
+        statement__run=run,
+    )
+    statement = assessment.statement
+    statement.statutory_rows = statutory_review_rows(statement)
+    statement.statutory_reviewed_count = sum(1 for row in statement.statutory_rows if row["current"])
+    statement.statutory_total_count = len(statement.statutory_rows)
+    statement.statutory_complete = all(row["current"] for row in statement.statutory_rows)
+    statement.statutory_form = StatutoryReviewForm(
+        request.POST or None,
+        statement=statement,
+        prefix=f"statutory-{statement.pk}",
+    )
+    ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    if request.method == "POST":
+        if statement.statutory_form.is_valid():
+            try:
+                record_statutory_review(statement=statement, actor=request.user, **statement.statutory_form.cleaned_data)
+            except ValidationError as error:
+                statement.statutory_form.add_error(None, error)
+            else:
+                if not ajax:
+                    messages.success(request, "Statutory review saved for this employee and payroll period.")
+                    return redirect("payroll:statutory_exception", pk=run.pk, assessment_pk=assessment.pk)
+        if ajax:
+            statement.statutory_rows = statutory_review_rows(statement)
+            statement.statutory_reviewed_count = sum(1 for row in statement.statutory_rows if row["current"])
+            statement.statutory_total_count = len(statement.statutory_rows)
+            statement.statutory_complete = all(row["current"] for row in statement.statutory_rows)
+            html = render_to_string(
+                "payroll/_statutory_review.html",
+                {
+                    "statement": statement,
+                    "run": run,
+                    "open_statutory_statement_id": statement.pk,
+                    "dedicated_statutory_exception": True,
+                },
+                request=request,
+            )
+            message = "Statutory review saved for this employee and payroll period." if not statement.statutory_form.errors else "Check the statutory review fields and try again."
+            return JsonResponse({
+                "ok": not statement.statutory_form.errors,
+                "html": html,
+                "message": message,
+                "reviewed_count": statement.statutory_reviewed_count,
+                "total_count": statement.statutory_total_count,
+                "complete": statement.statutory_complete,
+            }, status=200 if not statement.statutory_form.errors else 422)
+    return render(request, "payroll/statutory_exception.html", {
+        "organization": organization,
+        "run": run,
+        "statement": statement,
+        "assessment": assessment,
+        "open_statutory_statement_id": statement.pk,
+        "dedicated_statutory_exception": True,
+    })
+
+
+@employer_required
+@require_GET
+def statutory_workspace(request, pk):
+    """Stable deep link for the run-level statutory workspace."""
+    organization = _organization(request)
+    run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    return redirect(f"{reverse('payroll:run_detail', kwargs={'pk': run.pk})}?stat_page=1#statutory-review")
+
+
+@employer_required
+@require_POST
+def statutory_generate(request, pk):
+    organization = _organization(request)
+    run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    try:
+        result = generate_statutory_assessments(run=run, actor=request.user)
+    except ValidationError as error:
+        message = "; ".join(error.messages) if getattr(error, "messages", None) else str(error)
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": message}, status=422)
+        messages.error(request, message)
+    else:
+        message = f"Generated {result['assessment_count']} statutory assessments. Ready rows can now be confirmed in bulk."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": True, "message": message, "assessment_count": result["assessment_count"], "counts": result["counts"], "revision": result["run"].review_revision})
+        messages.success(request, message)
+    return redirect(f"{reverse('payroll:run_detail', kwargs={'pk': run.pk})}?stat_page=1#statutory-review")
+
+
+@employer_required
+@require_POST
+def statutory_bulk_review(request, pk):
+    organization = _organization(request)
+    run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    form = PayrollStatutoryBulkReviewForm(request.POST)
+    if not form.is_valid():
+        message = next(iter(form.errors.values()))[0] if form.errors else "Check the bulk review fields."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": str(message), "errors": form.errors}, status=422)
+        messages.error(request, str(message))
+        return redirect(f"{reverse('payroll:run_detail', kwargs={'pk': run.pk})}?stat_page=1#statutory-review")
+    assessment_ids = request.POST.getlist("assessment_ids")
+    scope = request.POST.get("selection_scope", "visible")
+    if scope == "all":
+        filters = {
+            "stat_q": request.POST.get("stat_q", "").strip(),
+            "stat_agency": request.POST.get("stat_agency", "").strip(),
+            "stat_status": request.POST.get("stat_status", "").strip(),
+            "stat_source": request.POST.get("stat_source", "").strip(),
+        }
+        query = _statutory_assessment_queryset(run)
+        if filters["stat_q"]:
+            query = query.filter(
+                Q(statement__employee__first_name__icontains=filters["stat_q"])
+                | Q(statement__employee__last_name__icontains=filters["stat_q"])
+                | Q(statement__employee__employee_code__icontains=filters["stat_q"])
+            )
+        if filters["stat_agency"]:
+            query = query.filter(agency=filters["stat_agency"])
+        if filters["stat_status"]:
+            query = query.filter(status=filters["stat_status"])
+        else:
+            query = query.exclude(status__in=[PayrollStatutoryAssessment.Status.REVIEWED, PayrollStatutoryAssessment.Status.SUPERSEDED])
+        if filters["stat_source"]:
+            query = query.filter(source_type=filters["stat_source"])
+        assessment_ids = list(query.values_list("pk", flat=True))
+    try:
+        result = bulk_review_statutory_assessments(
+            run=run,
+            actor=request.user,
+            assessment_ids=assessment_ids,
+            registration=form.cleaned_data["registration"],
+            treatment=form.cleaned_data["treatment"],
+            source_reference=form.cleaned_data["source_reference"],
+            review_note=form.cleaned_data["review_note"],
+            registration_follow_up=form.cleaned_data.get("registration_follow_up", ""),
+            expected_revision=request.POST.get("expected_revision"),
+        )
+    except ValidationError as error:
+        message = "; ".join(error.messages) if getattr(error, "messages", None) else str(error)
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": message}, status=409)
+        messages.error(request, message)
+    else:
+        message = f"Reviewed {result['reviewed_count']} statutory assessments."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            queue = _statutory_assessment_queryset(result["run"])
+            counts = {
+                "total": queue.count(),
+                "ready": queue.filter(status=PayrollStatutoryAssessment.Status.READY).count(),
+                "attention": queue.filter(status__in=[PayrollStatutoryAssessment.Status.NEEDS_REVIEW, PayrollStatutoryAssessment.Status.SUPERSEDED]).count(),
+                "reviewed": queue.filter(status=PayrollStatutoryAssessment.Status.REVIEWED).count(),
+            }
+            pending_employee_count = queue.exclude(status=PayrollStatutoryAssessment.Status.REVIEWED).values("statement_id").distinct().count()
+            return JsonResponse({"ok": True, "message": message, "reviewed_count": result["reviewed_count"], "revision": result["run"].review_revision, "assessment_ids": [int(value) for value in assessment_ids], "counts": counts, "pending_employee_count": pending_employee_count})
+        messages.success(request, message)
+    return redirect(f"{reverse('payroll:run_detail', kwargs={'pk': run.pk})}?stat_page=1#statutory-review")
+
+
+@employer_required
+@require_http_methods(["GET", "POST"])
 def run_detail(request, pk):
     organization = _organization(request)
     run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
@@ -1555,7 +1866,11 @@ def run_detail(request, pk):
             if not ajax_statutory_review:
                 return redirect("payroll:run_detail", pk=run.pk)
 
-    statement_query = run.statements.select_related("employee").prefetch_related("lines", "time_entries")
+    all_statement_query = run.statements.select_related("employee").prefetch_related(
+        "lines", "time_entries", "statutory_assessments", "statutory_assessments__employee_line",
+        "statutory_assessments__employer_line", "statutory_assessments__reviewed_by",
+    )
+    statement_query = all_statement_query
     statement_search = request.GET.get("q", "").strip()
     if statement_search:
         statement_query = statement_query.filter(
@@ -1566,14 +1881,17 @@ def run_detail(request, pk):
     page_size = request.GET.get("page_size", "25")
     if page_size not in {"10", "25", "50"}:
         page_size = "25"
+    open_statutory_statement_id = request.GET.get("review_statement", "")
+    open_statutory_statement_id = int(open_statutory_statement_id) if open_statutory_statement_id.isdigit() else None
     paginator = Paginator(statement_query, int(page_size))
     page_number = request.GET.get('page')
-    if invalid_statement_id or (ajax_statutory_review and ajax_statement_id):
+    if invalid_statement_id or open_statutory_statement_id or (ajax_statutory_review and ajax_statement_id):
         ids = list(statement_query.values_list('pk', flat=True))
-        target_statement_id = invalid_statement_id or ajax_statement_id
+        target_statement_id = invalid_statement_id or open_statutory_statement_id or ajax_statement_id
         if target_statement_id in ids:
             page_number = ids.index(target_statement_id) // int(page_size) + 1
     statement_page = paginator.get_page(page_number)
+    open_statutory_statement = None
     for statement in statement_page.object_list:
         statement.rule_profile_summary = _statement_rule_profile_summary(statement)
         statement.statutory_rows = statutory_review_rows(statement)
@@ -1582,10 +1900,29 @@ def run_detail(request, pk):
         statement.statutory_complete = all(row['current'] for row in statement.statutory_rows)
         statement.statutory_form = invalid_statutory_form if statement.pk == invalid_statement_id else StatutoryReviewForm(
             statement=statement, prefix=f'statutory-{statement.pk}')
-    statutory_pending = sum(
-        not all(row['current'] for row in statutory_review_rows(statement))
-        for statement in run.statements.select_related('run').prefetch_related('lines')
-    )
+        if statement.pk == (invalid_statement_id or open_statutory_statement_id):
+            open_statutory_statement = statement
+    statutory_pending_queue = []
+    for index, statement in enumerate(all_statement_query):
+        rows = statutory_review_rows(statement)
+        reviewed_count = sum(1 for row in rows if row["current"])
+        if reviewed_count != len(rows):
+            statutory_pending_queue.append({
+                "statement": statement,
+                "reviewed_count": reviewed_count,
+                "total_count": len(rows),
+                "page_number": index // int(page_size) + 1,
+            })
+    statutory_pending = len(statutory_pending_queue)
+    statutory_query = request.GET.get("stat_q", "").strip()
+    if statutory_query:
+        search_value = statutory_query.casefold()
+        statutory_pending_queue = [
+            item for item in statutory_pending_queue
+            if search_value in item["statement"].employee.full_name.casefold()
+            or search_value in item["statement"].employee.employee_code.casefold()
+        ]
+    statutory_page = Paginator(statutory_pending_queue, 10).get_page(request.GET.get("stat_page"))
     if ajax_statutory_review:
         ajax_statement = next((item for item in statement_page.object_list if item.pk == (invalid_statement_id or ajax_statement_id)), None)
         if ajax_statement is not None:
@@ -1594,10 +1931,22 @@ def run_detail(request, pk):
                 {"statement": ajax_statement, "run": run},
                 request=request,
             )
+            statutory_error_message = ""
+            if invalid_statutory_form is not None:
+                for field_name, errors in invalid_statutory_form.errors.items():
+                    if not errors:
+                        continue
+                    label = (
+                        invalid_statutory_form.fields[field_name].label
+                        if field_name in invalid_statutory_form.fields else
+                        "Review"
+                    )
+                    statutory_error_message = f"{label}: {errors[0]}"
+                    break
             return JsonResponse({
                 "ok": invalid_statutory_form is None,
                 "html": statutory_html,
-                "message": "Statutory review saved for this employee and payroll period." if invalid_statutory_form is None else "Check the statutory review fields and try again.",
+                "message": "Statutory review saved for this employee and payroll period." if invalid_statutory_form is None else statutory_error_message or "Check the statutory review fields and try again.",
                 "pending_count": statutory_pending,
                 "reviewed_count": ajax_statement.statutory_reviewed_count,
                 "total_count": ajax_statement.statutory_total_count,
@@ -1616,12 +1965,17 @@ def run_detail(request, pk):
     exception_counts = Counter(item.code for item in active_exceptions)
     exception_labels = {
         "MONTHLY_CALCULATION_NOT_CONFIGURED": ("Monthly calculation not configured", "Employees require a compensation or payroll-basis review."),
-        "MONTHLY_INPUT_NOT_SUPPORTED": ("Monthly period input required", "Add a reviewed period input before recalculating this statement."),
+        "MONTHLY_INPUT_NOT_SUPPORTED": ("Monthly calculation not supported", "Change this employee to a supported hourly or daily compensation method, or exclude them from this run."),
         "NO_ATTENDANCE": ("Missing attendance", "No approved attendance or reviewed period input was found."),
         "NO_PAYROLL_TIME": ("Missing attendance", "No approved attendance or reviewed period input was found."),
         "TIMESHEET_REJECTED": ("Rejected timesheet", "Review the source timesheet and acknowledge the exclusion."),
         "NIGHT_PREMIUM_STACKING_REVIEW": ("Night premium review", "Record a reviewed earning line before finalization."),
     }
+    for item in exceptions:
+        item.display_label = exception_labels.get(
+            item.code,
+            (item.code.replace("_", " ").title(), "Review this payroll exception."),
+        )[0]
     exception_summary = []
     for code, count in exception_counts.most_common():
         label, description = exception_labels.get(code, (code.replace("_", " ").title(), "Review this payroll exception."))
@@ -1646,7 +2000,7 @@ def run_detail(request, pk):
         gross=Sum("gross_amount"), deductions=Sum("deduction_amount"),
         contributions=Sum("employer_contribution_amount"), net=Sum("net_amount"),
     )
-    return render(request, "payroll/run_detail.html", {
+    context = {
         "organization": organization,
         "run": run,
         "statements": statement_page,
@@ -1662,12 +2016,19 @@ def run_detail(request, pk):
         "statement_page_size": page_size,
         "page_querystring": _page_querystring(request),
         "statutory_pending_count": statutory_pending,
+        "statutory_pending_queue": statutory_page,
+        "statutory_query": statutory_query,
+        "open_statutory_statement_id": open_statutory_statement_id,
+        "open_statutory_statement": open_statutory_statement,
         "finalize_form": invalid_finalize_form or FinalizePayrollForm(),
         "void_form": invalid_void_form or VoidPayrollForm(),
         "finalize_form_invalid": invalid_finalize_form is not None,
         "void_form_invalid": invalid_void_form is not None,
         "totals": {key: value or Decimal("0.00") for key, value in totals.items()},
-    })
+    }
+    context.update(_statutory_workspace_context(run, request))
+    context["statutory_bulk_form_invalid"] = False
+    return render(request, "payroll/run_detail.html", context)
 
 
 @employer_required

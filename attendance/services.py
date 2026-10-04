@@ -278,6 +278,78 @@ def correct_attendance(*, session, actor, corrected_clock_in_at, corrected_clock
     return correction
 
 
+@transaction.atomic
+def record_attendance(*, shift, actor, clock_in_at, clock_out_at, breaks, reason):
+    """Create a complete employer-entered session when an employee missed the punch."""
+    from accounts.models import User
+    from accounts.permissions import organization_for_user
+    from audit.models import AuditEvent
+    from audit.services import record_event
+    from timesheets.services import generate_timesheet
+
+    if not actor.is_authenticated or actor.role != User.Role.EMPLOYER:
+        raise PermissionDenied("Only an employer can record attendance for an employee.")
+    organization = organization_for_user(actor)
+    locked_shift = Shift.objects.select_for_update().select_related(
+        "employee", "employee__payroll_profile", "organization"
+    ).get(pk=shift.pk, organization=organization)
+    if locked_shift.status != Shift.Status.SCHEDULED:
+        raise ValidationError("Attendance can only be recorded for a scheduled shift.")
+    if AttendanceSession.objects.filter(shift=locked_shift).exists():
+        raise ValidationError("This shift already has attendance. Open the existing record to correct it.")
+    if not clock_in_at or not clock_out_at:
+        raise ValidationError("Enter both clock-in and clock-out.")
+    if clock_out_at <= clock_in_at:
+        raise ValidationError("Clock-out must be after clock-in.")
+    profile = getattr(locked_shift.employee, "payroll_profile", None)
+    timezone_name = getattr(profile, "payroll_timezone", "") or organization.timezone
+    work_timezone = ZoneInfo(timezone_name)
+    if timezone.localtime(clock_in_at, work_timezone).date() != locked_shift.work_date:
+        raise ValidationError(
+            f"Clock-in must be on {locked_shift.work_date:%b} {locked_shift.work_date.day}, "
+            f"{locked_shift.work_date:%Y} in {timezone_name}."
+        )
+    latest_end_date = timezone.localtime(locked_shift.scheduled_end, work_timezone).date()
+    clock_out_date = timezone.localtime(clock_out_at, work_timezone).date()
+    if clock_out_date < locked_shift.work_date or clock_out_date > latest_end_date:
+        raise ValidationError("Clock-out must stay within the shift's local work-date window.")
+    reason = (reason or "").strip()
+    if len(reason) < 5:
+        raise ValidationError("Enter a clear reason for the employer-entered attendance.")
+
+    session = AttendanceSession.objects.create(
+        organization=organization,
+        employee=locked_shift.employee,
+        shift=locked_shift,
+        clock_in_at=clock_in_at,
+        clock_out_at=clock_out_at,
+        status=AttendanceSession.Status.COMPLETED,
+    )
+    for started_at, ended_at in breaks or []:
+        BreakSession.objects.create(
+            attendance_session=session,
+            started_at=started_at,
+            ended_at=ended_at,
+        )
+    generate_timesheet(session)
+    record_event(
+        organization=organization,
+        actor=actor,
+        action=AuditEvent.Action.ATTENDANCE_CORRECTED,
+        target_type="attendance_session",
+        target_id=session.pk,
+        summary=f"Recorded missed attendance for {locked_shift.employee.employee_code}.",
+        metadata={
+            "source": "EMPLOYER_MANUAL_ENTRY",
+            "shift_id": locked_shift.pk,
+            "clock_in_at": clock_in_at.isoformat(),
+            "clock_out_at": clock_out_at.isoformat(),
+            "reason": reason,
+        },
+    )
+    return session
+
+
 def attendance_state(shift, *, at=None):
     now = at or timezone.now()
     if shift.status == Shift.Status.CANCELLED:

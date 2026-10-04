@@ -1,0 +1,21 @@
+{% extends "layouts/employer.html" %}
+{% load static %}
+{% block title %}Statutory exception · {{ statement.employee.full_name }} | Payroll{% endblock %}
+{% block app_content %}
+<div class="payroll-page payroll-statutory-exception-page">
+  <a class="payroll-back-link" href="{% url 'payroll:run_detail' run.pk %}#statutory-review">&larr; Back to statutory workspace</a>
+  <header class="payroll-page-header">
+    <div>
+      <p class="payroll-eyebrow">Exception detail · {{ run.reference }}</p>
+      <h1>{{ statement.employee.full_name }}</h1>
+      <p class="payroll-page-subtitle">Review one employee's statutory items for {{ run.period_start|date:"M j" }}–{{ run.period_end|date:"M j, Y" }}. Normal ready rows are handled in the bulk workspace.</p>
+    </div>
+    <span class="payroll-status payroll-status--{% if statement.statutory_complete %}finalized{% else %}needs-review{% endif %}">{{ statement.statutory_reviewed_count }} of {{ statement.statutory_total_count }} reviewed</span>
+  </header>
+  <section class="payroll-card" aria-labelledby="statutory-exception-heading">
+    <header class="payroll-section-heading"><div><h2 id="statutory-exception-heading">Individual statutory review</h2><p>Record the agency-specific evidence for this exception. Saving returns you to this focused page.</p></div></header>
+    {% include "payroll/_statutory_review.html" with statement=statement open_statutory_statement_id=statement.pk %}
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/payroll-statutory-review.js' %}?v=20261004-1" defer></script>{% endblock %}

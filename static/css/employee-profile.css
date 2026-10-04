@@ -29,7 +29,7 @@
   padding: 20px 22px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-radius: var(--radius-lg);
 }
 
 .employee-profile-avatar {
@@ -129,52 +129,12 @@
 }
 
 .employee-profile-tabs {
-  display: flex;
-  overflow-x: auto;
-  min-height: 56px;
-  gap: 10px;
-  margin-top: -16px;
-  padding: 0 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  scrollbar-width: thin;
-}
-
-.employee-profile-tabs a {
-  position: relative;
-  display: inline-flex;
-  min-width: 125px;
-  min-height: 55px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  padding: 0 15px;
-  color: var(--color-gray-600);
-  text-decoration: none;
+  margin-top: 0;
 }
 
 .profile-tab-icon {
-  width: 18px;
-  height: 18px;
-}
-
-.employee-profile-tabs a[aria-current="page"] {
-  color: var(--color-primary-hover);
-  font-weight: 650;
-}
-
-.employee-profile-tabs a[aria-current="page"]::after {
-  position: absolute;
-  right: 0;
-  bottom: -1px;
-  left: 0;
-  height: 3px;
-  background: var(--color-primary);
-  border-radius: 3px 3px 0 0;
-  content: "";
+  width: 19px;
+  height: 19px;
 }
 
 .employee-profile-summary {
@@ -718,13 +678,7 @@
   }
 
   .employee-profile-tabs {
-    gap: 0;
-    padding: 0 5px;
-  }
-
-  .employee-profile-tabs a {
-    min-width: 112px;
-    padding: 0 11px;
+    margin-top: 0;
   }
 
   .employee-profile-summary {

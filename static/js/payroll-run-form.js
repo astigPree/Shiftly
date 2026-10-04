@@ -23,6 +23,9 @@
   var previewReview = root.querySelector("[data-preview-review]");
   var previewReviewRow = previewReview && previewReview.closest(".payroll-source-row");
   var periodValidation = root.querySelector("[data-period-validation]");
+  var scopeReadiness = root.querySelector("[data-scope-readiness]");
+  var scopeReadinessDetail = root.querySelector("[data-scope-readiness-detail]");
+  var createButton = root.querySelector("[data-create-run]");
 
   function parseDate(value) {
     if (!value) return null;
@@ -135,9 +138,43 @@
     if (previewReview) previewReview.textContent = reviewTotal;
     if (previewReviewRow) previewReviewRow.classList.toggle("payroll-source-row--warning", reviewTotal > 0);
     if (employeeCount) employeeCount.textContent = selected + " employee" + (selected === 1 ? "" : "s") + " selected";
+    var scopedOptions = employeeCheckboxes.filter(function (checkbox) {
+      return !(selectedMode && selectedMode.value === "SELECTED") || checkbox.checked;
+    });
+    var attentionCount = scopedOptions.filter(function (checkbox) {
+      var option = checkbox.closest("[data-employee-option]");
+      return !option || option.dataset.ready !== "1";
+    }).length;
+    if (scopeReadiness) {
+      scopeReadiness.classList.toggle("payroll-readiness-row--complete", scopedOptions.length > 0 && attentionCount === 0);
+      scopeReadiness.classList.toggle("payroll-readiness-row--warning", scopedOptions.length === 0 || attentionCount > 0);
+      var icon = scopeReadiness.querySelector(".payroll-readiness-icon");
+      if (icon) icon.textContent = scopedOptions.length > 0 && attentionCount === 0 ? "✓" : "!";
+    }
+    if (scopeReadinessDetail) {
+      scopeReadinessDetail.textContent = !scopedOptions.length
+        ? "Select at least one employee."
+        : attentionCount
+          ? attentionCount + " selected employee" + (attentionCount === 1 ? " needs" : "s need") + " payroll setup review."
+          : scopedOptions.length + " selected employee" + (scopedOptions.length === 1 ? " is" : "s are") + " payroll ready.";
+    }
     if (previewPeriod) previewPeriod.textContent = start && end ? formatDate(start) + " – " + formatDate(end) : "Choose dates";
     if (previewPayDate) previewPayDate.textContent = formatDate(payDate);
     updatePeriodValidation(start, end);
+    updateCreateAvailability();
+  }
+
+  function updateCreateAvailability() {
+    if (!createButton) return;
+    var runType = root.querySelector('input[name="run_type"]:checked');
+    var scopeMode = root.querySelector('input[name="scope_mode"]:checked');
+    var selectedCount = employeeCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+    var offCycleMissingParent = runType && runType.value === "OFF_CYCLE" && (!parentField || !parentField.value);
+    var emptySelectedScope = scopeMode && scopeMode.value === "SELECTED" && selectedCount === 0;
+    createButton.disabled = Boolean(offCycleMissingParent || emptySelectedScope);
+    createButton.title = offCycleMissingParent
+      ? "Choose the finalized payroll run this correction belongs to."
+      : emptySelectedScope ? "Select at least one employee." : "";
   }
 
   function updateScope() {
@@ -156,6 +193,7 @@
     var offCycle = selected && selected.value === "OFF_CYCLE";
     if (parentSection) parentSection.hidden = !offCycle;
     if (parentField) parentField.disabled = !offCycle;
+    updateCreateAvailability();
   }
 
   function setPeriod(which) {
@@ -196,6 +234,7 @@
   root.querySelectorAll("[data-select-all]").forEach(function (button) { button.addEventListener("click", function () { employeeCheckboxes.forEach(function (checkbox) { if (!checkbox.disabled) checkbox.checked = true; }); updatePreview(); }); });
   root.querySelectorAll("[data-clear-all]").forEach(function (button) { button.addEventListener("click", function () { employeeCheckboxes.forEach(function (checkbox) { if (!checkbox.disabled) checkbox.checked = false; }); updatePreview(); }); });
   employeeCheckboxes.forEach(function (checkbox) { checkbox.addEventListener("change", updatePreview); });
+  if (parentField) parentField.addEventListener("change", updateCreateAvailability);
   if (form) form.addEventListener("submit", function () {
     var button = form.querySelector("[data-create-run]");
     if (button) { button.disabled = true; button.classList.add("is-loading"); button.innerHTML = "Creating draft…"; }

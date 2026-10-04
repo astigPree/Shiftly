@@ -1,0 +1,264 @@
+/* Shared overlay contract: calm hierarchy, safe viewport sizing, and reachable actions. */
+:where(
+  .payroll-dialog,
+  .attendance-confirm-dialog,
+  .shift-confirm-dialog,
+  .employee-confirm-dialog,
+  .batch-review-dialog
+) {
+  box-sizing: border-box;
+  width: min(560px, calc(100% - 32px));
+  max-width: calc(100% - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  overflow: hidden;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 72px rgb(15 23 42 / 24%);
+}
+
+.payroll-component-dialog,
+.payroll-rule-profile-dialog,
+.payroll-manual-line-dialog { width: min(640px, calc(100% - 32px)); }
+.payroll-bulk-assignment-dialog { width: min(760px, calc(100% - 32px)); }
+.payroll-statement-dialog { width: min(920px, calc(100% - 32px)); }
+
+:where(
+  .payroll-dialog,
+  .attendance-confirm-dialog,
+  .shift-confirm-dialog,
+  .employee-confirm-dialog,
+  .batch-review-dialog
+)::backdrop {
+  background: rgb(15 23 42 / 56%);
+  backdrop-filter: blur(3px);
+}
+
+:where(
+  .payroll-dialog > form,
+  .payroll-dialog > div,
+  .attendance-confirm-dialog__content,
+  .shift-confirm-dialog-content,
+  .employee-confirm-dialog-content,
+  .batch-review-dialog__content
+) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100dvh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+:where(
+  .payroll-dialog > form,
+  .payroll-dialog > div,
+  .attendance-confirm-dialog__content,
+  .shift-confirm-dialog-content,
+  .employee-confirm-dialog-content,
+  .batch-review-dialog__content
+)::-webkit-scrollbar { width: 8px; }
+
+:where(
+  .payroll-dialog > form,
+  .payroll-dialog > div,
+  .attendance-confirm-dialog__content,
+  .shift-confirm-dialog-content,
+  .employee-confirm-dialog-content,
+  .batch-review-dialog__content
+)::-webkit-scrollbar-track { background: transparent; }
+
+:where(
+  .payroll-dialog > form,
+  .payroll-dialog > div,
+  .attendance-confirm-dialog__content,
+  .shift-confirm-dialog-content,
+  .employee-confirm-dialog-content,
+  .batch-review-dialog__content
+)::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+}
+
+:where(
+  .payroll-dialog > form,
+  .payroll-dialog > div,
+  .attendance-confirm-dialog__content,
+  .shift-confirm-dialog-content,
+  .employee-confirm-dialog-content,
+  .batch-review-dialog__content
+)::-webkit-scrollbar-button { display: none; }
+
+/* Long forms keep context and their actions in view while the body scrolls. */
+.payroll-dialog > form > .payroll-card-heading,
+.payroll-dialog > div > .payroll-card-heading {
+  position: sticky;
+  z-index: 2;
+  top: -24px;
+  margin: -24px -24px 4px;
+  padding: 22px 24px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.payroll-dialog-actions {
+  position: sticky;
+  z-index: 2;
+  bottom: -24px;
+  margin: 8px -24px -24px;
+  padding: 14px 24px 24px;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 92%), var(--color-surface) 16px);
+  border-top: 1px solid var(--color-border);
+}
+
+.payroll-dialog-actions .button-link { width: auto; margin-top: 0; }
+
+.payroll-dialog-close {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  color: var(--color-gray-500);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.payroll-dialog-close:hover { color: var(--color-text); background: var(--color-gray-100); }
+
+.payroll-confirm-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 2px;
+  place-items: center;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  border-radius: 50%;
+}
+
+.payroll-confirm-icon .icon { width: 22px; height: 22px; }
+.payroll-dialog--danger .payroll-confirm-icon { color: var(--color-danger); background: var(--color-error-bg); }
+.payroll-dialog--danger .payroll-eyebrow { color: var(--color-danger); }
+
+.payroll-dialog-close:focus-visible,
+:where(.account-popover, .schedule-row-menu-popover) :focus-visible {
+  outline: 3px solid rgb(37 99 235 / 24%);
+  outline-offset: 2px;
+}
+
+html.overlay-open,
+body.overlay-open { overflow: hidden; }
+
+/* Popovers remain inside the viewport and read as one compact action surface. */
+.account-popover,
+.schedule-row-menu-popover {
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, calc(100dvh - 88px));
+  overflow: auto;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgb(15 23 42 / 16%);
+}
+
+.account-popover p { margin: 0 0 8px; padding: 0 10px 10px; border-bottom: 1px solid var(--color-border); }
+.account-popover a,
+.account-popover .menu-signout { padding: 9px 10px; border-radius: var(--radius-sm); }
+
+/* Notifications avoid the app header edges and never become a wall of messages. */
+.toast-region {
+  z-index: 1200;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+.toast { min-height: 58px; }
+.toast__message { max-height: 5.6em; overflow: auto; }
+
+@media (max-width: 640px) {
+  :where(
+    .payroll-dialog,
+    .attendance-confirm-dialog,
+    .shift-confirm-dialog,
+    .employee-confirm-dialog,
+    .batch-review-dialog
+  ) {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+    max-height: calc(100dvh - 20px);
+    border-radius: 14px;
+  }
+
+  :where(
+    .payroll-dialog > form,
+    .payroll-dialog > div,
+    .attendance-confirm-dialog__content,
+    .shift-confirm-dialog-content,
+    .employee-confirm-dialog-content,
+    .batch-review-dialog__content
+  ) { max-height: calc(100dvh - 20px); }
+
+  .payroll-dialog > form,
+  .payroll-dialog > div { padding: 20px; }
+
+  .payroll-dialog > form > .payroll-card-heading,
+  .payroll-dialog > div > .payroll-card-heading {
+    top: -20px;
+    margin: -20px -20px 2px;
+    padding: 18px 20px 14px;
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .payroll-dialog-actions {
+    bottom: -20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    margin: 8px -20px -20px;
+    padding: 12px 20px max(20px, env(safe-area-inset-bottom));
+  }
+
+  .payroll-dialog-actions > button,
+  .payroll-dialog-actions > a { width: 100%; }
+  .payroll-dialog-actions > :last-child { grid-row: 1; }
+
+  .attendance-confirm-dialog__actions,
+  .shift-confirm-dialog-actions,
+  .employee-confirm-dialog-actions,
+  .batch-review-dialog__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-confirm-dialog__actions > button,
+  .shift-confirm-dialog-actions > button,
+  .shift-confirm-dialog-actions > form,
+  .employee-confirm-dialog-actions > button,
+  .employee-confirm-dialog-actions > form,
+  .batch-review-dialog__actions > button { width: 100%; }
+
+  .attendance-confirm-dialog__actions > :last-child,
+  .shift-confirm-dialog-actions > :last-child,
+  .employee-confirm-dialog-actions > :last-child,
+  .batch-review-dialog__actions > :last-child { grid-row: 1; }
+
+  .toast-region {
+    top: max(10px, env(safe-area-inset-top));
+    width: calc(100% - 20px);
+  }
+
+  .toast { grid-template-columns: 22px minmax(0, 1fr) 40px; gap: 9px; padding-left: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(dialog, dialog::backdrop, .toast) { animation: none !important; transition: none !important; }
+}

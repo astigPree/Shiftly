@@ -142,3 +142,16 @@ class AttendanceCorrectionForm(forms.Form):
         cleaned["reason"] = reason
         return cleaned
 
+
+class AttendanceManualEntryForm(AttendanceCorrectionForm):
+    """Employer-entered attendance for a scheduled shift with no employee punch."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["clock_in_at"].label = "Clock-in"
+        self.fields["clock_out_at"].label = "Clock-out"
+        self.fields["reason"].label = "Entry reason"
+        self.fields["reason"].help_text = (
+            "Required for payroll audit. Explain why the employer is recording attendance on the employee's behalf."
+        )
+

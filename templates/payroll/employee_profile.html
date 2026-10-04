@@ -36,8 +36,8 @@
       <article class="payroll-profile-summary-card">
         <span class="payroll-profile-summary-icon">{% include "components/icon.html" with icon_name="wallet" icon_class="icon" %}</span>
         <div><span class="payroll-profile-summary-label">Current compensation</span>
-          <strong>{% if current_daily_compensation %}{{ currency_symbol }}{{ current_daily_compensation.amount|floatformat:2 }} / day{% elif current_hourly_amount %}{{ currency_symbol }}{{ current_hourly_amount|floatformat:2 }} / hour{% else %}Not configured{% endif %}</strong>
-          <small>{% if current_compensation %}{{ current_compensation.basis|lower }} · effective {{ current_compensation.source.effective_from|date:"M j, Y" }}{% elif rates or compensations %}No compensation is effective on {{ employee_work_date|date:"M j, Y" }}.{% else %}Add hourly or daily compensation to get started.{% endif %}</small>
+          <strong>{% if current_daily_compensation %}{{ currency_symbol }}{{ current_daily_compensation.amount|floatformat:2 }} / day{% elif current_hourly_amount %}{{ currency_symbol }}{{ current_hourly_amount|floatformat:2 }} / hour{% elif current_monthly_compensation %}{{ currency_symbol }}{{ current_monthly_compensation.amount|floatformat:2 }} / month{% else %}Not configured{% endif %}</strong>
+          <small>{% if current_monthly_compensation %}Recorded amount · payroll conversion unavailable{% elif current_compensation %}{{ current_compensation.basis|lower }} · effective {{ current_compensation.source.effective_from|date:"M j, Y" }}{% elif rates or compensations %}No compensation is effective on {{ employee_work_date|date:"M j, Y" }}.{% else %}Add hourly or daily compensation to get started.{% endif %}</small>
         </div>
       </article>
       <article class="payroll-profile-summary-card">
@@ -52,17 +52,6 @@
   </header>
 
   {% include "payroll/_subnav.html" %}
-  <nav class="payroll-profile-page-tabs" aria-label="Employee payroll sections">
-    <a href="#overview" aria-current="page">{% include "components/icon.html" with icon_name="wallet" icon_class="payroll-button-icon" %} Overview</a>
-    <a href="#work-details-title">Work details</a>
-    <a href="#rate-history-title">Compensation</a>
-    <a href="#component-title">Components</a>
-    <a href="#input-title">Period inputs</a>
-    <a href="#rule-assignment-title">Rule assignment</a>
-    <a href="#audit-history">Audit history</a>
-  </nav>
-
-  <span id="overview" class="payroll-anchor-target" aria-hidden="true"></span>
 
   <form method="post" class="payroll-profile-form" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="profile">
@@ -88,9 +77,17 @@
       <section class="payroll-card payroll-profile-card payroll-profile-review" aria-labelledby="payroll-review-title">
         <header class="payroll-profile-card-heading">
           <span class="payroll-profile-section-icon">{% include "components/icon.html" with icon_name="shield" icon_class="icon" %}</span>
-          <div><h2 id="payroll-review-title">Payroll review</h2><p>Record the employer's eligibility and classification checks.</p></div>
+          <div><h2 id="payroll-review-title">Pre-run eligibility review</h2><p>Confirm the employee's wage-order, night-differential, and classification checks before including them in a payroll draft.</p></div>
         </header>
         <div class="payroll-warning-box payroll-profile-disclaimer"><strong>Employer inputs</strong><span>Shiftly does not determine legal worker classification or regional minimum wage.</span></div>
+        <div class="payroll-info-box payroll-profile-statutory-note" role="note">
+          <span class="payroll-info-box-icon" aria-hidden="true">i</span>
+          <div>
+            <strong>Statutory review happens in the payroll run</strong>
+            <p>Review SSS, PhilHealth, Pag-IBIG, and withholding tax after creating a payroll draft. These amounts apply to a specific pay period, not to this employee profile.</p>
+          </div>
+          <a class="payroll-inline-link" href="{% url 'payroll:run_list' %}">Open payroll runs <span aria-hidden="true">&rarr;</span></a>
+        </div>
 
         <div class="payroll-profile-confirmations">
           {% include "payroll/_profile_confirmation.html" with field=form.minimum_wage_confirmed %}

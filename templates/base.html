@@ -7,30 +7,31 @@
   <title>{% block title %}Shiftly{% endblock %}</title>
   <link rel="icon" type="image/svg+xml" href="{% static 'assets/shiftly-mark.svg' %}">
   <link rel="stylesheet" href="{% static 'css/tokens.css' %}">
-  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <link rel="stylesheet" href="{% static 'css/base.css' %}?v=20261004-nav-1">
   <link rel="stylesheet" href="{% static 'css/layout.css' %}">
   <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
   <link rel="stylesheet" href="{% static 'css/employee.css' %}">
   <link rel="stylesheet" href="{% static 'css/responsive.css' %}">
   <link rel="stylesheet" href="{% static 'css/timesheets.css' %}">
   <link rel="stylesheet" href="{% static 'css/timesheets-list.css' %}">
-  <link rel="stylesheet" href="{% static 'css/reports.css' %}">
+  <link rel="stylesheet" href="{% static 'css/reports.css' %}?v=20261004-nav-1">
   <link rel="stylesheet" href="{% static 'css/accessibility.css' %}">
   <link rel="stylesheet" href="{% static 'css/auth.css' %}">
-  <link rel="stylesheet" href="{% static 'css/forms.css' %}">
+  <link rel="stylesheet" href="{% static 'css/forms.css' %}?v=20261004b">
   <link rel="stylesheet" href="{% static 'css/batch-shift-form.css' %}">
-  <link rel="stylesheet" href="{% static 'css/settings.css' %}">
+  <link rel="stylesheet" href="{% static 'css/settings.css' %}?v=20261004-nav-1">
   <link rel="stylesheet" href="{% static 'css/employee-directory.css' %}">
-  <link rel="stylesheet" href="{% static 'css/employee-profile.css' %}">
+  <link rel="stylesheet" href="{% static 'css/employee-profile.css' %}?v=20261004-nav-1">
   <link rel="stylesheet" href="{% static 'css/schedule-list.css' %}">
   <link rel="stylesheet" href="{% static 'css/shift-detail.css' %}">
-  <link rel="stylesheet" href="{% static 'css/attendance.css' %}">
+  <link rel="stylesheet" href="{% static 'css/attendance.css' %}?v=20261005-correction-1">
   <link rel="stylesheet" href="{% static 'css/employee-schedule.css' %}">
   <link rel="stylesheet" href="{% static 'css/employee-timesheets.css' %}">
   <link rel="stylesheet" href="{% static 'css/employee-home.css' %}">
   <link rel="stylesheet" href="{% static 'css/table-actions.css' %}">
   <link rel="stylesheet" href="{% static 'css/timezone-clocks.css' %}">
-  <link rel="stylesheet" href="{% static 'css/payroll.css' %}">
+  <link rel="stylesheet" href="{% static 'css/payroll.css' %}?v=20261004-components-2">
+  <link rel="stylesheet" href="{% static 'css/overlays.css' %}?v=20261004">
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% block page %}
@@ -40,8 +41,10 @@
     </main>
   {% endblock %}
   <script src="{% static 'js/toasts.js' %}" defer></script>
+  <script src="{% static 'js/overlay-ui.js' %}?v=20261004" defer></script>
   <script src="{% static 'js/shift-confirmation.js' %}" defer></script>
   <script src="{% static 'js/form-feedback.js' %}" defer></script>
+  <script src="{% static 'js/workspace-tabs.js' %}?v=20261004-nav-1" defer></script>
   <script src="{% static 'js/timezone-clocks.js' %}" defer></script>
   {% block scripts %}{% endblock %}
 </body>

@@ -6,6 +6,23 @@ This began as a source-backed audit and now includes a **partial live browser pa
 
 The audit focuses on the employer payroll run and statutory review flow because it was the latest area changed and contains the highest impact submit actions. Existing working-tree changes were not modified as part of this audit.
 
+## Implementation update — 2026-10-03
+
+The audited payroll pages were revised against `SHIFTLY_PROJECT_DESIGN_SKILL.md` and checked in the live local application.
+
+- **BH-01 fixed:** Submit for review now stays disabled until both blocking exceptions and statutory reviews are complete. The page explains the remaining prerequisite.
+- **BH-02 fixed:** Completed statutory banners use a reliable `[hidden]` rule, and the readiness banner and submit action update in place.
+- **BH-03 fixed:** The statutory summary is now a scrollable run-wide queue. Every employee has a direct link to the correct statement page and review panel.
+- **BH-04 fixed:** Background saves return the first specific field or validation error, keep the panel open, scroll to the invalid field, and preserve inline errors.
+- **BH-05 fixed:** Duplicate submit events are prevented before the in-flight guard returns.
+- **BH-07 fixed:** Monthly compensation remains visible, but employees are marked **Monthly calculation unavailable** until a supported conversion exists. Employee list, employee profile, payroll overview readiness, and new-run preview use the same state.
+- **BH-08 fixed:** Monthly exception summaries now describe the supported resolution instead of directing employers to an unsupported period input.
+- **BH-09 fixed:** Payroll run actions now sit directly below the heading at tablet and mobile widths; the blank responsive header region is removed.
+- **BH-10 fixed:** Rule-profile creation now opens a focused modal with clear cancel and close actions.
+- **BH-11 fixed:** An empty components page presents one contextual creation action; filtered empty results present **Clear filters** instead.
+
+Live checks completed at 1440 × 900, 768 × 900, and 390 × 844. Django's system check completed with no issues. BH-06 remains a test-suite maintenance item because automated browser tests were outside this UI implementation pass.
+
 ## Findings to fix
 
 ### BH-01 — “Submit for review” is enabled before statutory reviews are complete

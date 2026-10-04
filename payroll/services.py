@@ -483,6 +483,16 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
         if not selected_employee_ids:
             raise ValidationError("Select at least one employee for a selected payroll run.")
     requested_scope_mode = PayrollRun.ScopeMode.SELECTED if selected_employee_ids is not None else PayrollRun.ScopeMode.ALL_ACTIVE
+    snapshot_employee_ids = selected_employee_ids
+    if snapshot_employee_ids is None:
+        snapshot_employee_ids = set(
+            Employee.objects.filter(
+                organization=organization,
+                status=Employee.Status.ACTIVE,
+            ).filter(
+                Q(payroll_profile__isnull=True) | Q(payroll_profile__active_for_payroll=True),
+            ).values_list("pk", flat=True)
+        )
     if idempotency_key:
         existing = PayrollRun.objects.filter(organization=organization, idempotency_key=idempotency_key).first()
         if existing:
@@ -544,7 +554,7 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
                 scope_mode=(PayrollRun.ScopeMode.SELECTED if selected_employee_ids is not None else PayrollRun.ScopeMode.ALL_ACTIVE),
                 prepared_by=actor,
             )
-            if selected_employee_ids is not None:
+            if snapshot_employee_ids:
                 PayrollRunEmployee.objects.bulk_create([
                     PayrollRunEmployee(
                         run=run,
@@ -552,7 +562,7 @@ def create_payroll_run(*, organization, actor, period_start, period_end, pay_dat
                         employee_id=employee_id,
                         included_by=actor,
                     )
-                    for employee_id in sorted(selected_employee_ids)
+                    for employee_id in sorted(snapshot_employee_ids)
                 ])
     except IntegrityError as error:
         if idempotency_key:
@@ -580,11 +590,24 @@ def calculate_payroll_run(run, *, actor):
     if run.status != PayrollRun.Status.DRAFT:
         raise ValidationError("Only a draft payroll run can be recalculated.")
 
-    scoped_employee_ids = None
-    if run.scope_mode == PayrollRun.ScopeMode.SELECTED:
-        scoped_employee_ids = set(
-            PayrollRunEmployee.objects.filter(run=run).values_list("employee_id", flat=True)
-        )
+    # A recalculation changes the statement snapshot. Existing assessment rows
+    # stay in the audit trail but must be regenerated before they can be
+    # confirmed again. The scoped fingerprint prevents unrelated rows from
+    # being accepted by a stale bulk request.
+    from .models import PayrollStatutoryAssessment
+    PayrollStatutoryAssessment.objects.filter(
+        statement__run=run,
+        status=PayrollStatutoryAssessment.Status.REVIEWED,
+    ).update(status=PayrollStatutoryAssessment.Status.SUPERSEDED, reviewed_by=None, reviewed_at=None)
+
+    scoped_employee_ids = set(
+        PayrollRunEmployee.objects.filter(run=run).values_list("employee_id", flat=True)
+    )
+    # Legacy all-active runs created before scope snapshots existed continue to
+    # use their original dynamic behavior. Every newly created run has explicit
+    # memberships, including all-active runs.
+    if run.scope_mode == PayrollRun.ScopeMode.ALL_ACTIVE and not scoped_employee_ids:
+        scoped_employee_ids = None
 
     # Recalculation is repeatable: remove the old machine preview but keep manual adjustments.
     PayrollLine.objects.filter(statement__run=run, source__in=["CALCULATED", "CALCULATED_COMPONENT"]).delete()
@@ -605,6 +628,8 @@ def calculate_payroll_run(run, *, actor):
     if run.run_type == PayrollRun.RunType.OFF_CYCLE:
         for statement in statements_by_employee.values():
             _refresh_statement(statement)
+        run.review_revision += 1
+        run.save(update_fields=["review_revision", "updated_at"])
         _record_preview(run, actor)
         record_event(organization=organization, actor=actor, action=AuditEvent.Action.PAYROLL_RUN_RECALCULATED, target_type="payroll_run", target_id=run.pk, summary=f"Recorded payroll preview {run.reference}.")
         return run
@@ -1222,6 +1247,8 @@ def calculate_payroll_run(run, *, actor):
     for statement in statements_by_employee.values():
         if statement.run_id == run.pk:
             _refresh_statement(statement)
+    run.review_revision += 1
+    run.save(update_fields=["review_revision", "updated_at"])
     _record_preview(run, actor)
     record_event(organization=organization, actor=actor, action=AuditEvent.Action.PAYROLL_RUN_RECALCULATED, target_type="payroll_run", target_id=run.pk, summary=f"Recorded payroll preview {run.reference}.", metadata={"preview": run.calculation_previews.count()})
     return run
@@ -1262,6 +1289,8 @@ def add_adjustment(*, run, actor, employee, kind, label, amount, effective_date,
         created_by=actor,
     )
     _refresh_statement(statement)
+    run.review_revision += 1
+    run.save(update_fields=["review_revision", "updated_at"])
     _record_preview(run, actor)
     record_event(
         organization=organization,
@@ -1301,6 +1330,8 @@ def remove_adjustment(*, run, line_id, actor):
     }
     line.delete()
     _refresh_statement(statement)
+    run.review_revision += 1
+    run.save(update_fields=["review_revision", "updated_at"])
     _record_preview(run, actor)
     record_event(
         organization=organization,

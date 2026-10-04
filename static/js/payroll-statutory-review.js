@@ -2,6 +2,15 @@
   const forms = document.querySelectorAll("[data-statutory-review-form]");
   if (!forms.length || typeof window.fetch !== "function") return;
 
+  function openLinkedPanel() {
+    if (!window.location.hash) return;
+    const linkedPanel = document.querySelector(window.location.hash);
+    if (linkedPanel?.tagName === "DETAILS") linkedPanel.open = true;
+  }
+  openLinkedPanel();
+  window.addEventListener("pageshow", openLinkedPanel);
+  window.addEventListener("hashchange", openLinkedPanel);
+
   function showToast(type, message) {
     if (window.ShiftlyToasts && typeof window.ShiftlyToasts.show === "function") {
       window.ShiftlyToasts.show(type, message);
@@ -49,6 +58,24 @@
       status.classList.toggle("payroll-status--needs-review", numericCount > 0);
       status.classList.toggle("payroll-status--ready", numericCount === 0);
     });
+    document.querySelectorAll("[data-submit-review-button]").forEach((button) => {
+      const blockingExceptions = Number(button.dataset.blockingExceptions) || 0;
+      button.disabled = numericCount > 0 || blockingExceptions > 0;
+      if (button.disabled) button.setAttribute("aria-describedby", "submit-review-requirements");
+      else button.removeAttribute("aria-describedby");
+    });
+    document.querySelectorAll("[data-submit-readiness-banner]").forEach((banner) => {
+      const blockingExceptions = Number(banner.dataset.blockingExceptions) || 0;
+      if (blockingExceptions > 0) return;
+      banner.classList.toggle("payroll-run-banner--neutral", numericCount > 0);
+      banner.classList.toggle("payroll-run-banner--success", numericCount === 0);
+      const title = banner.querySelector("[data-submit-readiness-title]");
+      const copy = banner.querySelector("[data-submit-readiness-copy]");
+      if (title) title.textContent = numericCount > 0 ? "Calculation checks passed" : "Ready for review";
+      if (copy) copy.textContent = numericCount > 0
+        ? "Complete the statutory reviews before submitting this draft."
+        : "All submission checks have passed. You can submit this draft for review.";
+    });
 
     const summary = document.querySelector(".payroll-statutory-summary");
     if (summary && numericCount === 0 && !summary.querySelector("[data-statutory-summary-complete]")) {
@@ -83,8 +110,9 @@
 
   document.addEventListener("submit", async (event) => {
     const form = event.target.closest("[data-statutory-review-form]");
-    if (!form || form.dataset.submitting === "true") return;
+    if (!form) return;
     event.preventDefault();
+    if (form.dataset.submitting === "true") return;
     form.dataset.submitting = "true";
 
     const submitButton = form.querySelector("button[type=submit]");
@@ -105,10 +133,11 @@
       if (!response.ok || !data.html) throw new Error(data.message || "The review could not be saved.");
 
       const currentDetails = form.closest(".payroll-statutory-review");
+      let updatedDetails = null;
       if (currentDetails) {
         const holder = document.createElement("div");
         holder.innerHTML = data.html.trim();
-        const updatedDetails = holder.firstElementChild;
+        updatedDetails = holder.firstElementChild;
         if (updatedDetails) {
           updatedDetails.open = true;
           currentDetails.replaceWith(updatedDetails);
@@ -117,6 +146,12 @@
       updatePendingCount(data.pending_count);
       updateEmployeeSummary(form.querySelector("[name=statement_id]")?.value, data);
       showToast(data.ok ? "success" : "error", data.message || (data.ok ? "Statutory review saved." : "Check the review fields and try again."));
+      if (!data.ok && updatedDetails) {
+        const firstInvalid = updatedDetails.querySelector("[aria-invalid='true'], .form-field--invalid input, .form-field--invalid select, .form-field--invalid textarea");
+        const firstError = updatedDetails.querySelector(".field-error");
+        (firstInvalid || firstError)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        firstInvalid?.focus({ preventScroll: true });
+      }
     } catch (error) {
       const message = error instanceof TypeError
         ? "The server could not be reached. Check that Shiftly is running and try again."

@@ -427,6 +427,19 @@ class PayrollComponentDefinitionForm(forms.ModelForm):
         model = PayrollComponentDefinition
         fields = ["code", "label", "kind", "basis", "deduct_undertime", "description", "active"]
         widgets = {"description": forms.TextInput(attrs={"placeholder": "What this component represents"})}
+        help_texts = {
+            "code": "A stable short identifier used in exports and payroll history.",
+            "label": "The name payroll administrators see when assigning this component.",
+            "kind": "Earnings add to gross pay. Deductions reduce net pay. Employer contributions record employer cost.",
+            "basis": "Choose whether the assigned amount applies per payroll period, worked day, or payable hour.",
+            "deduct_undertime": "When enabled, reviewed undertime reduces this component's assigned amount.",
+            "description": "Optional internal note describing what this component covers.",
+            "active": "Active components can be assigned and calculated in future payrolls.",
+        }
+        error_messages = {
+            "code": {"required": "Enter a component code."},
+            "label": {"required": "Enter a component label."},
+        }
 
     def __init__(self, *args, organization, actor, **kwargs):
         self.organization = organization
@@ -687,6 +700,50 @@ class StatutoryReviewForm(forms.Form):
             field = self.fields[f'{side}_line']
             field.queryset = statement.lines.filter(kind=kind, source='MANUAL')
             field.label_from_instance = lambda line: f'{line.label} — {statement.run.currency} {line.amount:.2f}'
+
+
+class PayrollStatutoryBulkReviewForm(forms.Form):
+    """Shared evidence for one controlled bulk review action."""
+
+    registration = forms.ChoiceField(
+        label="Registration status",
+        choices=[("", "Choose status"), *REGISTRATIONS],
+    )
+    treatment = forms.ChoiceField(
+        label="Shared treatment",
+        choices=[("", "Choose treatment"), *TREATMENTS],
+        help_text="Apply the same reviewed treatment to every selected assessment.",
+    )
+    source_reference = forms.CharField(
+        max_length=255,
+        label="Calculation / source reference",
+        help_text="Use the cutoff and source document. Do not enter government ID numbers.",
+    )
+    review_note = forms.CharField(
+        max_length=500,
+        label="Review note",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="Explain the shared treatment and any zero, exemption, or other-cutoff decision.",
+    )
+    registration_follow_up = forms.CharField(
+        max_length=500,
+        required=False,
+        label="Registration follow-up",
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text="Required when registration is pending.",
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        registration = cleaned.get("registration")
+        treatment = cleaned.get("treatment")
+        if registration == "PENDING" and not (cleaned.get("registration_follow_up") or "").strip():
+            self.add_error("registration_follow_up", "Record the follow-up for the missing registration number.")
+        if registration == "PENDING" and treatment == "NOT_APPLICABLE":
+            self.add_error("treatment", "Missing registration is not an exemption.")
+        if treatment == "NOT_APPLICABLE" and not (cleaned.get("review_note") or "").strip():
+            self.add_error("review_note", "Explain why this assessment is not applicable.")
+        return cleaned
 
 
 class FinalizePayrollForm(forms.Form):

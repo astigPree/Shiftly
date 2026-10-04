@@ -9,7 +9,7 @@
       <div>
         <p class="eyebrow">{{ shift.work_date|date:"M j, Y" }} · {{ timezone_name }}</p>
         <h1>Correct attendance</h1>
-        <p>Review {{ employee.full_name }}’s effective punch for the scheduled shift. Original employee punches remain unchanged.</p>
+        <p>Review {{ employee.full_name }}’s effective attendance for the scheduled shift. The original source record remains unchanged.</p>
       </div>
       {% if is_locked %}<span class="status-badge status-locked">Locked after payroll finalization</span>{% endif %}
     </div>
@@ -35,7 +35,12 @@
       {% if is_locked %}
         <div class="form-notice form-notice--warning" role="status">This attendance is part of finalized payroll and can no longer be changed.</div>
       {% endif %}
-      {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      {% if form.non_field_errors %}
+        <div class="form-errors attendance-correction-errors" role="alert">
+          <strong>Review the correction before saving</strong>
+          <p>{{ form.non_field_errors }}</p>
+        </div>
+      {% endif %}
       <form method="post" class="attendance-correction-form" data-attendance-correction-form data-toast-feedback="manual"{% if is_locked %} aria-disabled="true"{% endif %}>
         {% csrf_token %}
         <fieldset{% if is_locked %} disabled{% endif %}>
@@ -90,12 +95,12 @@
 
     <aside class="attendance-correction-side">
       <section class="content-card attendance-original-card">
-        <div class="section-heading section-heading--compact"><div><h2>Original punch</h2><p>Recorded by the employee</p></div></div>
+        <div class="section-heading section-heading--compact"><div><h2>Original attendance</h2><p>Immutable source record</p></div></div>
         <dl class="attendance-value-list">
           <div><dt>Clock-in</dt><dd>{{ session.clock_in_at|timezone:timezone_name|date:"M j, Y, g:i A" }}</dd></div>
           <div><dt>Clock-out</dt><dd>{% if session.clock_out_at %}{{ session.clock_out_at|timezone:timezone_name|date:"M j, Y, g:i A" }}{% else %}Not recorded{% endif %}</dd></div>
         </dl>
-        <p class="field-help">This original event is retained for audit and cannot be edited.</p>
+        <p class="field-help">This original record is retained for audit and cannot be edited. Corrections are stored separately.</p>
       </section>
 
       <section class="content-card attendance-history-card">
@@ -126,7 +131,7 @@
     <span class="attendance-confirm-dialog__icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" %}</span>
     <p class="attendance-confirm-dialog__eyebrow">Payroll audit</p>
     <h2 id="attendance-correction-confirm-title">Save attendance correction?</h2>
-    <p id="attendance-correction-confirm-description">This will recalculate the employee’s timesheet and return it to review. The original punch will remain in the audit history.</p>
+    <p id="attendance-correction-confirm-description">This will recalculate the employee’s timesheet and return it to review. The original attendance record will remain in the audit history.</p>
     <div class="attendance-confirm-dialog__actions">
       <button class="button-secondary" type="button" data-attendance-correction-cancel>Cancel</button>
       <button class="button-primary" type="button" data-attendance-correction-submit>Save correction</button>

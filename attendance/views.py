@@ -15,7 +15,7 @@ from employees.models import Employee
 from schedules.models import Shift
 from timesheets.models import Timesheet
 from .dashboard import get_employer_attendance_dashboard
-from .forms import AttendanceCorrectionForm
+from .forms import AttendanceCorrectionForm, AttendanceManualEntryForm
 from .models import AttendanceCorrection, AttendanceSession, BreakSession
 from .services import (
     attendance_state,
@@ -25,6 +25,7 @@ from .services import (
     effective_attendance_values,
     end_break,
     last_activity,
+    record_attendance,
     start_break,
 )
 
@@ -45,6 +46,32 @@ def _duration_label(seconds):
 def _minutes_label(minutes):
     hours, minutes = divmod(max(0, minutes), 60)
     return f"{hours} hr {minutes:02d} min" if hours else f"{minutes} min"
+
+
+def _add_attendance_validation_errors(form, error):
+    """Keep service validation attached to the field the employer can fix."""
+    field_map = {
+        "corrected_clock_in_at": "clock_in_at",
+        "corrected_clock_out_at": "clock_out_at",
+        "reason": "reason",
+    }
+    error_labels = {
+        "original_breaks": "Break corrections",
+        "corrected_breaks": "Break corrections",
+    }
+    message_dict = getattr(error, "message_dict", None)
+    if not message_dict:
+        form.add_error(None, " ".join(error.messages))
+        return
+
+    for source_field, messages in message_dict.items():
+        target_field = field_map.get(source_field, source_field)
+        if target_field in form.fields:
+            for message in messages:
+                form.add_error(target_field, message)
+            continue
+        label = error_labels.get(source_field, source_field.replace("_", " ").capitalize())
+        form.add_error(None, f"{label}: {' '.join(messages)}")
 
 
 def _employee_duration_label(minutes):
@@ -146,6 +173,52 @@ def form_datetime_value(value, timezone_name):
     return timezone.localtime(value, ZoneInfo(timezone_name)).strftime("%Y-%m-%dT%H:%M")
 
 
+@employer_required
+def record_attendance_page(request, shift_pk):
+    organization = organization_for_user(request.user)
+    shift = get_object_or_404(
+        Shift.objects.filter(organization=organization)
+        .select_related("employee", "employee__payroll_profile", "organization"),
+        pk=shift_pk,
+    )
+    if hasattr(shift, "attendance_session"):
+        messages.info(request, "This shift already has attendance. Review the existing record instead.")
+        return redirect("attendance:correct", session_pk=shift.attendance_session.pk)
+    timezone_name = getattr(getattr(shift.employee, "payroll_profile", None), "payroll_timezone", "") or organization.timezone
+    initial = {
+        "clock_in_at": form_datetime_value(shift.scheduled_start, timezone_name),
+        "clock_out_at": form_datetime_value(shift.scheduled_end, timezone_name),
+    }
+    form = AttendanceManualEntryForm(
+        request.POST or None,
+        timezone_name=timezone_name,
+        initial=initial,
+        initial_breaks=[],
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            session = record_attendance(
+                shift=shift,
+                actor=request.user,
+                clock_in_at=form.cleaned_data["corrected_clock_in_at"],
+                clock_out_at=form.cleaned_data["corrected_clock_out_at"],
+                breaks=form.cleaned_data["corrected_breaks"],
+                reason=form.cleaned_data["reason"],
+            )
+        except ValidationError as error:
+            _add_attendance_validation_errors(form, error)
+        else:
+            messages.success(request, "Attendance recorded. A timesheet was created and is ready for review.")
+            return redirect("attendance:correct", session_pk=session.pk)
+    return render(request, "attendance/record.html", {
+        "organization": organization,
+        "shift": shift,
+        "employee": shift.employee,
+        "timezone_name": timezone_name,
+        "form": form,
+    }, status=400 if request.method == "POST" and form.errors else 200)
+
+
 def _attendance_is_locked(session):
     from payroll.models import PayrollRun, PayrollTimeEntry
 
@@ -192,7 +265,7 @@ def correct_attendance_page(request, session_pk):
                     reason=form.cleaned_data["reason"],
                 )
             except ValidationError as error:
-                form.add_error(None, " ".join(error.messages))
+                _add_attendance_validation_errors(form, error)
             else:
                 messages.success(request, "Attendance corrected. The timesheet was recalculated and returned for review.")
                 # Keep the employer on the correction record so the new

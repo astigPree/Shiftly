@@ -3,15 +3,33 @@
   let pendingForm = null;
   let confirmedForm = null;
 
+  function syncDialogScrollLock() {
+    const hasOpenDialog = Array.from(document.querySelectorAll("dialog")).some((dialog) => dialog.open);
+    document.documentElement.classList.toggle("payroll-dialog-open", hasOpenDialog);
+  }
+
+  function openDialog(dialog) {
+    if (!(dialog instanceof HTMLDialogElement)) return;
+    dialog.showModal();
+    syncDialogScrollLock();
+    dialog.querySelector("input:not([type='hidden']), select, textarea, button")?.focus();
+  }
+
+  function closeDialog(dialog) {
+    if (!(dialog instanceof HTMLDialogElement)) return;
+    dialog.close();
+    syncDialogScrollLock();
+  }
+
   document.querySelectorAll("[data-payroll-dialog-open]").forEach((button) => {
     button.addEventListener("click", () => {
       const dialog = document.getElementById(button.dataset.payrollDialogOpen);
-      if (dialog instanceof HTMLDialogElement) dialog.showModal();
+      openDialog(dialog);
     });
   });
 
   document.querySelectorAll("[data-payroll-dialog-close]").forEach((button) => {
-    button.addEventListener("click", () => button.closest("dialog")?.close());
+    button.addEventListener("click", () => closeDialog(button.closest("dialog")));
   });
 
   document.querySelectorAll("form[data-payroll-confirm]").forEach((form) => {
@@ -30,7 +48,7 @@
       submitButton.textContent = form.dataset.confirmAction || "Continue";
       submitButton.classList.toggle("button-danger", form.dataset.confirmDanger !== "false");
       submitButton.classList.toggle("button-link", form.dataset.confirmDanger === "false");
-      confirmationDialog.showModal();
+      openDialog(confirmationDialog);
       confirmationDialog.querySelector("[data-payroll-confirm-cancel]")?.focus();
     }, true);
   });
@@ -38,7 +56,7 @@
   confirmationDialog?.querySelector("[data-payroll-confirm-cancel]")?.addEventListener("click", () => {
     pendingForm?.querySelector('button[type="submit"]')?.focus();
     pendingForm = null;
-    confirmationDialog.close();
+    closeDialog(confirmationDialog);
   });
 
   confirmationDialog?.addEventListener("cancel", () => { pendingForm = null; });
@@ -48,7 +66,7 @@
     const form = pendingForm;
     pendingForm = null;
     confirmedForm = form;
-    confirmationDialog.close();
+    closeDialog(confirmationDialog);
     if (typeof form.requestSubmit === "function") form.requestSubmit();
     else form.submit();
   });
@@ -58,6 +76,10 @@
   });
 
   document.querySelectorAll("dialog[data-payroll-autopen='true']").forEach((dialog) => {
-    if (dialog instanceof HTMLDialogElement) dialog.showModal();
+    openDialog(dialog);
+  });
+
+  document.querySelectorAll("dialog").forEach((dialog) => {
+    dialog.addEventListener("close", syncDialogScrollLock);
   });
 })();

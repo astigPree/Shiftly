@@ -90,7 +90,7 @@
     <form method="get" class="payroll-filter payroll-run-filter" aria-label="Filter payroll runs">
       <label class="payroll-filter__date" for="id_run_from">Period from<input id="id_run_from" type="date" name="from" value="{{ from_date }}"></label>
       <label class="payroll-filter__date" for="id_run_to">Period to<input id="id_run_to" type="date" name="to" value="{{ to_date }}"></label>
-      <label for="id_run_employee">Employee<select id="id_run_employee" name="employee"><option value="">All employees</option>{% for employee in employees %}<option value="{{ employee.pk }}"{% if employee_id == employee.pk|stringformat:"s" %} selected{% endif %}>{{ employee.full_name }} &middot; {{ employee.employee_code }}</option>{% endfor %}</select></label>
+      <label for="id_run_employee">Employee<input id="id_run_employee" type="search" name="employee_q" value="{{ employee_query }}" placeholder="Name or employee code" autocomplete="off"></label>
       <label for="id_run_status">Status<select id="id_run_status" name="status"><option value="">All runs</option>{% for value,label in status_choices %}<option value="{{ value }}"{% if selected_status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
       <div class="payroll-run-filter__actions">
         <button class="button-link" type="submit">Apply filters</button>

@@ -1,4 +1,80 @@
 {% extends "layouts/employer.html" %}
 {% load form_tags %}
 {% block title %}Edit component | Shiftly{% endblock %}
-{% block app_content %}<div class="payroll-page payroll-component-edit-page"><a class="payroll-back-link" href="{% url 'payroll:component_definitions' %}">&larr; Components</a><header class="payroll-page-header"><div><p class="payroll-eyebrow">{{ organization.name }} &middot; Payroll</p><h1>Edit component</h1><p class="muted">Update <strong>{{ component.code|upper }}</strong> without changing finalized payroll snapshots.</p></div></header><section class="payroll-card payroll-component-edit-card"><header class="payroll-card-heading"><div><h2>{{ component.label }}</h2><p>Keep the code stable so exports and employee assignments remain traceable.</p></div></header><form method="post" class="payroll-form" novalidate>{% csrf_token %}{% if form.non_field_errors %}<div class="field-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}{% for field in form %}{% include "components/form_field.html" with field=field %}{% endfor %}<div class="payroll-form-actions"><a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Cancel</a><button class="button-link" type="submit">Save changes</button></div></form></section></div>{% endblock %}
+{% block app_content %}
+<div class="payroll-page payroll-component-edit-page">
+  <a class="payroll-back-link" href="{% url 'payroll:component_definitions' %}">&larr; Components</a>
+
+  <header class="payroll-page-header payroll-component-edit-header">
+    <div>
+      <p class="payroll-eyebrow">Shared payroll component</p>
+      <h1>Edit {{ component.label }}</h1>
+      <p class="muted">Update how this item is assigned and calculated in future payrolls.</p>
+    </div>
+    <span class="payroll-status payroll-status--{% if component.active %}ready{% else %}needs-review{% endif %}">{% if component.active %}Active{% else %}Inactive{% endif %}</span>
+  </header>
+
+  <section class="payroll-card payroll-component-edit-card" aria-labelledby="component-definition-title">
+    <header class="payroll-card-heading">
+      <div>
+        <h2 id="component-definition-title">Component definition</h2>
+        <p>A component is a reusable payroll item. It becomes payable only after a dated amount is assigned to an employee.</p>
+      </div>
+    </header>
+
+    <div class="payroll-component-edit-summary" aria-label="Current component summary">
+      <div><span>Code</span><strong>{{ component.code|upper }}</strong></div>
+      <div><span>Kind</span><strong>{{ component.get_kind_display }}</strong></div>
+      <div><span>Applied</span><strong>{{ component.get_basis_display }}</strong></div>
+    </div>
+
+    <form method="post" class="payroll-component-edit-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="field-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+      <section class="payroll-component-edit-section" aria-labelledby="component-identity-title">
+        <div class="payroll-component-edit-section-heading">
+          <h3 id="component-identity-title">Identity</h3>
+          <p>Use a stable code and a clear name that payroll administrators will recognize.</p>
+        </div>
+        <div class="payroll-component-edit-grid">
+          {% include "components/form_field.html" with field=form.code %}
+          {% include "components/form_field.html" with field=form.label %}
+          {% include "components/form_field.html" with field=form.description full_width=True %}
+        </div>
+      </section>
+
+      <section class="payroll-component-edit-section" aria-labelledby="component-calculation-title">
+        <div class="payroll-component-edit-section-heading">
+          <h3 id="component-calculation-title">Payroll treatment</h3>
+          <p>Choose what the component changes and when its assigned amount is applied.</p>
+        </div>
+        <div class="payroll-component-edit-grid">
+          {% include "components/form_field.html" with field=form.kind %}
+          {% include "components/form_field.html" with field=form.basis %}
+        </div>
+      </section>
+
+      <section class="payroll-component-edit-section" aria-labelledby="component-options-title">
+        <div class="payroll-component-edit-section-heading">
+          <h3 id="component-options-title">Availability and adjustments</h3>
+          <p>These settings control whether the component can be used in future payroll work.</p>
+        </div>
+        <div class="payroll-component-edit-options">
+          {% include "components/form_field.html" with field=form.deduct_undertime %}
+          {% include "components/form_field.html" with field=form.active %}
+        </div>
+        <div class="payroll-info-box payroll-component-edit-note" role="note">
+          <span class="payroll-info-box-icon" aria-hidden="true">i</span>
+          <p>Changes affect future calculations. Finalized payroll snapshots remain unchanged.</p>
+        </div>
+      </section>
+
+      <div class="payroll-form-actions">
+        <a class="button-secondary" href="{% url 'payroll:component_definitions' %}">Cancel</a>
+        <button class="button-link" type="submit">Save changes</button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

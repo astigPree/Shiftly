@@ -11,17 +11,17 @@
     <p class="reports-timezone">Organization time zone: <strong>{{ timezone_label }}</strong></p>
   </header>
 
-  <nav class="reports-tabs" aria-label="Report types">
-    <a class="report-tab{% if active_report == 'attendance' %} is-active{% endif %}" href="?report=attendance"{% if active_report == 'attendance' %} aria-current="page"{% endif %}>
+  <nav class="reports-tabs workspace-tabs" aria-label="Report types">
+    <a class="report-tab workspace-tab{% if active_report == 'attendance' %} is-active{% endif %}" href="?report=attendance"{% if active_report == 'attendance' %} aria-current="page"{% endif %}>
       {% include "components/icon.html" with icon_name="clock" icon_class="report-tab-icon" %}<span>Attendance</span>
     </a>
-    <a class="report-tab{% if active_report == 'hours' %} is-active{% endif %}" href="?report=hours"{% if active_report == 'hours' %} aria-current="page"{% endif %}>
+    <a class="report-tab workspace-tab{% if active_report == 'hours' %} is-active{% endif %}" href="?report=hours"{% if active_report == 'hours' %} aria-current="page"{% endif %}>
       {% include "components/icon.html" with icon_name="chart" icon_class="report-tab-icon" %}<span>Employee hours</span>
     </a>
-    <a class="report-tab{% if active_report == 'timesheets' %} is-active{% endif %}" href="?report=timesheets"{% if active_report == 'timesheets' %} aria-current="page"{% endif %}>
+    <a class="report-tab workspace-tab{% if active_report == 'timesheets' %} is-active{% endif %}" href="?report=timesheets"{% if active_report == 'timesheets' %} aria-current="page"{% endif %}>
       {% include "components/icon.html" with icon_name="calendar" icon_class="report-tab-icon" %}<span>Timesheets</span>
     </a>
-    <a class="report-tab{% if active_report == 'activity' %} is-active{% endif %}" href="?report=activity"{% if active_report == 'activity' %} aria-current="page"{% endif %}>
+    <a class="report-tab workspace-tab{% if active_report == 'activity' %} is-active{% endif %}" href="?report=activity"{% if active_report == 'activity' %} aria-current="page"{% endif %}>
       {% include "components/icon.html" with icon_name="file" icon_class="report-tab-icon" %}<span>Activity log</span>
     </a>
   </nav>

@@ -15,31 +15,35 @@
   <section class="payroll-card payroll-rule-profiles-card" aria-labelledby="rule-profiles-title">
     <header class="payroll-card-heading">
       <div><h2 id="rule-profiles-title">Payroll rule profiles</h2><p>Reuse reviewed rules across employees, then assign dated overrides when someone follows a different policy.</p></div>
+      <button class="button-secondary" type="button" data-payroll-dialog-open="create-rule-profile-dialog">Create rule profile</button>
     </header>
     <div class="payroll-rule-profile-layout">
       <div class="payroll-rule-profile-list">
         {% for profile in rule_profiles %}
         <a class="payroll-rule-profile-row{% if selected_rule_profile and profile.pk == selected_rule_profile.pk %} is-selected{% endif %}" href="?profile={{ profile.pk }}">
-          <span><strong>{{ profile.name }}</strong><small>{{ profile.code }} · {{ profile.employee_count }} assigned employee{{ profile.employee_count|pluralize }}</small></span>
+          <span><strong>{{ profile.name }}</strong><small>{{ profile.code }} · {{ profile.display_employee_count }} employee{{ profile.display_employee_count|pluralize }} using this profile{% if profile.is_default %} (including inherited assignments){% endif %}</small></span>
           <span>{% if profile.is_default %}<span class="payroll-status payroll-status--finalized">Default</span>{% endif %}<small>{{ profile.version_count }} version{{ profile.version_count|pluralize }}</small></span>
         </a>
         {% empty %}<p class="muted">No rule profiles exist yet. Create one to start configuring rules.</p>{% endfor %}
       </div>
-      <details class="payroll-rule-profile-create"{% if profile_form.errors or not rule_profiles %} open{% endif %}>
-        <summary>Create rule profile</summary>
-        <form method="post" class="payroll-rule-profile-form" novalidate>
-          {% csrf_token %}<input type="hidden" name="action" value="profile">
-          {% if profile_form.non_field_errors %}<div class="field-error" role="alert">{{ profile_form.non_field_errors }}</div>{% endif %}
-          {% include "components/form_field.html" with field=profile_form.code %}
-          {% include "components/form_field.html" with field=profile_form.name %}
-          {% include "components/form_field.html" with field=profile_form.description %}
-          <div class="payroll-inline-check{% if profile_form.is_default.errors %} form-field--invalid{% endif %}">{{ profile_form.is_default }} <label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label>{% if profile_form.is_default.errors %}<div class="field-error" role="alert">{{ profile_form.is_default.errors }}</div>{% endif %}</div>
-          <div class="payroll-inline-check{% if profile_form.active.errors %} form-field--invalid{% endif %}">{{ profile_form.active }} <label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label>{% if profile_form.active.errors %}<div class="field-error" role="alert">{{ profile_form.active.errors }}</div>{% endif %}</div>
-          <button class="button-secondary" type="submit">Create profile</button>
-        </form>
-      </details>
     </div>
   </section>
+  <dialog id="create-rule-profile-dialog" class="payroll-dialog payroll-rule-profile-dialog" aria-labelledby="create-rule-profile-heading"{% if profile_form.errors or not rule_profiles %} data-payroll-autopen="true"{% endif %}>
+    <form method="post" class="payroll-rule-profile-form" novalidate>
+      {% csrf_token %}<input type="hidden" name="action" value="profile">
+      <header class="payroll-card-heading">
+        <div><p class="payroll-eyebrow">Reusable payroll policy</p><h2 id="create-rule-profile-heading">Create rule profile</h2><p>Group employees who follow the same reviewed overtime, rest-day, and night rules.</p></div>
+        <button class="payroll-dialog-close" type="button" data-payroll-dialog-close aria-label="Close">&times;</button>
+      </header>
+      {% if profile_form.non_field_errors %}<div class="field-error" role="alert">{{ profile_form.non_field_errors }}</div>{% endif %}
+      {% include "components/form_field.html" with field=profile_form.code %}
+      {% include "components/form_field.html" with field=profile_form.name %}
+      {% include "components/form_field.html" with field=profile_form.description %}
+      <div class="payroll-profile-option{% if profile_form.is_default.errors %} form-field--invalid{% endif %}"><div><label for="{{ profile_form.is_default.id_for_label }}">{{ profile_form.is_default.label }}</label><small>Use this profile when an employee has no dated override.</small></div>{{ profile_form.is_default }}{% if profile_form.is_default.errors %}<div class="field-error" role="alert">{{ profile_form.is_default.errors }}</div>{% endif %}</div>
+      <div class="payroll-profile-option{% if profile_form.active.errors %} form-field--invalid{% endif %}"><div><label for="{{ profile_form.active.id_for_label }}">{{ profile_form.active.label }}</label><small>Allow employers to assign this profile to employees.</small></div>{{ profile_form.active }}{% if profile_form.active.errors %}<div class="field-error" role="alert">{{ profile_form.active.errors }}</div>{% endif %}</div>
+      <div class="payroll-dialog-actions"><button class="button-secondary" type="button" data-payroll-dialog-close>Cancel</button><button class="button-link" type="submit">Create profile</button></div>
+    </form>
+  </dialog>
 
   <section class="payroll-card payroll-config-card" aria-labelledby="payroll-config-title">
     <header class="payroll-card-heading">

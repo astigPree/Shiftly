@@ -14,9 +14,9 @@
     <a class="button-link" href="{% url 'employees:edit' employee.pk %}">{% include "components/icon.html" with icon_name="edit" icon_class="button-icon" %}<span>Edit profile</span></a>
   </div>
 </section>
-<nav class="employee-profile-tabs" aria-label="Employee profile sections">
-  <a href="{% url 'employees:detail' employee.pk %}"{% if active_tab == "overview" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="home" icon_class="profile-tab-icon" %}<span>Overview</span></a>
-  <a href="{% url 'employees:schedules' employee.pk %}"{% if active_tab == "schedules" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="calendar" icon_class="profile-tab-icon" %}<span>Schedules</span></a>
-  <a href="{% url 'employees:attendance' employee.pk %}"{% if active_tab == "attendance" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="clock" icon_class="profile-tab-icon" %}<span>Attendance</span></a>
-  <a href="{% url 'employees:timesheets' employee.pk %}"{% if active_tab == "timesheets" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="file" icon_class="profile-tab-icon" %}<span>Timesheets</span></a>
+<nav class="employee-profile-tabs workspace-tabs" aria-label="Employee profile sections">
+  <a class="workspace-tab" href="{% url 'employees:detail' employee.pk %}"{% if active_tab == "overview" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="home" icon_class="profile-tab-icon" %}<span>Overview</span></a>
+  <a class="workspace-tab" href="{% url 'employees:schedules' employee.pk %}"{% if active_tab == "schedules" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="calendar" icon_class="profile-tab-icon" %}<span>Schedules</span></a>
+  <a class="workspace-tab" href="{% url 'employees:attendance' employee.pk %}"{% if active_tab == "attendance" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="clock" icon_class="profile-tab-icon" %}<span>Attendance</span></a>
+  <a class="workspace-tab" href="{% url 'employees:timesheets' employee.pk %}"{% if active_tab == "timesheets" %} aria-current="page"{% endif %}>{% include "components/icon.html" with icon_name="file" icon_class="profile-tab-icon" %}<span>Timesheets</span></a>
 </nav>

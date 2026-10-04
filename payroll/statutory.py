@@ -1,6 +1,7 @@
 """Evidence for manually reviewed PH statutory items; no statutory rate engine."""
 import hashlib
 import json
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -49,10 +50,43 @@ def statement_fingerprint(statement):
 def statutory_review_rows(statement):
     fingerprint = statement_fingerprint(statement)
     reviews = statement.snapshot.get('statutory_reviews', {})
+    assessments = {}
+    try:
+        from .models import PayrollStatutoryAssessment
+        from .statutory_assessments import assessment_fingerprint
+        prefetched = getattr(statement, '_prefetched_objects_cache', {}).get('statutory_assessments')
+        assessment_query = prefetched if prefetched is not None else PayrollStatutoryAssessment.objects.filter(statement=statement).select_related(
+            'employee_line', 'employer_line', 'reviewed_by'
+        )
+        assessments = {item.agency: item for item in assessment_query}
+    except Exception:
+        # Historical installations may be read before the new migration is
+        # applied. The legacy snapshot remains the compatibility fallback.
+        assessments = {}
     rows = []
     for agency, label in AGENCIES:
         review = reviews.get(agency, {})
-        current = bool(review.get('fingerprint') == fingerprint and review.get('reviewed_by_id'))
+        assessment = assessments.get(agency)
+        if assessment:
+            scoped_fingerprint = assessment_fingerprint(
+                statement, agency, employee_line=assessment.employee_line, employer_line=assessment.employer_line
+            )
+            current = bool(
+                assessment.status == 'REVIEWED'
+                and assessment.input_fingerprint == scoped_fingerprint
+                and assessment.reviewed_by_id
+            )
+            if current and not review:
+                review = {
+                    'employee': {'amount': str(assessment.employee_amount), 'treatment': 'LINE' if assessment.employee_line_id else 'ZERO'},
+                    'employer': {'amount': str(assessment.employer_amount), 'treatment': 'LINE' if assessment.employer_line_id else 'NOT_APPLICABLE'},
+                    'source_reference': assessment.source_reference,
+                    'review_note': assessment.review_note,
+                    'reviewed_by': assessment.reviewed_by.get_full_name() if assessment.reviewed_by else '',
+                    'registration_follow_up': assessment.registration_follow_up,
+                }
+        else:
+            current = bool(review.get('fingerprint') == fingerprint and review.get('reviewed_by_id'))
         rows.append({
             'agency': agency, 'label': label, 'review': review, 'current': current,
             'status': 'Reviewed' if current else ('Review again' if review else 'Not reviewed'),
@@ -134,6 +168,46 @@ def record_statutory_review(*, statement, actor, agency, registration,
     }
     statement.snapshot.setdefault('statutory_reviews', {})[agency] = review
     statement.save(update_fields=['snapshot', 'updated_at'])
+    # Keep the first-class bulk workspace in sync with the legacy snapshot
+    # record. This is deliberately best-effort for old statements that have not
+    # yet been generated into the new queue.
+    from .models import PayrollStatutoryAssessment
+    from .statutory_assessments import assessment_fingerprint
+    assessment, _ = PayrollStatutoryAssessment.objects.get_or_create(
+        statement=statement,
+        agency=agency,
+        defaults={
+            'organization': organization,
+            'employee_id': statement.employee_id,
+            'status': PayrollStatutoryAssessment.Status.REVIEWED,
+            'source_type': PayrollStatutoryAssessment.SourceType.MANUAL,
+        },
+    )
+    assessment.organization = organization
+    assessment.employee_id = statement.employee_id
+    assessment.employee_line = employee_line
+    assessment.employer_line = employer_line
+    assessment.employee_amount = Decimal(employee_share['amount'])
+    assessment.employer_amount = Decimal(employer_share['amount'])
+    assessment.source_reference = source_reference.strip()
+    assessment.review_note = review_note.strip()
+    assessment.registration_follow_up = registration_follow_up.strip()
+    assessment.input_fingerprint = assessment_fingerprint(
+        statement, agency, employee_line=employee_line, employer_line=employer_line
+    )
+    assessment.status = PayrollStatutoryAssessment.Status.REVIEWED
+    assessment.source_type = (
+        PayrollStatutoryAssessment.SourceType.ZERO
+        if employee_treatment == 'ZERO' and employer_treatment in {'ZERO', 'NOT_APPLICABLE'}
+        else PayrollStatutoryAssessment.SourceType.EXEMPT
+        if employee_treatment == 'NOT_APPLICABLE' and employer_treatment == 'NOT_APPLICABLE'
+        else PayrollStatutoryAssessment.SourceType.OTHER_PERIOD
+        if employee_treatment == 'OTHER_PERIOD' and employer_treatment in {'OTHER_PERIOD', 'NOT_APPLICABLE'}
+        else PayrollStatutoryAssessment.SourceType.MANUAL
+    )
+    assessment.reviewed_by = actor
+    assessment.reviewed_at = timezone.now()
+    assessment.save()
     _record_preview(run, actor)
     record_event(organization=organization, actor=actor,
         action=AuditEvent.Action.PAYROLL_STATUTORY_REVIEWED,

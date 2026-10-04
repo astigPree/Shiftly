@@ -1022,6 +1022,9 @@
   border-radius: 8px;
   background: #fff5f4;
 }
+.attendance-correction-errors { display: grid; gap: 3px; }
+.attendance-correction-errors strong { color: #8f1f18; }
+.attendance-correction-errors p { margin: 0; line-height: 1.45; }
 
 .field-error {
   margin: 5px 0 0;

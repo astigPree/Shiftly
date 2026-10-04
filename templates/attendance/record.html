@@ -1,0 +1,40 @@
+{% extends "layouts/employer.html" %}
+{% load tz static %}
+{% block title %}Record attendance | Shiftly{% endblock %}
+{% block app_content %}
+<div class="attendance-correction-page">
+  <header class="attendance-correction-header">
+    <a class="back-link" href="{% url 'attendance:list' %}?date={{ shift.work_date|date:'Y-m-d' }}">← Attendance</a>
+    <div class="attendance-correction-heading"><div><p class="eyebrow">{{ shift.work_date|date:"M j, Y" }} · {{ timezone_name }}</p><h1>Record missed attendance</h1><p>Enter attendance on {{ employee.full_name }}’s behalf when no employee punch was recorded.</p></div><span class="status-badge status-needs-review">Employer entry</span></div>
+  </header>
+  <div class="attendance-correction-grid">
+    <main class="content-card attendance-correction-card">
+      <div class="section-heading"><div><h2>Attendance details</h2><p>Scheduled times are prefilled. Replace them with the verified actual times.</p></div></div>
+      <div class="attendance-date-guide" role="note"><strong>Shift date: {{ shift.work_date|date:"M j, Y" }}</strong><span>Enter local calendar dates and times in {{ timezone_name }}. Overnight shifts may end the next local day.</span></div>
+      {% if form.non_field_errors %}
+        <div class="form-errors attendance-correction-errors" role="alert">
+          <strong>Review the attendance entry before saving</strong>
+          <p>{{ form.non_field_errors }}</p>
+        </div>
+      {% endif %}
+      <form method="post" class="attendance-correction-form" data-attendance-correction-form data-toast-feedback="manual">
+        {% csrf_token %}<fieldset><legend class="visually-hidden">Employer-entered attendance</legend>
+          <div class="form-grid form-grid--two">
+            <div class="form-field"><label for="{{ form.clock_in_at.id_for_label }}">{{ form.clock_in_at.label }}</label>{{ form.clock_in_at }}{% for error in form.clock_in_at.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>
+            <div class="form-field"><label for="{{ form.clock_out_at.id_for_label }}">{{ form.clock_out_at.label }}</label>{{ form.clock_out_at }}{% for error in form.clock_out_at.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>
+          </div>
+          <div class="attendance-break-editor"><div class="section-heading section-heading--compact"><div><h3>Breaks</h3><p>Leave the row blank when no break was taken. Add up to three intervals.</p></div></div>{% for break_start, break_end in form.break_fields %}<div class="form-grid form-grid--two attendance-break-row" data-break-row{% if forloop.counter > form.visible_break_rows %} hidden{% endif %}><div class="form-field"><label for="{{ break_start.id_for_label }}">Break {{ forloop.counter }} start</label>{{ break_start }}{% for error in break_start.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div><div class="form-field"><label for="{{ break_end.id_for_label }}">Break {{ forloop.counter }} end</label>{{ break_end }}{% for error in break_end.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div></div>{% endfor %}<button class="attendance-add-break" type="button" data-add-break>+ Add another break</button></div>
+          <div class="form-field"><label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>{{ form.reason }}<p class="field-help">{{ form.reason.help_text }}</p>{% for error in form.reason.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>
+          <div class="attendance-correction-actions"><a class="button-secondary" href="{% url 'attendance:list' %}?date={{ shift.work_date|date:'Y-m-d' }}">Cancel</a><button class="button-primary" type="submit" data-attendance-correction-save>Review and save</button></div>
+        </fieldset>
+      </form>
+    </main>
+    <aside class="attendance-correction-side">
+      <section class="content-card attendance-original-card"><div class="section-heading section-heading--compact"><div><h2>Scheduled shift</h2><p>Reference only</p></div></div><dl class="attendance-value-list"><div><dt>Employee</dt><dd>{{ employee.full_name }}</dd></div><div><dt>Scheduled start</dt><dd>{{ shift.scheduled_start|timezone:timezone_name|date:"M j, Y, g:i A" }}</dd></div><div><dt>Scheduled end</dt><dd>{{ shift.scheduled_end|timezone:timezone_name|date:"M j, Y, g:i A" }}</dd></div></dl></section>
+      <section class="content-card attendance-history-card"><div class="section-heading section-heading--compact"><div><h2>What happens next</h2><p>Payroll safe workflow</p></div></div><ol class="attendance-correction-history"><li><p>A completed attendance session and timesheet are created.</p></li><li><p>The timesheet returns to employer review before payroll can use it.</p></li><li><p>Your name, reason, and entered timestamps remain in the audit trail.</p></li></ol></section>
+    </aside>
+  </div>
+</div>
+<dialog class="attendance-confirm-dialog" data-attendance-correction-dialog aria-labelledby="attendance-correction-confirm-title" aria-describedby="attendance-record-confirm-description"><div class="attendance-confirm-dialog__content"><span class="attendance-confirm-dialog__icon" aria-hidden="true">{% include "components/icon.html" with icon_name="alert" %}</span><p class="attendance-confirm-dialog__eyebrow">Payroll audit</p><h2 id="attendance-correction-confirm-title">Record attendance on this employee’s behalf?</h2><p id="attendance-record-confirm-description">Confirm that the entered times come from a reviewed source. A timesheet will be created and your reason retained for audit.</p><div class="attendance-confirm-dialog__actions"><button class="button-secondary" type="button" data-attendance-correction-cancel>Go back</button><button class="button-primary" type="button" data-attendance-correction-submit>Record attendance</button></div></div></dialog>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/attendance-correction.js' %}" defer></script>{% endblock %}

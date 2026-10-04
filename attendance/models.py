@@ -156,8 +156,11 @@ class AttendanceCorrection(models.Model):
     original_clock_out_at = models.DateTimeField(null=True, blank=True)
     corrected_clock_in_at = models.DateTimeField()
     corrected_clock_out_at = models.DateTimeField(null=True, blank=True)
-    original_breaks = models.JSONField(default=list)
-    corrected_breaks = models.JSONField(default=list)
+    # An empty list is a valid correction: most shifts have no recorded break.
+    # ``blank=True`` keeps model validation from treating that valid list as a
+    # missing value when the append-only correction is saved.
+    original_breaks = models.JSONField(default=list, blank=True)
+    corrected_breaks = models.JSONField(default=list, blank=True)
     reason = models.TextField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

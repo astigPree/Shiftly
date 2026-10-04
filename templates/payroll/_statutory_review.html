@@ -1,4 +1,4 @@
-<details id="statutory-review-{{ statement.pk }}" class="payroll-statutory-review"{% if statement.statutory_form.errors %} open{% endif %}>
+<details id="statutory-review-{{ statement.pk }}" class="payroll-statutory-review"{% if statement.statutory_form.errors or statement.pk == open_statutory_statement_id %} open{% endif %}>
   <summary>
     <span class="payroll-statutory-summary-label">
       <strong>{{ statement.employee.full_name }}</strong>

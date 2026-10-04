@@ -14,13 +14,13 @@
     </div>
   </header>
 
-  <nav class="settings-tabs" aria-label="Settings sections">
-    <a class="settings-tab{% if active_settings_section == 'organization' %} is-active{% endif %}"
+  <nav class="settings-tabs workspace-tabs" aria-label="Settings sections">
+    <a class="settings-tab workspace-tab{% if active_settings_section == 'organization' %} is-active{% endif %}"
        href="#organization-settings" data-settings-tab="organization"
        {% if active_settings_section == "organization" %}aria-current="location"{% endif %}>
       {% include "components/icon.html" with icon_name="settings" %}<span>Organization</span>
     </a>
-    <a class="settings-tab{% if active_settings_section == 'profile' %} is-active{% endif %}"
+    <a class="settings-tab workspace-tab{% if active_settings_section == 'profile' %} is-active{% endif %}"
        href="#profile-settings" data-settings-tab="profile"
        {% if active_settings_section == "profile" %}aria-current="location"{% endif %}>
       {% include "components/icon.html" with icon_name="user" %}<span>Profile</span>

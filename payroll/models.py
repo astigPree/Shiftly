@@ -916,10 +916,6 @@ class PayrollComponentDefinition(models.Model):
         super().clean()
         self.code = (self.code or "").strip().lower()
         self.label = (self.label or "").strip()
-        if not self.code:
-            raise ValidationError({"code": "Enter a component code."})
-        if not self.label:
-            raise ValidationError({"label": "Enter a component label."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -1143,6 +1139,10 @@ class PayrollRun(models.Model):
     finalized_at = models.DateTimeField(null=True, blank=True)
     void_reason = models.TextField(blank=True)
     review_note = models.TextField(blank=True)
+    review_revision = models.PositiveIntegerField(
+        default=0,
+        help_text="Changes to draft calculation inputs increment this revision for stale review protection.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1300,6 +1300,139 @@ class PayrollLine(models.Model):
     def delete(self, *args, **kwargs):
         if self.statement.run.status != PayrollRun.Status.DRAFT:
             raise ValidationError("Payroll lines can only be removed while the run is a draft.")
+        return super().delete(*args, **kwargs)
+
+
+class PayrollStatutoryAssessment(models.Model):
+    """One reviewable agency assessment for one employee statement.
+
+    This is the durable run-level record used by the bulk statutory workspace. The
+    legacy snapshot review remains populated for compatibility with finalized and
+    historical payroll records.
+    """
+
+    class Agency(models.TextChoices):
+        SSS = "SSS", "SSS"
+        PHILHEALTH = "PHILHEALTH", "PhilHealth"
+        PAGIBIG = "PAGIBIG", "Pag-IBIG"
+        WITHHOLDING = "WITHHOLDING", "Withholding tax"
+
+    class Status(models.TextChoices):
+        PROPOSED = "PROPOSED", "Proposed"
+        READY = "READY", "Ready"
+        NEEDS_REVIEW = "NEEDS_REVIEW", "Needs attention"
+        REVIEWED = "REVIEWED", "Reviewed"
+        SUPERSEDED = "SUPERSEDED", "Review again"
+
+    class SourceType(models.TextChoices):
+        MANUAL = "MANUAL", "Existing manual line"
+        ZERO = "ZERO", "Reviewed zero"
+        EXEMPT = "EXEMPT", "Reviewed not applicable"
+        OTHER_PERIOD = "OTHER_PERIOD", "Handled in another cutoff"
+        IMPORTED = "IMPORTED", "Imported reviewed amount"
+        CALCULATED = "CALCULATED", "Calculated amount"
+
+    statement = models.ForeignKey(
+        PayrollStatement, on_delete=models.PROTECT, related_name="statutory_assessments"
+    )
+    organization = models.ForeignKey(
+        "organizations.Organization", on_delete=models.PROTECT,
+        related_name="payroll_statutory_assessments",
+    )
+    employee = models.ForeignKey(
+        "employees.Employee", on_delete=models.PROTECT,
+        related_name="payroll_statutory_assessments",
+    )
+    agency = models.CharField(max_length=12, choices=Agency.choices)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROPOSED, db_index=True)
+    source_type = models.CharField(max_length=16, choices=SourceType.choices, default=SourceType.MANUAL)
+    coverage = models.ForeignKey(
+        EmployeeStatutoryCoverage, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="payroll_assessments",
+    )
+    rule_version = models.ForeignKey(
+        StatutoryRuleVersion, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="payroll_assessments",
+    )
+    employee_line = models.ForeignKey(
+        PayrollLine, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="employee_statutory_assessments",
+    )
+    employer_line = models.ForeignKey(
+        PayrollLine, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="employer_statutory_assessments",
+    )
+    employee_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    employer_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    calculation_basis = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    calculation_snapshot = models.JSONField(default=dict, blank=True)
+    source_reference = models.CharField(max_length=255, blank=True)
+    review_note = models.CharField(max_length=500, blank=True)
+    registration_follow_up = models.CharField(max_length=500, blank=True)
+    input_fingerprint = models.CharField(max_length=64, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="payroll_statutory_assessments_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["employee__last_name", "employee__first_name", "agency", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["statement", "agency"], name="payroll_stat_assessment_statement_agency_unique"),
+            models.CheckConstraint(check=Q(employee_amount__gte=0), name="payroll_stat_assessment_employee_nonneg"),
+            models.CheckConstraint(check=Q(employer_amount__gte=0), name="payroll_stat_assessment_employer_nonneg"),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "status", "agency"], name="payroll_stat_assess_q_idx"),
+            models.Index(fields=["statement", "status"], name="payroll_stat_assess_stmt_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.statement_id:
+            if self.statement.run.organization_id != self.organization_id:
+                raise ValidationError({"organization": "The assessment organization must match the statement run."})
+            if self.statement.employee_id != self.employee_id:
+                raise ValidationError({"employee": "The assessment employee must match the statement."})
+        if self.employee_id and self.organization_id and self.employee.organization_id != self.organization_id:
+            raise ValidationError({"employee": "The employee must belong to the assessment organization."})
+        if self.employee_line_id and (
+            self.employee_line.statement_id != self.statement_id
+            or self.employee_line.kind != PayrollLine.Kind.DEDUCTION
+            or self.employee_line.source != "MANUAL"
+        ):
+            raise ValidationError({"employee_line": "Select a manual deduction line from this statement."})
+        if self.employer_line_id and (
+            self.employer_line.statement_id != self.statement_id
+            or self.employer_line.kind != PayrollLine.Kind.EMPLOYER_CONTRIBUTION
+            or self.employer_line.source != "MANUAL"
+        ):
+            raise ValidationError({"employer_line": "Select a manual employer contribution line from this statement."})
+        if self.agency == self.Agency.WITHHOLDING and self.employer_line_id:
+            raise ValidationError({"employer_line": "Withholding tax cannot have an employer contribution line."})
+        if self.status == self.Status.REVIEWED and not (self.reviewed_by_id and self.reviewed_at and self.input_fingerprint):
+            raise ValidationError("A reviewed assessment requires reviewer evidence and a current input fingerprint.")
+
+    @property
+    def run_id(self):
+        return self.statement.run_id if self.statement_id else None
+
+    @property
+    def is_current(self):
+        return self.status == self.Status.REVIEWED and bool(self.input_fingerprint)
+
+    def save(self, *args, **kwargs):
+        if self.statement_id and self.statement.run.status != PayrollRun.Status.DRAFT and not self._state.adding:
+            raise ValidationError("Statutory assessments can only change while the payroll run is a draft.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.statement.run.status != PayrollRun.Status.DRAFT:
+            raise ValidationError("Statutory assessments can only be removed while the payroll run is a draft.")
         return super().delete(*args, **kwargs)
 
 

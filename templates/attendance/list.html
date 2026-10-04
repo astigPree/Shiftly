@@ -101,7 +101,7 @@
                   {% for exception in row.exceptions %}<span class="attendance-exception">{{ exception }}</span>{% endfor %}
                 </td>
                 <td class="attendance-actions-cell">
-                  {% if row.can_edit_attendance %}<a class="table-action-button" href="{% url 'attendance:correct' row.session.pk %}">Edit attendance</a>{% else %}<a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a>{% endif %}
+                  {% if row.can_edit_attendance %}<a class="table-action-button" href="{% url 'attendance:correct' row.session.pk %}">Edit attendance</a>{% elif row.can_record_attendance %}<a class="table-action-button" href="{% url 'attendance:record' row.shift.pk %}">Record attendance</a>{% else %}<a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a>{% endif %}
                 </td>
               </tr>
             {% endfor %}

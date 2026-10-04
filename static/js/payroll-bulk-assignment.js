@@ -3,10 +3,15 @@
   if (!(dialog instanceof HTMLDialogElement)) return;
   const count = dialog.querySelector("[data-bulk-selected-count]");
   const hidden = dialog.querySelector("[data-bulk-hidden-employees]");
+  const submit = dialog.querySelector('button[type="submit"]');
   const selected = () => Array.from(document.querySelectorAll("[data-bulk-employee]:checked"));
   const sync = () => {
     const checks = selected();
     if (count) count.textContent = checks.length ? `${checks.length} employee${checks.length === 1 ? "" : "s"} selected` : "Select employees from the table.";
+    if (submit) {
+      submit.disabled = checks.length === 0;
+      submit.setAttribute("aria-disabled", checks.length === 0 ? "true" : "false");
+    }
     if (hidden) {
       hidden.replaceChildren(...checks.map((checkbox) => {
         const input = document.createElement("input");
