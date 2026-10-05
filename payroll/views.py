@@ -2083,7 +2083,9 @@ def run_export_xlsx(request, pk):
             "statement_count": len(data["rows"]),
             "regular_count": len(data["groups"]["REGULAR"]),
             "probation_count": len(data["groups"]["PROBATION"]),
-            "format": "xlsx", "export_schema": "v1",
+            "part_time_count": len(data["groups"]["PART_TIME"]),
+            "other_count": len(data["groups"]["OTHER"]),
+            "format": "xlsx", "export_schema": "v2",
         },
     )
     return response

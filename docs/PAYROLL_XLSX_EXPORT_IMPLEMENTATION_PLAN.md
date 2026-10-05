@@ -1,7 +1,7 @@
 # Finalized payroll Excel workbook implementation plan
 
 **Prepared:** 2026-10-05  
-**Status:** Planned revision  
+**Status:** Implemented
 **Scope:** Expand the finalized payroll Excel workbook so it supports every current employment status. The workbook will contain exactly eight sheets: `Regular`, `Probation`, `Part-time`, `Other`, `Payslip Regular`, `Payslip Probation`, `Payslip Part-time`, and `Payslip Other`.
 
 ## 1. Outcome
@@ -144,9 +144,9 @@ If a statement cannot reconcile, abort the export with a clear run-level error a
 
 Add `payroll/exports.py` with narrow, testable responsibilities:
 
-- `build_finalized_run_export_data(run)` returns normalized, reconciled rows plus group totals;
-- `build_csv_response(run)` replaces the duplicated grouping logic in the current `run_export` view;
-- `build_xlsx_workbook(run)` returns an in-memory `.xlsx` document;
+- `build_finalized_export_data(run)` returns normalized, reconciled rows plus group totals;
+- `csv_export_rows(data)` supplies the existing CSV view from the shared normalized data;
+- `build_finalized_workbook(data)` returns an in-memory `.xlsx` document;
 - small helpers handle safe text, number formats, line classification, statutory amounts, and print-page construction.
 
 Use `select_related` and `prefetch_related` for statements, lines, statutory assessments, and linked statutory lines. The export must use a bounded query set and must not query once per employee.
