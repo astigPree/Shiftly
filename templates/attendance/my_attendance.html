@@ -82,7 +82,9 @@
           {% if card.breaks %}
             <details class="break-details"><summary>Break activity ({{ card.breaks|length }})</summary><ul class="break-list">{% for break in card.breaks %}<li>{{ break.started_at|timezone:organization.timezone|date:"g:i A" }}{% if break.ended_at %} – {{ break.ended_at|timezone:organization.timezone|date:"g:i A" }}{% else %} – in progress{% endif %}</li>{% endfor %}</ul></details>
           {% endif %}
-          {% if not session.clock_out_at %}
+          {% if card.biometric_required %}
+            <p class="employee-attendance-warning" role="status">Attendance is recorded by the assigned fingerprint terminal. Ask your employer to correct a missed scan.</p>
+          {% elif not session.clock_out_at %}
             <div class="action-row employee-actions">
               {% if session.status == "ON_BREAK" %}
                 <form method="post" action="{% url 'attendance:end_break' session.pk %}" data-attendance-confirm data-confirm-title="End your break?" data-confirm-description="Your break will end and your work time will resume." data-confirm-action="End break">{% csrf_token %}<button class="attendance-action-primary" type="submit">End break</button></form>
@@ -95,6 +97,8 @@
             <p class="completed-timesheet-link">Your shift is complete. <a href="{% url 'timesheets:my_detail' card.timesheet.pk %}">View timesheet</a></p>
           {% endif %}
 
+        {% elif card.biometric_required %}
+          <div class="employee-ready-state"><p>Use the assigned fingerprint terminal to record this shift.</p><p class="muted">Web clock-in is disabled for biometric-required employees.</p></div>
         {% elif card.show_clock_in and card.can_clock_in %}
           <div class="employee-ready-state">
             <p>Your clock-in window is open.</p>

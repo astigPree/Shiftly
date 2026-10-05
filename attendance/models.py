@@ -5,6 +5,12 @@ from django.db.models import Q
 
 
 class AttendanceSession(models.Model):
+    class Source(models.TextChoices):
+        EMPLOYEE_WEB = "EMPLOYEE_WEB", "Employee web"
+        EMPLOYER_MANUAL = "EMPLOYER_MANUAL", "Employer manual"
+        BIOMETRIC = "BIOMETRIC", "Biometric terminal"
+        MIXED = "MIXED", "Mixed sources"
+
     class Status(models.TextChoices):
         WORKING = "WORKING", "Working"
         ON_BREAK = "ON_BREAK", "On break"
@@ -28,6 +34,13 @@ class AttendanceSession(models.Model):
     clock_in_at = models.DateTimeField()
     clock_out_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.WORKING, db_index=True)
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.EMPLOYEE_WEB,
+        db_index=True,
+        help_text="The reviewed source that created this attendance session.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

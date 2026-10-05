@@ -13,6 +13,7 @@
       {% endif %}
     </div>
     <div class="attendance-page-tools">
+      <a class="attendance-refresh" href="{% url 'biometrics:devices' %}">{% include "components/icon.html" with icon_name="building" %}<span>Biometric devices</span></a>
       <span class="attendance-updated">Updated {{ updated_at|timezone:organization.timezone|date:"g:i A" }} · {{ organization.timezone }}</span>
       <a class="attendance-refresh" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status={{ status_filter|urlencode }}&amp;q={{ search_query|urlencode }}" aria-label="Refresh attendance">
         {% include "components/icon.html" with icon_name="refresh" icon_class="attendance-refresh-icon" %}<span>Refresh</span>
@@ -79,7 +80,7 @@
     {% if page.object_list %}
       <div class="attendance-table-wrap">
         <table class="attendance-list-table">
-          <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Clock in</th><th scope="col">Clock out</th><th scope="col">Last activity</th><th scope="col" class="attendance-actions-heading">Actions</th></tr></thead>
+          <thead><tr><th scope="col">Employee</th><th scope="col">Shift</th><th scope="col">Status</th><th scope="col">Source</th><th scope="col">Clock in</th><th scope="col">Clock out</th><th scope="col">Last activity</th><th scope="col" class="attendance-actions-heading">Actions</th></tr></thead>
           <tbody>
             {% for row in page.object_list %}
               <tr>
@@ -92,6 +93,7 @@
                   {% if row.shift.is_overnight %}<span class="attendance-overnight">Overnight</span>{% endif %}
                 </td>
                 <td><span class="status-badge status-{{ row.state.code|lower }}">{{ row.state.label }}</span></td>
+                <td><span class="attendance-source">{{ row.attendance_source }}</span></td>
                 <td>{% if row.effective_clock_in_at %}<span class="attendance-shift-time">{{ row.effective_clock_in_at|timezone:organization.timezone|date:"g:i A" }}</span>{% else %}<span class="attendance-muted">—</span>{% endif %}</td>
                 <td>{% if row.effective_clock_out_at %}<span class="attendance-shift-time">{{ row.effective_clock_out_at|timezone:organization.timezone|date:"g:i A" }}</span>{% else %}<span class="attendance-muted">—</span>{% endif %}</td>
                 <td>

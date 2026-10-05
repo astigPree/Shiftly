@@ -43,6 +43,9 @@ class AuditEvent(models.Model):
         PAYROLL_EXCEPTION_RESOLVED = "PAYROLL_EXCEPTION_RESOLVED", _("Payroll exception resolved")
         PAYROLL_EXPORT_ACCESSED = "PAYROLL_EXPORT_ACCESSED", _("Payroll export accessed")
         PAYROLL_STATEMENT_ACCESSED = "PAYROLL_STATEMENT_ACCESSED", _("Payroll statement accessed")
+        BIOMETRIC_DEVICE_ADDED = "BIOMETRIC_DEVICE_ADDED", _("Biometric device added")
+        BIOMETRIC_DEVICE_UPDATED = "BIOMETRIC_DEVICE_UPDATED", _("Biometric device updated")
+        BIOMETRIC_IDENTITY_ASSIGNED = "BIOMETRIC_IDENTITY_ASSIGNED", _("Biometric identity assigned")
 
     organization = models.ForeignKey(
         "organizations.Organization",

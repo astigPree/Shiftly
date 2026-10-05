@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from employees.models import Employee
@@ -78,6 +79,10 @@ def _ensure_clockable(shift, employee, now):
         raise PermissionDenied("The shift does not belong to the employee's organization.")
     if employee.status != Employee.Status.ACTIVE:
         raise PermissionDenied("Inactive employees cannot record attendance.")
+    if employee_requires_biometric(employee):
+        raise PermissionDenied(
+            "This employee is assigned to a biometric terminal. Use the assigned terminal or ask an employer to record a correction."
+        )
     if shift.status != Shift.Status.SCHEDULED:
         raise ValidationError("A cancelled shift cannot be clocked into.")
     earliest = shift.scheduled_start - timedelta(minutes=30)
@@ -103,6 +108,7 @@ def clock_in(*, shift, employee, actor, at=None):
             shift=shift,
             clock_in_at=now,
             status=AttendanceSession.Status.WORKING,
+            source=AttendanceSession.Source.EMPLOYEE_WEB,
         )
     except IntegrityError as error:
         raise ValidationError("An open attendance session already exists for this employee.") from error
@@ -115,9 +121,36 @@ def _locked_owned_session(session, employee, actor):
         .get(pk=session.pk)
     )
     _require_owner(session.employee, actor)
+    if employee_requires_biometric(session.employee):
+        raise PermissionDenied(
+            "This employee is assigned to a biometric terminal. Breaks and clock-out are recorded at the terminal."
+        )
     if session.employee_id != employee.pk:
         raise PermissionDenied
     return session
+
+
+def employee_requires_biometric(employee):
+    """Return whether at least one active terminal identity is assigned.
+
+    The import is intentionally local so the legacy attendance app remains
+    usable during migrations and in installations without biometric devices.
+    """
+    try:
+        from biometrics.models import DeviceIdentityAssignment
+    except ImportError:
+        return False
+    if employee.status != Employee.Status.ACTIVE:
+        return False
+    settings = getattr(employee.organization, "biometric_settings", None)
+    if not settings or not settings.enabled:
+        return False
+    return DeviceIdentityAssignment.objects.filter(
+        employee_id=employee.pk,
+        effective_from__lte=timezone.now(),
+    ).filter(
+        Q(effective_until__isnull=True) | Q(effective_until__gt=timezone.now())
+    ).filter(device_identity__device__status="ACTIVE").exists()
 
 
 @transaction.atomic
@@ -324,6 +357,7 @@ def record_attendance(*, shift, actor, clock_in_at, clock_out_at, breaks, reason
         clock_in_at=clock_in_at,
         clock_out_at=clock_out_at,
         status=AttendanceSession.Status.COMPLETED,
+        source=AttendanceSession.Source.EMPLOYER_MANUAL,
     )
     for started_at, ended_at in breaks or []:
         BreakSession.objects.create(

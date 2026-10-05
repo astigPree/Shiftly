@@ -113,6 +113,7 @@ def get_employer_attendance_dashboard(
             "can_record_attendance": bool(session is None and shift.status == Shift.Status.SCHEDULED),
             "effective_clock_in_at": effective["clock_in_at"] if effective else None,
             "effective_clock_out_at": effective["clock_out_at"] if effective else None,
+            "attendance_source": session.get_source_display() if session else "—",
         }
         all_rows.append(row)
 

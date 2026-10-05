@@ -24,6 +24,7 @@ from .services import (
     correct_attendance,
     effective_attendance_values,
     end_break,
+    employee_requires_biometric,
     last_activity,
     record_attendance,
     start_break,
@@ -317,6 +318,7 @@ def my_attendance(request):
         .order_by("work_date", "scheduled_start")
     )
     cards = []
+    biometric_required = employee_requires_biometric(employee)
     for shift in shifts:
         session = getattr(shift, "attendance_session", None)
         state = attendance_state(shift, at=now)
@@ -344,7 +346,7 @@ def my_attendance(request):
             and now < shift.scheduled_end
         )
         clock_in_opens_at = shift.scheduled_start - timedelta(minutes=30)
-        can_clock_in = show_clock_in and now >= clock_in_opens_at
+        can_clock_in = show_clock_in and now >= clock_in_opens_at and not biometric_required
         cards.append(
             {
                 "shift": shift,
@@ -366,6 +368,7 @@ def my_attendance(request):
                 "worked_duration_label": _duration_label(worked_seconds),
                 "break_duration_label": _duration_label(break_seconds),
                 "scheduled_duration_label": _employee_duration_label(shift.scheduled_minutes),
+                "biometric_required": biometric_required,
             }
         )
     has_open_session = any(card["session"] and not card["effective_clock_out_at"] for card in cards)
@@ -418,6 +421,7 @@ def my_attendance(request):
             "focus_card": focus_card,
             "upcoming_card": upcoming_card,
             "show_cancelled_notice": show_cancelled_notice,
+            "biometric_required": biometric_required,
             "show_upcoming_summary": show_upcoming_summary,
             "weekly_minutes": weekly_minutes,
             "weekly_hours_label": _employee_duration_label(weekly_minutes),

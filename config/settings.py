@@ -60,6 +60,11 @@ if not SECRET_KEY:
     else:
         raise ImproperlyConfigured("SECRET_KEY must be set when DEBUG is false.")
 
+# A dedicated Fernet key is recommended in production.  The biometric app
+# derives a development-only fallback from SECRET_KEY so existing local
+# installations can migrate before provisioning the office terminal secret.
+BIOMETRIC_CREDENTIAL_KEY = os.environ.get("BIOMETRIC_CREDENTIAL_KEY", "")
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get("ALLOWED_HOSTS", "").split(",")
@@ -96,6 +101,7 @@ INSTALLED_APPS = [
     "payroll.apps.PayrollConfig",
     "reports.apps.ReportsConfig",
     "audit.apps.AuditConfig",
+    "biometrics.apps.BiometricsConfig",
 ]
 
 MIDDLEWARE = [
