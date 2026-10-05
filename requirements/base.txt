@@ -1,3 +1,4 @@
 # Shared application dependencies; local development uses Python's built-in SQLite support.
 Django==5.2.17
 tzdata==2026.4
+openpyxl==3.1.5

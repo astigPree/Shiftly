@@ -18,7 +18,7 @@
       {% elif run.status == "REVIEW" %}
       <form method="post">{% csrf_token %}<input type="hidden" name="action" value="return_to_draft"><button class="button-secondary" type="submit">Return to draft</button></form>
       <button class="button-link" type="button" data-payroll-dialog-open="finalize-run-dialog">Finalize payroll</button><button class="button-danger-outline" type="button" data-payroll-dialog-open="void-run-dialog">Void run</button>
-      {% elif run.status == "FINALIZED" %}<a class="button-secondary" href="{% url 'payroll:run_export' run.pk %}">Export CSV</a>{% endif %}
+      {% elif run.status == "FINALIZED" %}<details class="payroll-export-menu"><summary aria-label="Export finalized payroll">Export</summary><div class="payroll-export-popover"><a href="{% url 'payroll:run_export_xlsx' run.pk %}"><span aria-hidden="true">▣</span><span>Excel workbook<small>Registers and payslips</small></span></a><a href="{% url 'payroll:run_export' run.pk %}"><span aria-hidden="true">⇩</span><span>CSV register<small>Flat statement data</small></span></a></div></details>{% endif %}
     </div>
   </header>
   <div class="payroll-run-meta" aria-label="Payroll run details">

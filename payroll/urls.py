@@ -27,6 +27,7 @@ urlpatterns = [
     path("runs/<int:pk>/statutory/bulk-review/", views.statutory_bulk_review, name="statutory_bulk_review"),
     path("runs/<int:pk>/statutory/<int:assessment_pk>/", views.statutory_exception, name="statutory_exception"),
     path("runs/<int:pk>/export.csv", views.run_export, name="run_export"),
+    path("runs/<int:pk>/export.xlsx", views.run_export_xlsx, name="run_export_xlsx"),
     path("my/", views.my_statements, name="my_statements"),
     path("my/<int:pk>/", views.my_statement_detail, name="my_statement_detail"),
 ]

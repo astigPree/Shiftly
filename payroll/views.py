@@ -23,6 +23,7 @@ from audit.models import AuditEvent
 from audit.services import record_event
 from employees.models import Employee
 from .statutory import AGENCIES, record_statutory_review, statutory_review_rows
+from .exports import PayrollExportError, build_finalized_export_data, build_finalized_workbook, csv_export_rows
 
 from .forms import (
     EmployeeCompensationForm,
@@ -2039,29 +2040,52 @@ def run_export(request, pk):
     if run.status != PayrollRun.Status.FINALIZED:
         messages.error(request, "Only finalized payroll can be exported.")
         return redirect("payroll:run_detail", pk=run.pk)
+    try:
+        data = build_finalized_export_data(run, strict_classification=False)
+    except (PayrollExportError, ImportError) as error:
+        messages.error(request, str(error))
+        return redirect("payroll:run_detail", pk=run.pk)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{run.reference.lower()}-payroll.csv"'
     response.write("\ufeff")
     writer = csv.writer(response)
     writer.writerow(["Employee code", "Employee", "Rule profiles", "Period start", "Period end", "Pay date", "Pay frequency", "Currency", "Basic pay", "Overtime premium", "Night differential", "Holiday premium", "Allowances", "Other earnings", "Employee deductions", "Employer contributions", "Gross pay", "Net pay"])
-    for statement in run.statements.select_related("employee").prefetch_related("lines"):
-        grouped = {kind: Decimal("0.00") for kind in PayrollLine.Kind.values}
-        for line in statement.lines.all():
-            grouped[line.kind] += line.amount
-        basic = sum((line.amount for line in statement.lines.all() if line.code == "REGULAR_PAY"), Decimal("0.00"))
-        overtime = sum((line.amount for line in statement.lines.all() if line.code == "OVERTIME_PREMIUM"), Decimal("0.00"))
-        night = sum((line.amount for line in statement.lines.all() if line.code == "NIGHT_DIFFERENTIAL"), Decimal("0.00"))
-        holiday = sum((line.amount for line in statement.lines.all() if line.code == "DAY_PREMIUM"), Decimal("0.00"))
-        allowances = sum((line.amount for line in statement.lines.all() if line.kind == PayrollLine.Kind.EARNING and line.source == "CALCULATED_COMPONENT"), Decimal("0.00"))
-        writer.writerow([
-            _csv_cell(statement.employee.employee_code), _csv_cell(statement.employee.full_name), _csv_cell(_statement_rule_profile_summary(statement)),
-            run.period_start.isoformat(), run.period_end.isoformat(), run.pay_date.isoformat(), run.get_pay_frequency_display(), run.currency,
-            f"{basic:.2f}", f"{overtime:.2f}", f"{night:.2f}", f"{holiday:.2f}", f"{allowances:.2f}",
-            f"{grouped[PayrollLine.Kind.EARNING] - basic - overtime - night - holiday - allowances:.2f}",
-            f"{statement.deduction_amount:.2f}", f"{statement.employer_contribution_amount:.2f}",
-            f"{statement.gross_amount:.2f}", f"{statement.net_amount:.2f}",
-        ])
-    record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_EXPORT_ACCESSED, target_type="payroll_run", target_id=run.pk, summary=f"Exported finalized payroll run {run.reference}.", metadata={"statement_count": run.statements.count(), "format": "csv"})
+    writer.writerows(csv_export_rows(data))
+    record_event(organization=organization, actor=request.user, action=AuditEvent.Action.PAYROLL_EXPORT_ACCESSED, target_type="payroll_run", target_id=run.pk, summary=f"Exported finalized payroll run {run.reference}.", metadata={"statement_count": len(data["rows"]), "format": "csv", "export_schema": "v1"})
+    return response
+
+
+@employer_required
+@require_GET
+def run_export_xlsx(request, pk):
+    organization = _organization(request)
+    run = get_object_or_404(PayrollRun.objects.filter(organization=organization), pk=pk)
+    if run.status != PayrollRun.Status.FINALIZED:
+        messages.error(request, "Only finalized payroll can be exported.")
+        return redirect("payroll:run_detail", pk=run.pk)
+    try:
+        data = build_finalized_export_data(run)
+        workbook = build_finalized_workbook(data)
+    except (PayrollExportError, ImportError) as error:
+        messages.error(request, str(error))
+        return redirect("payroll:run_detail", pk=run.pk)
+    response = HttpResponse(
+        workbook.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{run.reference.lower()}-payroll.xlsx"'
+    record_event(
+        organization=organization, actor=request.user,
+        action=AuditEvent.Action.PAYROLL_EXPORT_ACCESSED,
+        target_type="payroll_run", target_id=run.pk,
+        summary=f"Exported finalized payroll run {run.reference} as Excel.",
+        metadata={
+            "statement_count": len(data["rows"]),
+            "regular_count": len(data["groups"]["REGULAR"]),
+            "probation_count": len(data["groups"]["PROBATION"]),
+            "format": "xlsx", "export_schema": "v1",
+        },
+    )
     return response
 
 
