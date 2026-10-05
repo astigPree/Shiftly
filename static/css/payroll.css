@@ -1762,7 +1762,11 @@ html.payroll-dialog-open { overflow: hidden; }
 }
 .statutory-bulk-filters button { min-height: 42px; white-space: nowrap; }
 .statutory-bulk-selection-bar { position: sticky; top: 12px; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #b7d0fa; border-radius: 10px; background: #eff6ff; box-shadow: 0 3px 12px rgba(29, 78, 216, .08); }
-.statutory-bulk-selection-bar span { margin-right: auto; color: #25446d; }
+.statutory-selection-summary { display: grid; gap: 2px; margin-right: auto; color: #25446d; }
+.statutory-selection-summary strong { color: #14213d; font-size: 15px; }
+.statutory-selection-summary span { font-size: 14px; }
+.statutory-selection-summary small { color: #607494; font-size: 12px; }
+.statutory-bulk-selection-bar.is-all-selected { border-color: #6ca0f5; background: #e6f0ff; }
 .statutory-bulk-selection-bar button:disabled { opacity: .55; cursor: not-allowed; }
 .statutory-bulk-table-wrap { border: 1px solid var(--border, #d8e1ee); border-radius: 10px; }
 .statutory-bulk-table th, .statutory-bulk-table td { vertical-align: middle; }
@@ -1812,7 +1816,7 @@ html.payroll-dialog-open { overflow: hidden; }
   .statutory-bulk-toolbar form, .statutory-bulk-toolbar button { width: 100%; }
   .statutory-bulk-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .statutory-bulk-selection-bar { align-items: stretch; flex-wrap: wrap; }
-  .statutory-bulk-selection-bar span { width: 100%; }
+  .statutory-selection-summary { width: 100%; }
   .statutory-bulk-selection-bar button { flex: 1 1 auto; }
   .statutory-bulk-table { min-width: 760px; }
   .statutory-summary-callout { grid-template-columns: minmax(0, 1fr); }

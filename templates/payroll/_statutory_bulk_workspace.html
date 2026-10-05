@@ -1,4 +1,4 @@
-<div class="statutory-bulk-workspace" data-statutory-workspace data-run-revision="{{ run.review_revision }}">
+<div class="statutory-bulk-workspace" data-statutory-workspace data-run-revision="{{ run.review_revision }}" data-statutory-matching-count="{{ statutory_bulk_matching_count }}">
   <div class="statutory-bulk-toolbar">
     <div>
       <p class="payroll-eyebrow">Run-level review</p>
@@ -45,10 +45,10 @@
 
   {% if run.status == "DRAFT" %}
   <div class="statutory-bulk-selection-bar" data-statutory-selection-bar>
-    <span><strong data-statutory-selected-count>0</strong> selected</span>
+    <div class="statutory-selection-summary" aria-live="polite"><strong data-statutory-selected-count>0</strong><span data-statutory-selection-label>assessments selected</span><small data-statutory-selection-note>Select rows on this page or select all matching assessments across pages.</small></div>
     <button class="table-action-button" type="button" data-statutory-select-visible>Select visible</button>
-    <button class="table-action-button" type="button" data-statutory-select-all>Select all matching</button>
-    <button class="button-link" type="button" data-statutory-open-bulk-review>Review selected</button>
+    <button class="table-action-button" type="button" data-statutory-select-all aria-pressed="false">Select all matching</button>
+    <button class="button-link" type="button" data-statutory-open-bulk-review disabled>Review selected</button>
   </div>
   {% endif %}
 

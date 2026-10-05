@@ -166,6 +166,9 @@ def _statutory_workspace_context(run, request, *, form=None):
         "statutory_assessment_page": page,
         "statutory_assessment_filters": {"q": search, "agency": agency, "status": status, "source": source},
         "statutory_assessment_counts": counts,
+        "statutory_bulk_matching_count": assessments.exclude(
+            status__in=[PayrollStatutoryAssessment.Status.REVIEWED, PayrollStatutoryAssessment.Status.SUPERSEDED]
+        ).count(),
         "statutory_assessment_page_size": page_size,
         "statutory_bulk_form": form or PayrollStatutoryBulkReviewForm(),
         "statutory_assessment_count": counts["total"],
@@ -1702,8 +1705,7 @@ def statutory_bulk_review(request, pk):
             query = query.filter(agency=filters["stat_agency"])
         if filters["stat_status"]:
             query = query.filter(status=filters["stat_status"])
-        else:
-            query = query.exclude(status__in=[PayrollStatutoryAssessment.Status.REVIEWED, PayrollStatutoryAssessment.Status.SUPERSEDED])
+        query = query.exclude(status__in=[PayrollStatutoryAssessment.Status.REVIEWED, PayrollStatutoryAssessment.Status.SUPERSEDED])
         if filters["stat_source"]:
             query = query.filter(source_type=filters["stat_source"])
         assessment_ids = list(query.values_list("pk", flat=True))

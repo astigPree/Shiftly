@@ -11,15 +11,29 @@
   const selected = () => checkboxes().filter((box) => box.checked);
   const selectionBar = workspace.querySelector("[data-statutory-selection-bar]");
   const selectionCount = workspace.querySelector("[data-statutory-selected-count]");
+  const selectionLabel = workspace.querySelector("[data-statutory-selection-label]");
+  const selectionNote = workspace.querySelector("[data-statutory-selection-note]");
   const visibleToggle = workspace.querySelector("[data-statutory-toggle-visible]");
+  const selectAllButton = workspace.querySelector("[data-statutory-select-all]");
   const scopeInput = workspace.querySelector("[data-statutory-selection-scope]");
+  const matchingCount = Number(workspace.dataset.statutoryMatchingCount || 0);
 
   const updateSelection = () => {
     const rows = selected();
+    const allMatching = scopeInput?.value === "all";
     if (selectionBar) selectionBar.hidden = false;
-    if (selectionCount) selectionCount.textContent = String(rows.length);
+    selectionBar?.classList.toggle("is-all-selected", allMatching);
+    if (selectionCount) selectionCount.textContent = String(allMatching ? matchingCount : rows.length);
+    if (selectionLabel) selectionLabel.textContent = allMatching ? "matching assessments selected across all pages" : "assessments selected";
+    if (selectionNote) selectionNote.textContent = allMatching
+      ? "Rows on other pages are included. Clear this selection to review only visible rows."
+      : "Select rows on this page or select all matching assessments across pages.";
+    if (selectAllButton) {
+      selectAllButton.textContent = allMatching ? "Clear all matching" : "Select all matching";
+      selectAllButton.setAttribute("aria-pressed", String(allMatching));
+    }
     const reviewButton = workspace.querySelector("[data-statutory-open-bulk-review]");
-    if (reviewButton) reviewButton.disabled = rows.length === 0 && scopeInput?.value !== "all";
+    if (reviewButton) reviewButton.disabled = allMatching ? matchingCount === 0 : rows.length === 0;
     if (visibleToggle) {
       const enabled = checkboxes();
       visibleToggle.checked = enabled.length > 0 && enabled.every((box) => box.checked);
@@ -51,11 +65,23 @@
     if (scopeInput) scopeInput.value = "visible";
     updateSelection();
   });
-  workspace.querySelector("[data-statutory-select-all]")?.addEventListener("click", () => {
+  selectAllButton?.addEventListener("click", () => {
+    const allMatching = scopeInput?.value === "all";
+    if (allMatching) {
+      if (scopeInput) scopeInput.value = "visible";
+      checkboxes().forEach((box) => { box.checked = false; });
+      updateSelection();
+      showToast("info", "Cleared the all-pages selection.");
+      return;
+    }
+    if (matchingCount === 0) {
+      showToast("info", "No unresolved assessments match the current filters.");
+      return;
+    }
+    checkboxes().forEach((box) => { box.checked = true; });
     if (scopeInput) scopeInput.value = "all";
-    if (selectionCount) selectionCount.textContent = "all matching";
-    if (selectionBar) selectionBar.hidden = false;
-    showToast("info", "All rows matching the current filters will be reviewed.");
+    updateSelection();
+    showToast("info", `${matchingCount} matching assessment${matchingCount === 1 ? "" : "s"} selected across all pages.`);
   });
 
   const dialog = workspace.querySelector("#bulk-statutory-dialog");
