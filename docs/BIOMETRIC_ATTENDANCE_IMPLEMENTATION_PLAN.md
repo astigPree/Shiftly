@@ -1113,6 +1113,11 @@ Use additive migrations only.
 
 ### 14.3 End-to-end acceptance scenario
 
+Use the detailed, repeatable acceptance guide in
+[`BIOMETRIC_ATTENDANCE_END_TO_END_SCENARIO.md`](BIOMETRIC_ATTENDANCE_END_TO_END_SCENARIO.md)
+for the full terminal-to-payroll workflow, exception paths, evidence capture,
+and pilot sign-off. The concise checklist below remains the plan-level summary.
+
 1. Configure Main Entrance F7 and Warehouse F7 for one organization.
 2. Test both connections and sync their users.
 3. Map one employee to a different ID on each terminal.
