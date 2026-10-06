@@ -21,28 +21,34 @@ def device_list(request):
     organization = organization_for_user(request.user)
     settings_obj, _ = OrganizationBiometricSettings.objects.get_or_create(organization=organization)
     devices = list(AttendanceDevice.objects.filter(organization=organization).prefetch_related("identities"))
+    settings_modal_open = False
+    add_terminal_modal_open = False
     if request.method == "POST":
         settings_form = BiometricSettingsForm(request.POST, instance=settings_obj)
         device_form = AttendanceDeviceForm(request.POST)
-        if "save-settings" in request.POST and settings_form.is_valid():
-            settings_form.save()
-            messages.success(request, "Biometric sync settings saved.")
-            return redirect("biometrics:devices")
-        if "add-device" in request.POST and device_form.is_valid():
-            device = device_form.save(commit=False)
-            device.organization = organization
-            device.save()
-            record_event(
-                organization=organization,
-                actor=request.user,
-                action=AuditEvent.Action.BIOMETRIC_DEVICE_ADDED,
-                target_type="biometric_device",
-                target_id=device.pk,
-                summary=f"Added biometric device {device.name}.",
-                metadata={"model": device.model, "host": device.host, "port": device.port},
-            )
-            messages.success(request, f"{device.name} was added. Test the connection before assigning employees.")
-            return redirect("biometrics:devices")
+        if "save-settings" in request.POST:
+            settings_modal_open = True
+            if settings_form.is_valid():
+                settings_form.save()
+                messages.success(request, "Biometric sync settings saved.")
+                return redirect("biometrics:devices")
+        if "add-device" in request.POST:
+            add_terminal_modal_open = True
+            if device_form.is_valid():
+                device = device_form.save(commit=False)
+                device.organization = organization
+                device.save()
+                record_event(
+                    organization=organization,
+                    actor=request.user,
+                    action=AuditEvent.Action.BIOMETRIC_DEVICE_ADDED,
+                    target_type="biometric_device",
+                    target_id=device.pk,
+                    summary=f"Added biometric device {device.name}.",
+                    metadata={"model": device.model, "host": device.host, "port": device.port},
+                )
+                messages.success(request, f"{device.name} was added. Test the connection before assigning employees.")
+                return redirect("biometrics:devices")
     else:
         settings_form = BiometricSettingsForm(instance=settings_obj)
         device_form = AttendanceDeviceForm()
@@ -85,6 +91,8 @@ def device_list(request):
         "unmapped_id_count": max(0, len(identities) - mapped_ids),
         "healthy_device_count": sum(1 for device in devices if device.health == AttendanceDevice.Health.HEALTHY),
         "last_successful_sync": last_successful_sync,
+        "settings_modal_open": settings_modal_open,
+        "add_terminal_modal_open": add_terminal_modal_open,
         "setup_steps": [
             {"label": "Enable biometric attendance", "detail": "Turn on sync settings", "done": settings_obj.enabled},
             {"label": "Add a terminal", "detail": "Connect your office device", "done": bool(devices)},
