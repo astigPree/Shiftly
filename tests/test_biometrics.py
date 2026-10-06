@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from attendance.services import clock_in
+from biometrics.forms import DeviceIdentityAssignmentForm
 from biometrics.models import (
     AttendanceDevice,
     BiometricAttendanceProjection,
@@ -15,7 +16,15 @@ from biometrics.models import (
     DeviceSyncRun,
     OrganizationBiometricSettings,
 )
-from biometrics.services import BiometricDeviceError, assign_identity, reconcile_biometric_projection, sync_device_users
+from biometrics.services import (
+    BiometricConfigurationError,
+    BiometricDeviceError,
+    BiometricErrorCode,
+    assign_identity,
+    reconcile_biometric_projection,
+    sync_device_users,
+    test_device_connection,
+)
 from schedules.models import Shift
 
 from .factories import employee, workspace
@@ -135,3 +144,101 @@ class BiometricWorkflowTests(TestCase):
         self.assertEqual(DeviceSyncRun.objects.latest("id").status, DeviceSyncRun.Status.FAILED)
         self.device.refresh_from_db()
         self.assertEqual(self.device.health, AttendanceDevice.Health.OFFLINE)
+
+    def test_identity_form_binds_identity_before_model_validation(self):
+        form = DeviceIdentityAssignmentForm(
+            data={
+                "employee": self.employee.pk,
+                "effective_from": "2026-09-21T00:00",
+                "effective_until": "",
+            },
+            organization=self.organization,
+            identity=self.identity,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.instance.device_identity_id, self.identity.pk)
+
+    def test_identity_form_reports_overlap_without_relation_exception(self):
+        DeviceIdentityAssignment.objects.create(
+            device_identity=self.identity,
+            employee=self.employee,
+            effective_from=self._utc(0),
+            assigned_by=self.owner,
+        )
+        form = DeviceIdentityAssignmentForm(
+            data={
+                "employee": self.employee.pk,
+                "effective_from": "2026-09-21T09:00",
+                "effective_until": "",
+            },
+            organization=self.organization,
+            identity=self.identity,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("overlapping assignment", str(form.errors).lower())
+
+    def test_identity_mapping_post_saves_without_server_error(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("biometrics:identities", args=[self.device.pk]),
+            {
+                "identity": self.identity.pk,
+                "employee": self.employee.pk,
+                "effective_from": "2026-09-21T00:00",
+                "effective_until": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(DeviceIdentityAssignment.objects.filter(
+            device_identity=self.identity,
+            employee=self.employee,
+        ).exists())
+
+    def test_identity_mapping_missing_context_returns_form_error(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(
+            reverse("biometrics:identities", args=[self.device.pk]),
+            {
+                "identity": "999999",
+                "employee": self.employee.pk,
+                "effective_from": "2026-09-21T00:00",
+                "effective_until": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "no longer available")
+
+    def test_failed_connection_test_is_recorded_and_releases_lock(self):
+        class FailingAdapter:
+            def test_connection(self):
+                raise BiometricDeviceError("terminal unavailable")
+
+        with self.assertRaises(BiometricDeviceError) as context:
+            test_device_connection(self.device, actor=self.owner, adapter=FailingAdapter())
+        self.assertEqual(context.exception.code, BiometricErrorCode.NETWORK_UNREACHABLE)
+        run = DeviceSyncRun.objects.latest("id")
+        self.assertEqual(run.kind, DeviceSyncRun.Kind.CONNECTION)
+        self.assertEqual(run.status, DeviceSyncRun.Status.FAILED)
+        self.assertEqual(run.error_code, BiometricErrorCode.NETWORK_UNREACHABLE)
+        self.device.refresh_from_db()
+        self.assertEqual(self.device.sync_lock_until, None)
+        self.assertEqual(self.device.health, AttendanceDevice.Health.OFFLINE)
+
+    def test_locked_sync_creates_skipped_run(self):
+        self.device.sync_lock_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+        self.device.save(update_fields=["sync_lock_until"])
+        result = sync_device_users(self.device, actor=self.owner)
+        self.assertEqual(result["status"], DeviceSyncRun.Status.SKIPPED)
+        self.assertEqual(result["error_code"], BiometricErrorCode.SYNC_LOCKED)
+        self.assertEqual(result["run"].error_code, BiometricErrorCode.SYNC_LOCKED)
+
+    def test_unsupported_device_fails_safely_and_releases_lock(self):
+        self.device.model = "Unsupported Terminal"
+        self.device.save(update_fields=["model"])
+        with self.assertRaises(BiometricConfigurationError) as context:
+            test_device_connection(self.device, actor=self.owner)
+        self.assertEqual(context.exception.code, BiometricErrorCode.UNSUPPORTED_DEVICE)
+        run = DeviceSyncRun.objects.latest("id")
+        self.assertEqual(run.error_code, BiometricErrorCode.UNSUPPORTED_DEVICE)
+        self.device.refresh_from_db()
+        self.assertIsNone(self.device.sync_lock_until)

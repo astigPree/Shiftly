@@ -24,10 +24,20 @@ class AttendanceDeviceForm(forms.ModelForm):
         fields = ["name", "model", "host", "port", "timezone", "sync_interval_seconds", "status"]
         widgets = {"sync_interval_seconds": forms.NumberInput(attrs={"min": 30, "max": 86400})}
 
+    def clean_communication_password(self):
+        password = self.cleaned_data.get("communication_password", "")
+        if password and not password.isdigit():
+            raise forms.ValidationError("Use the numeric communication password configured on the terminal.")
+        return password
+
     def save(self, commit=True):
         instance = super().save(commit=False)
         password = self.cleaned_data.get("communication_password", "")
         if password:
+            # Encryption can fail when the deployment key or cryptography
+            # dependency is unavailable.  Keep that as a typed configuration
+            # error so the view can attach it to the form instead of returning
+            # a server error.
             instance.communication_password_encrypted = encrypt_password(password)
         if commit:
             instance.save()
@@ -46,6 +56,12 @@ class DeviceIdentityAssignmentForm(forms.ModelForm):
     def __init__(self, *args, organization=None, identity=None, **kwargs):
         self.identity = identity
         super().__init__(*args, **kwargs)
+        # ModelForm._post_clean() runs the model's clean() method during
+        # is_valid().  Bind the identity before that lifecycle step; assigning
+        # it only in save() leaves DeviceIdentityAssignment.clean() with an
+        # unloaded foreign-key relation and causes RelatedObjectDoesNotExist.
+        if identity is not None:
+            self.instance.device_identity = identity
         if organization is not None:
             self.fields["employee"].queryset = organization.employees.filter(status="ACTIVE").order_by("last_name", "first_name")
 

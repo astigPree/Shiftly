@@ -22,6 +22,9 @@ The first implementation slice is now present in the repository:
 - Mapped employees are blocked from web clock-in, break, and clock-out at both
   the service and UI layers. A reviewed projection can be materialized into the
   existing attendance, break, and timesheet records with source `BIOMETRIC`.
+- Mapping validation now binds terminal identity context before model validation,
+  and connection/sync operations use stable error codes, durable skipped/failed
+  runs, safe operator messages, and guaranteed device-lock cleanup.
 
 The remaining gates are deliberate: prove the adapter against the actual F7
 firmware and office network, add hardware clock-drift diagnostics and richer raw
@@ -1117,6 +1120,10 @@ Use the detailed, repeatable acceptance guide in
 [`BIOMETRIC_ATTENDANCE_END_TO_END_SCENARIO.md`](BIOMETRIC_ATTENDANCE_END_TO_END_SCENARIO.md)
 for the full terminal-to-payroll workflow, exception paths, evidence capture,
 and pilot sign-off. The concise checklist below remains the plan-level summary.
+
+For the mapping-validation crash and terminal connection, sync, and recovery
+paths, use the companion
+[BIOMETRIC_ERROR_HANDLING_IMPLEMENTATION_PLAN.md](BIOMETRIC_ERROR_HANDLING_IMPLEMENTATION_PLAN.md).
 
 1. Configure Main Entrance F7 and Warehouse F7 for one organization.
 2. Test both connections and sync their users.

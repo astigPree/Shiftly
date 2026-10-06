@@ -151,17 +151,28 @@ class DeviceIdentityAssignment(models.Model):
 
     def clean(self):
         super().clean()
-        if self.effective_until and self.effective_until <= self.effective_from:
+        if self.effective_until and self.effective_from and self.effective_until <= self.effective_from:
             raise ValidationError({"effective_until": "The end must be after the effective start."})
         if self.device_identity_id and self.employee_id:
-            if self.device_identity.device.organization_id != self.employee.organization_id:
+            device_organization_id = DeviceIdentity.objects.filter(
+                pk=self.device_identity_id
+            ).values_list("device__organization_id", flat=True).first()
+            employee_organization_id = self.employee.organization_id
+            if device_organization_id and employee_organization_id and device_organization_id != employee_organization_id:
                 raise ValidationError("The device and employee must belong to the same organization.")
-        overlapping = DeviceIdentityAssignment.objects.filter(device_identity=self.device_identity).exclude(pk=self.pk)
-        if self.effective_until:
-            overlapping = overlapping.filter(effective_from__lt=self.effective_until)
-        overlapping = overlapping.filter(Q(effective_until__isnull=True) | Q(effective_until__gt=self.effective_from))
-        if overlapping.exists():
-            raise ValidationError("This terminal identity already has an overlapping assignment.")
+        # A model instance can be partially populated while a ModelForm is
+        # validating it.  Never dereference a missing relation descriptor.
+        if self.device_identity_id and self.effective_from:
+            overlapping = DeviceIdentityAssignment.objects.filter(
+                device_identity_id=self.device_identity_id
+            ).exclude(pk=self.pk)
+            if self.effective_until:
+                overlapping = overlapping.filter(effective_from__lt=self.effective_until)
+            overlapping = overlapping.filter(
+                Q(effective_until__isnull=True) | Q(effective_until__gt=self.effective_from)
+            )
+            if overlapping.exists():
+                raise ValidationError("This terminal identity already has an overlapping assignment.")
 
 
 class DeviceSyncRun(models.Model):
@@ -196,15 +207,20 @@ class DeviceSyncRun(models.Model):
         ordering = ["-started_at", "-id"]
         indexes = [models.Index(fields=["device", "-started_at"], name="biometric_sync_device_idx")]
 
-    def finish(self, status, *, error_code="", error_message="", **counts):
+    def finish(self, status, *, error_code="", error_message="", diagnostics=None, **counts):
         self.status = status
         self.finished_at = timezone.now()
         self.error_code = error_code
         self.error_message = error_message[:4000]
+        if diagnostics is not None:
+            self.diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
         for field, value in counts.items():
             if field in {"users_seen", "punches_seen", "punches_created", "punches_duplicate", "issues_created"}:
                 setattr(self, field, max(0, int(value or 0)))
-        self.save(update_fields=["status", "finished_at", "error_code", "error_message", *counts.keys()])
+        update_fields = ["status", "finished_at", "error_code", "error_message", *counts.keys()]
+        if diagnostics is not None:
+            update_fields.append("diagnostics")
+        self.save(update_fields=update_fields)
 
 
 class BiometricPunch(models.Model):

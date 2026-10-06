@@ -7,13 +7,14 @@ another terminal provider and keeps tests deterministic.
 
 import hashlib
 import json
+import socket
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -32,12 +33,81 @@ from .models import (
 )
 
 
-class BiometricDeviceError(Exception):
-    """A safe, operator-facing device error without credentials."""
+class BiometricErrorCode:
+    """Stable error identifiers shared by adapters, services, and views."""
+
+    CONFIGURATION = "BIO-CONFIG-INVALID"
+    CREDENTIAL_KEY = "BIO-CREDENTIAL-KEY"
+    CREDENTIAL_DECRYPT = "BIO-CREDENTIAL-DECRYPT"
+    CREDENTIAL_FORMAT = "BIO-CREDENTIAL-FORMAT"
+    ADAPTER_MISSING = "BIO-ADAPTER-MISSING"
+    UNSUPPORTED_DEVICE = "BIO-UNSUPPORTED-DEVICE"
+    NETWORK_UNREACHABLE = "BIO-NETWORK-UNREACHABLE"
+    NETWORK_TIMEOUT = "BIO-NETWORK-TIMEOUT"
+    AUTHENTICATION = "BIO-AUTHENTICATION-FAILED"
+    PROTOCOL = "BIO-PROTOCOL-ERROR"
+    PAYLOAD = "BIO-PAYLOAD-INVALID"
+    SYNC_LOCKED = "BIO-SYNC-LOCKED"
+    DATABASE = "BIO-DATABASE"
+    INTERNAL = "BIO-INTERNAL"
 
 
-class BiometricConfigurationError(Exception):
-    pass
+class BiometricOperationError(Exception):
+    """Safe structured error for an expected biometric operation failure."""
+
+    def __init__(
+        self,
+        operator_message,
+        *,
+        code=BiometricErrorCode.INTERNAL,
+        category="INTERNAL",
+        retryable=False,
+        health_outcome=AttendanceDevice.Health.DEGRADED,
+        operator_action="",
+        diagnostics=None,
+    ):
+        super().__init__(operator_message)
+        self.code = code
+        self.category = category
+        self.retryable = bool(retryable)
+        self.health_outcome = health_outcome
+        self.operator_message = operator_message
+        self.operator_action = operator_action
+        self.diagnostics = diagnostics if isinstance(diagnostics, dict) else {}
+
+
+class BiometricDeviceError(BiometricOperationError):
+    """Safe, operator-facing device error without credentials."""
+
+    def __init__(self, operator_message, **kwargs):
+        kwargs.setdefault("code", BiometricErrorCode.NETWORK_UNREACHABLE)
+        kwargs.setdefault("category", "NETWORK")
+        kwargs.setdefault("retryable", True)
+        kwargs.setdefault("health_outcome", AttendanceDevice.Health.OFFLINE)
+        super().__init__(operator_message, **kwargs)
+
+
+class BiometricConfigurationError(BiometricOperationError):
+    """A device configuration or credential cannot be used safely."""
+
+    def __init__(self, operator_message, **kwargs):
+        kwargs.setdefault("code", BiometricErrorCode.CONFIGURATION)
+        kwargs.setdefault("category", "CONFIGURATION")
+        kwargs.setdefault("health_outcome", AttendanceDevice.Health.DEGRADED)
+        super().__init__(operator_message, **kwargs)
+
+
+def safe_operation_error(error, fallback="Shiftly could not complete this biometric operation."):
+    """Convert an unexpected exception into a safe, non-leaking result."""
+    if isinstance(error, BiometricOperationError):
+        return error
+    return BiometricOperationError(
+        fallback,
+        code=BiometricErrorCode.INTERNAL,
+        category="INTERNAL",
+        health_outcome=AttendanceDevice.Health.DEGRADED,
+        diagnostics={"exception_type": error.__class__.__name__},
+    )
 
 
 @dataclass(frozen=True)
@@ -70,13 +140,20 @@ def _fernet():
         from cryptography.fernet import Fernet
     except ImportError as error:
         raise BiometricConfigurationError(
-            "Install the cryptography package before saving biometric device credentials."
+            "The biometric credential encryption dependency is not available on this server.",
+            code=BiometricErrorCode.CREDENTIAL_KEY,
+            category="CONFIGURATION",
+            operator_action="Contact the system administrator.",
+            diagnostics={"exception_type": error.__class__.__name__},
         ) from error
     configured = getattr(settings, "BIOMETRIC_CREDENTIAL_KEY", "") or ""
     if not configured:
         if not getattr(settings, "DEBUG", False):
             raise BiometricConfigurationError(
-                "Set BIOMETRIC_CREDENTIAL_KEY before storing biometric device credentials in production."
+                "The biometric credential encryption key is not configured.",
+                code=BiometricErrorCode.CREDENTIAL_KEY,
+                category="CONFIGURATION",
+                operator_action="Contact the system administrator.",
             )
         # Development fallback keeps local setup usable while deployments can
         # require a dedicated key through the settings environment variable.
@@ -87,7 +164,13 @@ def _fernet():
     try:
         return Fernet(configured)
     except Exception as error:
-        raise BiometricConfigurationError("BIOMETRIC_CREDENTIAL_KEY is not a valid Fernet key.") from error
+        raise BiometricConfigurationError(
+            "The biometric credential encryption key is invalid.",
+            code=BiometricErrorCode.CREDENTIAL_KEY,
+            category="CONFIGURATION",
+            operator_action="Contact the system administrator.",
+            diagnostics={"exception_type": error.__class__.__name__},
+        ) from error
 
 
 def encrypt_password(password: str) -> str:
@@ -102,7 +185,15 @@ def decrypt_password(device: AttendanceDevice) -> str:
     try:
         return _fernet().decrypt(device.communication_password_encrypted.encode("ascii")).decode("utf-8")
     except Exception as error:
-        raise BiometricConfigurationError("The saved device credential could not be decrypted.") from error
+        if isinstance(error, BiometricOperationError):
+            raise
+        raise BiometricConfigurationError(
+            "The saved terminal credential could not be decrypted. Enter it again.",
+            code=BiometricErrorCode.CREDENTIAL_DECRYPT,
+            category="CONFIGURATION",
+            operator_action="Edit the terminal and save its communication password again.",
+            diagnostics={"exception_type": error.__class__.__name__},
+        ) from error
 
 
 def _operator_required(actor, organization):
@@ -129,19 +220,73 @@ class ZKTecoF7Adapter:
         try:
             from zk import ZK
         except ImportError as error:
-            raise BiometricDeviceError("The F7 adapter is not installed on this server (missing pyzk).") from error
+            raise BiometricConfigurationError(
+                "The ZKTeco F7 adapter is not installed on this server.",
+                code=BiometricErrorCode.ADAPTER_MISSING,
+                category="CONFIGURATION",
+                operator_action="Install and configure the supported F7 adapter.",
+                diagnostics={"exception_type": error.__class__.__name__},
+            ) from error
+        password = decrypt_password(self.device)
+        if password and not password.isdigit():
+            raise BiometricConfigurationError(
+                "The terminal communication password must be numeric for this adapter.",
+                code=BiometricErrorCode.CREDENTIAL_FORMAT,
+                category="CONFIGURATION",
+                operator_action="Edit the terminal and enter its numeric communication password.",
+            )
         try:
             client = ZK(
                 self.device.host,
                 port=self.device.port,
-                password=int(decrypt_password(self.device) or 0),
+                password=int(password or 0),
                 timeout=8,
                 ommit_ping=False,
             )
             self._connection = client.connect()
             return self._connection
         except Exception as error:
-            raise BiometricDeviceError(f"Could not reach {self.device.name} at {self.device.host}:{self.device.port}.") from error
+            details = f"{error.__class__.__name__} {error}".lower()
+            if isinstance(error, (TimeoutError, socket.timeout)) or "timeout" in details:
+                raise BiometricDeviceError(
+                    f"{self.device.name} did not respond in time.",
+                    code=BiometricErrorCode.NETWORK_TIMEOUT,
+                    category="NETWORK",
+                    retryable=True,
+                    health_outcome=AttendanceDevice.Health.DEGRADED,
+                    operator_action="Check the terminal power and office network. Scheduled sync will retry.",
+                    diagnostics={"exception_type": error.__class__.__name__},
+                ) from error
+            if any(term in details for term in ("password", "auth", "permission", "unauthorized", "denied")):
+                raise BiometricDeviceError(
+                    f"{self.device.name} rejected its communication password.",
+                    code=BiometricErrorCode.AUTHENTICATION,
+                    category="AUTHENTICATION",
+                    health_outcome=AttendanceDevice.Health.DEGRADED,
+                    operator_action="Edit the terminal and test the saved communication password.",
+                    diagnostics={"exception_type": error.__class__.__name__},
+                ) from error
+            if isinstance(error, (ConnectionError, OSError)) or any(
+                term in details
+                for term in ("can't connect", "cannot connect", "connection refused", "unreachable", "no route", "network")
+            ):
+                raise BiometricDeviceError(
+                    f"{self.device.name} could not be reached on the office network.",
+                    code=BiometricErrorCode.NETWORK_UNREACHABLE,
+                    category="NETWORK",
+                    retryable=True,
+                    health_outcome=AttendanceDevice.Health.OFFLINE,
+                    operator_action="Check power, LAN access, host, and port 4370.",
+                    diagnostics={"exception_type": error.__class__.__name__},
+                ) from error
+            raise BiometricDeviceError(
+                f"{self.device.name} returned an unsupported connection response.",
+                code=BiometricErrorCode.PROTOCOL,
+                category="PROTOCOL",
+                health_outcome=AttendanceDevice.Health.DEGRADED,
+                operator_action="Review the terminal firmware and connection details.",
+                diagnostics={"exception_type": error.__class__.__name__},
+            ) from error
 
     def close(self):
         if self._connection is not None:
@@ -152,8 +297,8 @@ class ZKTecoF7Adapter:
             self._connection = None
 
     def test_connection(self):
-        connection = self._connect()
         try:
+            connection = self._connect()
             firmware = str(getattr(connection, "get_device_name", lambda: "")() or "")
             serial = str(getattr(connection, "get_serialnumber", lambda: "")() or "")
             return DeviceInfo(firmware=firmware, serial_number=serial, model=self.device.model)
@@ -161,8 +306,8 @@ class ZKTecoF7Adapter:
             self.close()
 
     def list_users(self):
-        connection = self._connect()
         try:
+            connection = self._connect()
             users = []
             for item in connection.get_users() or []:
                 terminal_id = str(getattr(item, "user_id", None) or getattr(item, "uid", "")).strip()
@@ -175,13 +320,22 @@ class ZKTecoF7Adapter:
                 ))
             return users
         except Exception as error:
-            raise BiometricDeviceError(f"{self.device.name} returned an invalid user list.") from error
+            if isinstance(error, BiometricOperationError):
+                raise
+            raise BiometricDeviceError(
+                f"{self.device.name} returned an invalid user list.",
+                code=BiometricErrorCode.PAYLOAD,
+                category="DATA",
+                health_outcome=AttendanceDevice.Health.DEGRADED,
+                operator_action="Review the sync operation details.",
+                diagnostics={"exception_type": error.__class__.__name__},
+            ) from error
         finally:
             self.close()
 
     def list_punches(self, since=None):
-        connection = self._connect()
         try:
+            connection = self._connect()
             rows = []
             for item in connection.get_attendance() or []:
                 local_value = getattr(item, "timestamp", None) or getattr(item, "time", None)
@@ -208,15 +362,31 @@ class ZKTecoF7Adapter:
                 ))
             return rows
         except Exception as error:
-            raise BiometricDeviceError(f"{self.device.name} returned an invalid attendance list.") from error
+            if isinstance(error, BiometricOperationError):
+                raise
+            raise BiometricDeviceError(
+                f"{self.device.name} returned invalid attendance data.",
+                code=BiometricErrorCode.PAYLOAD,
+                category="DATA",
+                health_outcome=AttendanceDevice.Health.DEGRADED,
+                operator_action="Review the sync operation details.",
+                diagnostics={"exception_type": error.__class__.__name__},
+            ) from error
         finally:
             self.close()
 
 
 def adapter_for(device):
-    if device.model.lower().startswith("zkteco") or device.model.lower().startswith("f7"):
+    model = (device.model or "").lower()
+    if model.startswith("zkteco") or model.startswith("f7"):
         return ZKTecoF7Adapter(device)
-    raise BiometricDeviceError(f"No adapter is available for {device.model}.")
+    raise BiometricConfigurationError(
+        f"No supported adapter is available for {device.model}.",
+        code=BiometricErrorCode.UNSUPPORTED_DEVICE,
+        category="CONFIGURATION",
+        health_outcome=AttendanceDevice.Health.DEGRADED,
+        operator_action="Use a supported ZKTeco F7 model or contact the system administrator.",
+    )
 
 
 @transaction.atomic
@@ -278,38 +448,175 @@ def _device_lock(device):
         return device
 
 
+def _release_device_lock(device):
+    """Release only the lock held by this operation."""
+    if device and device.sync_lock_until is not None:
+        device.sync_lock_until = None
+        device.save(update_fields=["sync_lock_until", "updated_at"])
+
+
+def _skipped_run(device, kind, actor):
+    run = DeviceSyncRun.objects.create(device=device, kind=kind, initiated_by=actor)
+    run.finish(
+        DeviceSyncRun.Status.SKIPPED,
+        error_code=BiometricErrorCode.SYNC_LOCKED,
+        error_message="Another biometric operation is already running for this terminal.",
+        diagnostics={"reason": "device_lock"},
+    )
+    return {
+        "status": run.status,
+        "run": run,
+        "reason": "another sync is already running",
+        "error_code": BiometricErrorCode.SYNC_LOCKED,
+    }
+
+
+def _mark_device_success(device, *, now, kind, health=AttendanceDevice.Health.HEALTHY):
+    device.health = health
+    device.last_seen_at = now
+    if kind != DeviceSyncRun.Kind.CONNECTION:
+        device.last_successful_sync_at = now
+    if kind == DeviceSyncRun.Kind.USERS:
+        device.last_user_sync_at = now
+    elif kind == DeviceSyncRun.Kind.PUNCHES:
+        device.last_punch_sync_at = now
+    device.sync_lock_until = None
+    update_fields = ["health", "last_seen_at", "sync_lock_until", "updated_at"]
+    if kind != DeviceSyncRun.Kind.CONNECTION:
+        update_fields.append("last_successful_sync_at")
+    if kind == DeviceSyncRun.Kind.USERS:
+        update_fields.append("last_user_sync_at")
+    elif kind == DeviceSyncRun.Kind.PUNCHES:
+        update_fields.append("last_punch_sync_at")
+    device.save(update_fields=update_fields)
+
+
+def _mark_device_failure(device, error):
+    device.health = error.health_outcome if error.health_outcome in {
+        choice for choice, _label in AttendanceDevice.Health.choices
+    } else AttendanceDevice.Health.DEGRADED
+    device.sync_lock_until = None
+    device.save(update_fields=["health", "sync_lock_until", "updated_at"])
+
+
+def _finish_failed_run(run, device, error, **counts):
+    safe = safe_operation_error(error)
+    run.finish(
+        DeviceSyncRun.Status.FAILED,
+        error_code=safe.code,
+        error_message=safe.operator_message,
+        diagnostics={
+            "category": safe.category,
+            "retryable": safe.retryable,
+            **safe.diagnostics,
+        },
+        **counts,
+    )
+    _mark_device_failure(device, safe)
+    return safe
+
+
+def _valid_device_user(user):
+    terminal_id = str(getattr(user, "terminal_user_id", "") or "").strip()
+    return bool(user and terminal_id) and len(terminal_id) <= 64
+
+
+def _valid_device_punch(punch):
+    terminal_id = str(getattr(punch, "terminal_user_id", "") or "").strip()
+    if not punch or not terminal_id or len(terminal_id) > 64:
+        return False
+    occurred_at = getattr(punch, "occurred_at", None)
+    if not isinstance(occurred_at, datetime) or not timezone.is_aware(occurred_at):
+        return False
+    try:
+        ZoneInfo(getattr(punch, "source_timezone", ""))
+    except Exception:
+        return False
+    return True
+
+
 def sync_device_users(device, *, actor=None, adapter=None):
     _operator_required(actor, device.organization)
-    device = _device_lock(device)
-    if device is None:
-        return {"status": DeviceSyncRun.Status.SKIPPED, "reason": "another sync is already running"}
-    run = DeviceSyncRun.objects.create(device=device, kind=DeviceSyncRun.Kind.USERS, initiated_by=actor)
-    adapter = adapter or adapter_for(device)
+    locked_device = _device_lock(device)
+    if locked_device is None:
+        return _skipped_run(device, DeviceSyncRun.Kind.USERS, actor)
+    run = None
+    users_seen = invalid = 0
     try:
+        run = DeviceSyncRun.objects.create(device=locked_device, kind=DeviceSyncRun.Kind.USERS, initiated_by=actor)
+        adapter = adapter or adapter_for(locked_device)
         users = adapter.list_users()
         now = timezone.now()
         for user in users:
-            identity, _ = DeviceIdentity.objects.get_or_create(device=device, terminal_user_id=user.terminal_user_id)
+            users_seen += 1
+            if not _valid_device_user(user):
+                invalid += 1
+                continue
+            identity, _ = DeviceIdentity.objects.get_or_create(device=locked_device, terminal_user_id=user.terminal_user_id)
             identity.display_name = user.display_name
             identity.fingerprint_enrolled = user.fingerprint_enrolled
             identity.first_seen_at = identity.first_seen_at or now
             identity.last_seen_at = now
             identity.save(update_fields=["display_name", "fingerprint_enrolled", "first_seen_at", "last_seen_at", "updated_at"])
-        run.finish(DeviceSyncRun.Status.SUCCEEDED, users_seen=len(users))
-        device.health = AttendanceDevice.Health.HEALTHY
-        device.last_user_sync_at = now
-        device.last_successful_sync_at = now
-        device.last_seen_at = now
-        device.sync_lock_until = None
-        device.save(update_fields=["health", "last_user_sync_at", "last_successful_sync_at", "last_seen_at", "sync_lock_until", "updated_at"])
-        return {"status": run.status, "run": run, "users_seen": len(users)}
+        status = DeviceSyncRun.Status.PARTIAL if invalid else DeviceSyncRun.Status.SUCCEEDED
+        run.finish(
+            status,
+            error_code=BiometricErrorCode.PAYLOAD if invalid else "",
+            error_message="Some terminal users could not be imported." if invalid else "",
+            diagnostics={"invalid_records": invalid},
+            users_seen=users_seen,
+        )
+        _mark_device_success(
+            locked_device,
+            now=now,
+            kind=DeviceSyncRun.Kind.USERS,
+            health=AttendanceDevice.Health.DEGRADED if invalid else AttendanceDevice.Health.HEALTHY,
+        )
+        return {"status": run.status, "run": run, "users_seen": users_seen, "invalid": invalid}
     except Exception as error:
-        safe = error if isinstance(error, BiometricDeviceError) else BiometricDeviceError("User sync failed.")
-        run.finish(DeviceSyncRun.Status.FAILED, error_code="DEVICE_ERROR", error_message=str(safe))
-        device.health = AttendanceDevice.Health.OFFLINE
-        device.sync_lock_until = None
-        device.save(update_fields=["health", "sync_lock_until", "updated_at"])
+        if run is None:
+            run = DeviceSyncRun.objects.create(device=locked_device, kind=DeviceSyncRun.Kind.USERS, initiated_by=actor)
+        safe = _finish_failed_run(run, locked_device, error, users_seen=users_seen)
         raise safe
+    finally:
+        _release_device_lock(locked_device)
+
+
+def test_device_connection(device, *, actor=None, adapter=None):
+    """Run and record one connection test through the normal device lock."""
+    _operator_required(actor, device.organization)
+    locked_device = _device_lock(device)
+    if locked_device is None:
+        return _skipped_run(device, DeviceSyncRun.Kind.CONNECTION, actor)
+    run = None
+    try:
+        run = DeviceSyncRun.objects.create(
+            device=locked_device,
+            kind=DeviceSyncRun.Kind.CONNECTION,
+            initiated_by=actor,
+        )
+        info = (adapter or adapter_for(locked_device)).test_connection()
+        now = timezone.now()
+        run.finish(
+            DeviceSyncRun.Status.SUCCEEDED,
+            diagnostics={"firmware": info.firmware[:120], "serial_number": info.serial_number[:120]},
+        )
+        locked_device.firmware = info.firmware[:120]
+        locked_device.serial_number = info.serial_number[:120]
+        _mark_device_success(locked_device, now=now, kind=DeviceSyncRun.Kind.CONNECTION)
+        locked_device.save(update_fields=["firmware", "serial_number", "updated_at"])
+        return {"status": run.status, "run": run, "info": info}
+    except Exception as error:
+        if run is None:
+            run = DeviceSyncRun.objects.create(
+                device=locked_device,
+                kind=DeviceSyncRun.Kind.CONNECTION,
+                initiated_by=actor,
+            )
+        safe = _finish_failed_run(run, locked_device, error)
+        raise safe
+    finally:
+        _release_device_lock(locked_device)
 
 
 def _issue_for_unmapped(device, punch, run):
@@ -326,15 +633,20 @@ def _issue_for_unmapped(device, punch, run):
 
 def sync_device_punches(device, *, actor=None, since=None, now=None, adapter=None):
     _operator_required(actor, device.organization)
-    device = _device_lock(device)
-    if device is None:
-        return {"status": DeviceSyncRun.Status.SKIPPED, "reason": "another sync is already running"}
-    run = DeviceSyncRun.objects.create(device=device, kind=DeviceSyncRun.Kind.PUNCHES, initiated_by=actor)
-    adapter = adapter or adapter_for(device)
+    locked_device = _device_lock(device)
+    if locked_device is None:
+        return _skipped_run(device, DeviceSyncRun.Kind.PUNCHES, actor)
+    run = None
+    punches_seen = created = duplicates = issues = invalid = 0
     try:
+        run = DeviceSyncRun.objects.create(device=locked_device, kind=DeviceSyncRun.Kind.PUNCHES, initiated_by=actor)
+        adapter = adapter or adapter_for(locked_device)
         punches = adapter.list_punches(since=since)
-        created = duplicates = issues = 0
         for item in punches:
+            punches_seen += 1
+            if not _valid_device_punch(item):
+                invalid += 1
+                continue
             payload = item.raw_payload or {}
             payload_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
             canonical = BiometricPunch.make_canonical_key(
@@ -348,48 +660,78 @@ def sync_device_punches(device, *, actor=None, since=None, now=None, adapter=Non
                 # retries idempotent while allowing distinct same-second
                 # events when the payload differs.
                 canonical = hashlib.sha256(f"{canonical}|{payload_hash}".encode("utf-8")).hexdigest()
-            identity = DeviceIdentity.objects.filter(device=device, terminal_user_id=item.terminal_user_id).first()
+            identity = DeviceIdentity.objects.filter(device=locked_device, terminal_user_id=item.terminal_user_id).first()
             assignment = _resolve_assignment(identity, item.occurred_at) if identity else None
-            if BiometricPunch.objects.filter(device=device, canonical_key=canonical).exists():
+            if BiometricPunch.objects.filter(device=locked_device, canonical_key=canonical).exists():
                 duplicates += 1
                 continue
-            punch = BiometricPunch.objects.create(
-                device=device,
-                device_identity=identity,
-                identity_assignment=assignment,
-                sync_run=run,
-                device_record_id=item.device_record_id,
-                terminal_user_id=item.terminal_user_id,
-                source_local_timestamp=item.source_local_timestamp,
-                source_timezone=item.source_timezone,
-                occurred_at=item.occurred_at,
-                canonical_key=canonical,
-                payload_hash=payload_hash,
-                raw_payload=payload,
-            )
+            try:
+                punch = BiometricPunch.objects.create(
+                    device=locked_device,
+                    device_identity=identity,
+                    identity_assignment=assignment,
+                    sync_run=run,
+                    device_record_id=item.device_record_id,
+                    terminal_user_id=item.terminal_user_id,
+                    source_local_timestamp=item.source_local_timestamp,
+                    source_timezone=item.source_timezone,
+                    occurred_at=item.occurred_at,
+                    canonical_key=canonical,
+                    payload_hash=payload_hash,
+                    raw_payload=payload,
+                )
+            except IntegrityError:
+                duplicates += 1
+                continue
             created += 1
             if assignment is None:
-                issues += int(_issue_for_unmapped(device, item, run))
+                issues += int(_issue_for_unmapped(locked_device, item, run))
                 continue
             projection = projection_for_punch(punch, now=now)
             if projection:
                 reconcile_biometric_projection(projection.shift, now=now)
-        run.finish(DeviceSyncRun.Status.SUCCEEDED, punches_seen=len(punches), punches_created=created, punches_duplicate=duplicates, issues_created=issues)
+        partial = bool(invalid)
+        run.finish(
+            DeviceSyncRun.Status.PARTIAL if partial else DeviceSyncRun.Status.SUCCEEDED,
+            error_code=BiometricErrorCode.PAYLOAD if partial else "",
+            error_message="Some terminal scans could not be imported." if partial else "",
+            diagnostics={"invalid_records": invalid},
+            punches_seen=punches_seen,
+            punches_created=created,
+            punches_duplicate=duplicates,
+            issues_created=issues,
+        )
         stamp = now or timezone.now()
-        device.health = AttendanceDevice.Health.HEALTHY
-        device.last_punch_sync_at = stamp
-        device.last_successful_sync_at = stamp
-        device.last_seen_at = stamp
-        device.sync_lock_until = None
-        device.save(update_fields=["health", "last_punch_sync_at", "last_successful_sync_at", "last_seen_at", "sync_lock_until", "updated_at"])
-        return {"status": run.status, "run": run, "punches_seen": len(punches), "punches_created": created, "duplicates": duplicates, "issues": issues}
+        _mark_device_success(
+            locked_device,
+            now=stamp,
+            kind=DeviceSyncRun.Kind.PUNCHES,
+            health=AttendanceDevice.Health.DEGRADED if partial else AttendanceDevice.Health.HEALTHY,
+        )
+        return {
+            "status": run.status,
+            "run": run,
+            "punches_seen": punches_seen,
+            "punches_created": created,
+            "duplicates": duplicates,
+            "issues": issues,
+            "invalid": invalid,
+        }
     except Exception as error:
-        safe = error if isinstance(error, BiometricDeviceError) else BiometricDeviceError("Punch sync failed.")
-        run.finish(DeviceSyncRun.Status.FAILED, error_code="DEVICE_ERROR", error_message=str(safe), punches_seen=0)
-        device.health = AttendanceDevice.Health.OFFLINE
-        device.sync_lock_until = None
-        device.save(update_fields=["health", "sync_lock_until", "updated_at"])
+        if run is None:
+            run = DeviceSyncRun.objects.create(device=locked_device, kind=DeviceSyncRun.Kind.PUNCHES, initiated_by=actor)
+        safe = _finish_failed_run(
+            run,
+            locked_device,
+            error,
+            punches_seen=punches_seen,
+            punches_created=created,
+            punches_duplicate=duplicates,
+            issues_created=issues,
+        )
         raise safe
+    finally:
+        _release_device_lock(locked_device)
 
 
 def _shift_for_assignment(assignment, occurred_at):

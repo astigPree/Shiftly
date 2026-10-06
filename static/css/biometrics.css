@@ -57,14 +57,17 @@
 
 .bio-callout { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 14px; padding: 14px 16px; color: var(--color-primary-900); background: var(--color-info-bg); border: 1px solid var(--color-primary-100); border-radius: var(--radius-lg); }
 .bio-callout--warning { color: var(--color-warning); background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+.bio-callout--error { color: var(--color-danger); background: var(--color-error-bg); border-color: var(--color-error-border); }
 .bio-callout-icon { display: grid; width: 28px; height: 28px; flex: 0 0 auto; place-items: center; color: var(--color-primary-600); background: rgb(255 255 255 / 75%); border-radius: 50%; }
 .bio-callout--warning .bio-callout-icon { color: var(--color-warning); }
+.bio-callout--error .bio-callout-icon { color: var(--color-danger); }
 .bio-callout-icon .icon { width: 17px; height: 17px; }
 .bio-callout > div { min-width: 0; flex: 1; }
 .bio-callout strong { display: block; margin-bottom: 2px; color: currentColor; }
 .bio-callout p { color: color-mix(in srgb, currentColor 78%, #fff); font-size: var(--text-sm); }
 .bio-callout > a { align-self: center; flex: 0 0 auto; color: var(--color-primary-700); font-size: var(--text-sm); font-weight: 700; text-decoration: none; }
 .bio-callout--warning > a { color: var(--color-warning); }
+.bio-error-list { display: grid; gap: 3px; margin: 4px 0 0; padding-left: 18px; color: currentColor; font-size: var(--text-sm); }
 
 .bio-layout { display: grid; gap: 14px; margin: 0 0 14px; }
 .bio-layout--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -13,7 +14,34 @@ from employees.models import Employee
 
 from .forms import AttendanceDeviceForm, BiometricSettingsForm, DeviceIdentityAssignmentForm
 from .models import AttendanceDevice, BiometricAttendanceProjection, BiometricPunch, BiometricPunchIssue, DeviceIdentity, DeviceSyncRun, OrganizationBiometricSettings
-from .services import adapter_for, assign_identity, materialize_biometric_projection, sync_device_punches, sync_device_users
+from .services import (
+    assign_identity,
+    materialize_biometric_projection,
+    safe_operation_error,
+    sync_device_punches,
+    sync_device_users,
+    test_device_connection,
+)
+
+
+def _safe_error(error, fallback="Shiftly could not complete this biometric operation."):
+    safe = safe_operation_error(error, fallback=fallback)
+    if safe.operator_action:
+        return f"{safe.operator_message} {safe.operator_action}"
+    return safe.operator_message
+
+
+def _add_form_error(form, error):
+    if isinstance(error, ValidationError):
+        if hasattr(error, "message_dict"):
+            for field, field_messages in error.message_dict.items():
+                for message in field_messages:
+                    form.add_error(None if field == "__all__" else field, message)
+        else:
+            for message in error.messages:
+                form.add_error(None, message)
+        return
+    form.add_error(None, _safe_error(error))
 
 
 @employer_required
@@ -34,21 +62,25 @@ def device_list(request):
                 return redirect("biometrics:devices")
         if "add-device" in request.POST:
             add_terminal_modal_open = True
-            if device_form.is_valid():
-                device = device_form.save(commit=False)
-                device.organization = organization
-                device.save()
-                record_event(
-                    organization=organization,
-                    actor=request.user,
-                    action=AuditEvent.Action.BIOMETRIC_DEVICE_ADDED,
-                    target_type="biometric_device",
-                    target_id=device.pk,
-                    summary=f"Added biometric device {device.name}.",
-                    metadata={"model": device.model, "host": device.host, "port": device.port},
-                )
-                messages.success(request, f"{device.name} was added. Test the connection before assigning employees.")
-                return redirect("biometrics:devices")
+            try:
+                if device_form.is_valid():
+                    device = device_form.save(commit=False)
+                    device.organization = organization
+                    device.full_clean()
+                    device.save()
+                    record_event(
+                        organization=organization,
+                        actor=request.user,
+                        action=AuditEvent.Action.BIOMETRIC_DEVICE_ADDED,
+                        target_type="biometric_device",
+                        target_id=device.pk,
+                        summary=f"Added biometric device {device.name}.",
+                        metadata={"model": device.model, "host": device.host, "port": device.port},
+                    )
+                    messages.success(request, f"{device.name} was added. Test the connection before assigning employees.")
+                    return redirect("biometrics:devices")
+            except Exception as error:
+                _add_form_error(device_form, error)
     else:
         settings_form = BiometricSettingsForm(instance=settings_obj)
         device_form = AttendanceDeviceForm()
@@ -135,19 +167,22 @@ def edit_device(request, device_pk):
     device = get_object_or_404(AttendanceDevice, pk=device_pk, organization=organization)
     if request.method == "POST":
         form = AttendanceDeviceForm(request.POST, instance=device)
-        if form.is_valid():
-            form.save()
-            record_event(
-                organization=organization,
-                actor=request.user,
-                action=AuditEvent.Action.BIOMETRIC_DEVICE_UPDATED,
-                target_type="biometric_device",
-                target_id=device.pk,
-                summary=f"Updated biometric device {device.name}.",
-                metadata={"status": device.status},
-            )
-            messages.success(request, f"{device.name} was updated.")
-            return redirect("biometrics:devices")
+        try:
+            if form.is_valid():
+                form.save()
+                record_event(
+                    organization=organization,
+                    actor=request.user,
+                    action=AuditEvent.Action.BIOMETRIC_DEVICE_UPDATED,
+                    target_type="biometric_device",
+                    target_id=device.pk,
+                    summary=f"Updated biometric device {device.name}.",
+                    metadata={"status": device.status},
+                )
+                messages.success(request, f"{device.name} was updated.")
+                return redirect("biometrics:devices")
+        except Exception as error:
+            _add_form_error(form, error)
     else:
         form = AttendanceDeviceForm(instance=device)
     return render(request, "biometrics/device_edit.html", {"organization": organization, "device": device, "form": form})
@@ -159,14 +194,13 @@ def test_device(request, device_pk):
     organization = organization_for_user(request.user)
     device = get_object_or_404(AttendanceDevice, pk=device_pk, organization=organization)
     try:
-        info = adapter_for(device).test_connection()
-        device.health = AttendanceDevice.Health.HEALTHY
-        device.firmware = info.firmware[:120]
-        device.serial_number = info.serial_number[:120]
-        device.save(update_fields=["health", "firmware", "serial_number", "updated_at"])
-        messages.success(request, f"{device.name} is reachable. Connection verified.")
+        result = test_device_connection(device, actor=request.user)
+        if result.get("status") == DeviceSyncRun.Status.SKIPPED:
+            messages.warning(request, f"A sync is already running for {device.name}. Refresh the activity history.")
+        else:
+            messages.success(request, f"{device.name} is reachable. Connection verified.")
     except Exception as error:
-        messages.error(request, str(error))
+        messages.error(request, _safe_error(error, f"{device.name} could not be tested."))
     return redirect("biometrics:devices")
 
 
@@ -177,9 +211,14 @@ def sync_users(request, device_pk):
     device = get_object_or_404(AttendanceDevice, pk=device_pk, organization=organization)
     try:
         result = sync_device_users(device, actor=request.user)
-        messages.success(request, f"User sync complete: {result.get('users_seen', 0)} terminal users read.")
+        if result.get("status") == DeviceSyncRun.Status.SKIPPED:
+            messages.warning(request, f"A sync is already running for {device.name}. Refresh the activity history.")
+        elif result.get("status") == DeviceSyncRun.Status.PARTIAL:
+            messages.warning(request, f"User sync partially completed: {result.get('users_seen', 0)} users read.")
+        else:
+            messages.success(request, f"User sync complete: {result.get('users_seen', 0)} terminal users read.")
     except Exception as error:
-        messages.error(request, str(error))
+        messages.error(request, _safe_error(error, f"User sync failed for {device.name}."))
     return redirect("biometrics:devices")
 
 
@@ -190,9 +229,14 @@ def sync_punches(request, device_pk):
     device = get_object_or_404(AttendanceDevice, pk=device_pk, organization=organization)
     try:
         result = sync_device_punches(device, actor=request.user)
-        messages.success(request, f"Punch sync complete: {result.get('punches_created', 0)} new scans imported.")
+        if result.get("status") == DeviceSyncRun.Status.SKIPPED:
+            messages.warning(request, f"A sync is already running for {device.name}. Refresh the activity history.")
+        elif result.get("status") == DeviceSyncRun.Status.PARTIAL:
+            messages.warning(request, f"Punch sync partially completed: {result.get('punches_created', 0)} scans imported.")
+        else:
+            messages.success(request, f"Punch sync complete: {result.get('punches_created', 0)} new scans imported.")
     except Exception as error:
-        messages.error(request, str(error))
+        messages.error(request, _safe_error(error, f"Punch sync failed for {device.name}."))
     return redirect("biometrics:devices")
 
 
@@ -202,9 +246,9 @@ def identity_list(request, device_pk):
     device = get_object_or_404(AttendanceDevice, pk=device_pk, organization=organization)
     identities = list(device.identities.prefetch_related("assignments__employee"))
     if request.method == "POST":
-        identity = get_object_or_404(DeviceIdentity, pk=request.POST.get("identity"), device=device)
+        identity = DeviceIdentity.objects.filter(pk=request.POST.get("identity"), device=device).first()
         form = DeviceIdentityAssignmentForm(request.POST, organization=organization, identity=identity)
-        if form.is_valid():
+        if identity is not None and form.is_valid():
             try:
                 assign_identity(
                     identity=identity,
@@ -225,9 +269,16 @@ def identity_list(request, device_pk):
                 messages.success(request, f"Terminal ID {identity.terminal_user_id} is now mapped to {form.cleaned_data['employee'].full_name}.")
                 return redirect("biometrics:identities", device_pk=device.pk)
             except Exception as error:
-                form.add_error(None, str(error))
+                _add_form_error(form, error)
+        elif identity is None:
+            form.is_valid()
+            form.add_error(None, "This terminal user is no longer available. Refresh the page and select it again.")
     else:
         form = DeviceIdentityAssignmentForm(organization=organization)
+    mapping_identity_id = request.POST.get("identity", "") if request.method == "POST" else ""
+    mapping_employee_id = request.POST.get("employee", "") if request.method == "POST" else ""
+    mapping_effective_from = request.POST.get("effective_from", "") if request.method == "POST" else ""
+    mapping_effective_until = request.POST.get("effective_until", "") if request.method == "POST" else ""
     employees = organization.employees.filter(status=Employee.Status.ACTIVE).order_by("last_name", "first_name")
     now = timezone.now()
     identity_rows = []
@@ -260,6 +311,10 @@ def identity_list(request, device_pk):
         "unmapped_id_count": max(0, len(identity_rows) - mapped_ids),
         "expiring_mapping_count": expiring_mappings,
         "backfilled_scan_count": backfilled_scans,
+        "mapping_identity_id": mapping_identity_id,
+        "mapping_employee_id": mapping_employee_id,
+        "mapping_effective_from": mapping_effective_from,
+        "mapping_effective_until": mapping_effective_until,
     })
 
 
@@ -289,5 +344,5 @@ def apply_projection(request, projection_pk):
         materialize_biometric_projection(projection, actor=request.user)
         messages.success(request, "Reviewed biometric scans were applied to attendance and a timesheet was generated.")
     except Exception as error:
-        messages.error(request, str(error))
+        messages.error(request, _safe_error(error, "The reviewed biometric scans could not be applied."))
     return redirect("attendance:list")
