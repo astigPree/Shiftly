@@ -418,14 +418,35 @@ def assign_identity(*, identity, employee, effective_from, effective_until=None,
     )
     if assignment.effective_until:
         pending = pending.filter(occurred_at__lt=assignment.effective_until)
-    pending_rows = list(pending)
     pending.update(identity_assignment=assignment)
-    for punch in pending_rows:
-        punch.identity_assignment = assignment
-        projection = projection_for_punch(punch)
-        if projection:
-            reconcile_biometric_projection(projection.shift)
+    reconcile_identity_assignment_punches(assignment)
     return assignment
+
+
+def reconcile_identity_assignment_punches(assignment, *, actor=None, now=None):
+    """Re-run matching for every immutable punch covered by an assignment.
+
+    Assignments can be created after a terminal sync. Reprocessing the full
+    historical interval keeps mapping changes idempotent and lets newly
+    created or edited shifts receive the same evidence without rewriting raw
+    punch records.
+    """
+    punches = BiometricPunch.objects.filter(
+        device_identity=assignment.device_identity,
+        identity_assignment=assignment,
+        occurred_at__gte=assignment.effective_from,
+    ).select_related("identity_assignment", "device")
+    if assignment.effective_until:
+        punches = punches.filter(occurred_at__lt=assignment.effective_until)
+    shifts = set()
+    for punch in punches:
+        projection = projection_for_punch(punch, now=now)
+        if projection:
+            shifts.add(projection.shift_id)
+    for shift_id in shifts:
+        shift = Shift.objects.get(pk=shift_id)
+        reconcile_biometric_projection(shift, now=now)
+    return BiometricAttendanceProjection.objects.filter(shift_id__in=shifts)
 
 
 def _resolve_assignment(identity, occurred_at):
@@ -690,6 +711,9 @@ def sync_device_punches(device, *, actor=None, since=None, now=None, adapter=Non
             projection = projection_for_punch(punch, now=now)
             if projection:
                 reconcile_biometric_projection(projection.shift, now=now)
+        # A candidate can become reviewable because time passed even when the
+        # terminal returned no new event in this sync.
+        refresh_due_biometric_projections(now=now or timezone.now())
         partial = bool(invalid)
         run.finish(
             DeviceSyncRun.Status.PARTIAL if partial else DeviceSyncRun.Status.SUCCEEDED,
@@ -734,18 +758,63 @@ def sync_device_punches(device, *, actor=None, since=None, now=None, adapter=Non
         _release_device_lock(locked_device)
 
 
+PROVISIONAL_ALGORITHM_VERSION = "provisional-v1"
+
+
+def _biometric_policy(organization):
+    policy = getattr(organization, "biometric_settings", None)
+    return {
+        "early_clock_in_minutes": getattr(policy, "early_clock_in_minutes", 30),
+        "post_shift_capture_minutes": getattr(policy, "post_shift_capture_minutes", 240),
+        "duplicate_window_seconds": getattr(policy, "duplicate_window_seconds", 60),
+    }
+
+
+def _employee_timezone_name(employee, organization):
+    try:
+        profile = employee.payroll_profile
+    except Exception:
+        profile = None
+    return (getattr(profile, "payroll_timezone", "") or organization.timezone).strip() or organization.timezone
+
+
+def _candidate_shifts_for_assignment(assignment, occurred_at):
+    organization = assignment.device_identity.device.organization
+    policy = _biometric_policy(organization)
+    early = timedelta(minutes=policy["early_clock_in_minutes"])
+    post = timedelta(minutes=policy["post_shift_capture_minutes"])
+    return list(
+        Shift.objects.filter(
+            employee=assignment.employee,
+            status=Shift.Status.SCHEDULED,
+            scheduled_start__lte=occurred_at + early,
+            scheduled_end__gte=occurred_at - post,
+        ).select_related("organization", "employee").order_by("scheduled_start", "pk")
+    )
+
+
 def _shift_for_assignment(assignment, occurred_at):
-    device = assignment.device_identity.device
-    local_date = timezone.localtime(occurred_at, ZoneInfo(device.timezone)).date()
-    return Shift.objects.filter(employee=assignment.employee, work_date=local_date).first()
+    candidates = _candidate_shifts_for_assignment(assignment, occurred_at)
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _resolve_punch_issue(punch, code):
+    BiometricPunchIssue.objects.filter(
+        punch=punch,
+        code=code,
+        status=BiometricPunchIssue.Status.OPEN,
+    ).update(
+        status=BiometricPunchIssue.Status.RESOLVED,
+        resolved_at=timezone.now(),
+    )
 
 
 def projection_for_punch(punch, *, now=None):
     assignment = punch.identity_assignment
     if assignment is None:
         return None
-    shift = _shift_for_assignment(assignment, punch.occurred_at)
-    if shift is None:
+    candidates = _candidate_shifts_for_assignment(assignment, punch.occurred_at)
+    if not candidates:
         BiometricPunchIssue.objects.get_or_create(
             organization=punch.device.organization,
             device=punch.device,
@@ -756,65 +825,245 @@ def projection_for_punch(punch, *, now=None):
             defaults={"employee": assignment.employee, "details": {"occurred_at": punch.occurred_at.isoformat()}},
         )
         return None
+    if len(candidates) > 1:
+        BiometricPunchIssue.objects.get_or_create(
+            organization=punch.device.organization,
+            device=punch.device,
+            punch=punch,
+            employee=assignment.employee,
+            code=BiometricPunchIssue.Code.AMBIGUOUS_SHIFT,
+            status=BiometricPunchIssue.Status.OPEN,
+            summary=f"More than one scheduled shift could match {assignment.employee.employee_code}'s scan.",
+            defaults={"details": {"occurred_at": punch.occurred_at.isoformat(), "shift_ids": [shift.pk for shift in candidates]}},
+        )
+        return None
+    shift = candidates[0]
+    _resolve_punch_issue(punch, BiometricPunchIssue.Code.NO_SHIFT)
+    _resolve_punch_issue(punch, BiometricPunchIssue.Code.AMBIGUOUS_SHIFT)
     projection, _ = BiometricAttendanceProjection.objects.get_or_create(shift=shift, defaults={"employee": assignment.employee})
     return projection
 
 
+def _effective_punches_for_shift(shift):
+    policy = _biometric_policy(shift.organization)
+    start = shift.scheduled_start - timedelta(minutes=policy["early_clock_in_minutes"])
+    end = shift.scheduled_end + timedelta(minutes=policy["post_shift_capture_minutes"])
+    raw_punches = list(
+        BiometricPunch.objects.filter(
+            identity_assignment__employee=shift.employee,
+            occurred_at__gte=start,
+            occurred_at__lte=end,
+        ).select_related("device", "device_identity", "identity_assignment")
+        .order_by("occurred_at", "device_id", "pk")
+    )
+    effective = []
+    duplicate_window = policy["duplicate_window_seconds"]
+    for punch in raw_punches:
+        previous = effective[-1] if effective else None
+        if (
+            previous
+            and punch.device_id == previous.device_id
+            and punch.device_identity_id == previous.device_identity_id
+            and (punch.occurred_at - previous.occurred_at).total_seconds() <= duplicate_window
+        ):
+            continue
+        effective.append(punch)
+    return raw_punches, effective
+
+
+def _projection_fingerprint(shift, effective_punches, policy):
+    value = {
+        "algorithm": PROVISIONAL_ALGORITHM_VERSION,
+        "shift": shift.pk,
+        "punches": [p.pk for p in effective_punches],
+        "early": policy["early_clock_in_minutes"],
+        "post": policy["post_shift_capture_minutes"],
+        "duplicate": policy["duplicate_window_seconds"],
+    }
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _close_projection_sequence_issues(projection):
+    BiometricPunchIssue.objects.filter(
+        projection=projection,
+        code__in=[BiometricPunchIssue.Code.ODD_SEQUENCE, BiometricPunchIssue.Code.OPEN_BREAK],
+        status=BiometricPunchIssue.Status.OPEN,
+    ).update(status=BiometricPunchIssue.Status.RESOLVED, resolved_at=timezone.now())
+
+
+def _retain_locked_projection_evidence(projection, shift, stamp):
+    """Attach late evidence without rewriting an applied or conflicted result."""
+    raw_punches, _ = _effective_punches_for_shift(shift)
+    issue_code = (
+        BiometricPunchIssue.Code.LATE_EVIDENCE
+        if projection.materialized_session_id
+        else BiometricPunchIssue.Code.SOURCE_CONFLICT
+    )
+    for punch in raw_punches:
+        if punch.projection_id is not None:
+            continue
+        punch.projection = projection
+        punch.save(update_fields=["projection"])
+        BiometricPunchIssue.objects.get_or_create(
+            punch=punch,
+            code=issue_code,
+            defaults={
+                "organization": shift.organization,
+                "device": punch.device,
+                "projection": projection,
+                "employee": shift.employee,
+                "status": BiometricPunchIssue.Status.OPEN,
+                "summary": (
+                    f"A biometric scan arrived after attendance was applied for {shift.employee.employee_code}."
+                    if issue_code == BiometricPunchIssue.Code.LATE_EVIDENCE
+                    else f"A biometric scan conflicts with the recorded attendance for {shift.employee.employee_code}."
+                ),
+                "details": {"occurred_at": punch.occurred_at.isoformat()},
+            },
+        )
+    projection.last_reconciled_at = stamp
+    projection.save(update_fields=["last_reconciled_at", "updated_at"])
+
+
+@transaction.atomic
 def reconcile_biometric_projection(shift, *, now=None):
-    projection, _ = BiometricAttendanceProjection.objects.get_or_create(shift=shift, defaults={"employee": shift.employee})
-    punches = list(BiometricPunch.objects.filter(
-        identity_assignment__employee=shift.employee,
-        occurred_at__gte=shift.scheduled_start - timedelta(hours=12),
-        occurred_at__lte=shift.scheduled_end + timedelta(hours=24),
-    ))
-    # The query above intentionally scopes by employee and time; filter by the
-    # local work date as the final guard for overnight schedules.
-    punches = [
-        p for p in punches
-        if timezone.localtime(p.occurred_at, ZoneInfo(p.source_timezone)).date() == shift.work_date
-        or (shift.is_overnight and timezone.localtime(p.occurred_at, ZoneInfo(p.source_timezone)).date() == shift.work_date + timedelta(days=1))
-    ]
-    punches.sort(key=lambda p: p.occurred_at)
+    stamp = now or timezone.now()
+    projection, _ = BiometricAttendanceProjection.objects.select_for_update().get_or_create(
+        shift=shift,
+        defaults={"employee": shift.employee},
+    )
+    if projection.materialized_session_id or projection.status == BiometricAttendanceProjection.Status.CONFLICT:
+        _retain_locked_projection_evidence(projection, shift, stamp)
+        return projection
+
+    policy = _biometric_policy(shift.organization)
+    candidate_closes_at = shift.scheduled_end + timedelta(minutes=policy["post_shift_capture_minutes"])
+    raw_punches, punches = _effective_punches_for_shift(shift)
+    for punch in raw_punches:
+        if punch.projection_id != projection.pk:
+            punch.projection = projection
+            punch.save(update_fields=["projection"])
+
     projection.punch_count = len(punches)
     projection.first_punch_at = punches[0].occurred_at if punches else None
     projection.last_punch_at = punches[-1].occurred_at if punches else None
+    projection.provisional_started_at = projection.first_punch_at
+    projection.last_effective_scan_at = projection.last_punch_at
     projection.candidate_breaks = []
     projection.issue_summary = ""
-    if len(punches) < 2:
+    projection.candidate_closes_at = candidate_closes_at
+    projection.last_reconciled_at = stamp
+    projection.algorithm_version = PROVISIONAL_ALGORITHM_VERSION
+    projection.input_fingerprint = _projection_fingerprint(shift, punches, policy)
+    closed = stamp >= candidate_closes_at
+    projection.candidate_closed_at = stamp if closed else None
+
+    if not punches:
         projection.status = BiometricAttendanceProjection.Status.COLLECTING
+        projection.live_state = BiometricAttendanceProjection.LiveState.NONE
         projection.save()
         return projection
+
+    if len(punches) < 2:
+        projection.status = (
+            BiometricAttendanceProjection.Status.NEEDS_REVIEW
+            if closed else BiometricAttendanceProjection.Status.COLLECTING
+        )
+        projection.live_state = (
+            BiometricAttendanceProjection.LiveState.NEEDS_REVIEW
+            if closed else BiometricAttendanceProjection.LiveState.WORKING
+        )
+        if closed:
+            projection.issue_summary = "A second fingerprint scan is required to complete this attendance sequence."
+            BiometricPunchIssue.objects.get_or_create(
+                organization=shift.organization,
+                projection=projection,
+                employee=shift.employee,
+                code=BiometricPunchIssue.Code.ODD_SEQUENCE,
+                status=BiometricPunchIssue.Status.OPEN,
+                summary=f"{shift.employee.employee_code} is missing a final biometric scan.",
+                defaults={"details": {"punch_count": len(punches)}},
+            )
+        projection.save()
+        return projection
+
     interior = punches[1:-1]
     if len(interior) % 2:
-        projection.status = BiometricAttendanceProjection.Status.NEEDS_REVIEW
-        projection.issue_summary = "An even number of interior scans is required to pair flexible breaks."
-        projection.save()
-        BiometricPunchIssue.objects.get_or_create(
-            organization=shift.organization, projection=projection,
-            code=BiometricPunchIssue.Code.ODD_SEQUENCE, status=BiometricPunchIssue.Status.OPEN,
-            summary=f"{shift.employee.employee_code} has an incomplete biometric break sequence.",
-            defaults={"employee": shift.employee},
+        projection.status = (
+            BiometricAttendanceProjection.Status.NEEDS_REVIEW
+            if closed else BiometricAttendanceProjection.Status.COLLECTING
         )
+        projection.live_state = (
+            BiometricAttendanceProjection.LiveState.NEEDS_REVIEW
+            if closed else BiometricAttendanceProjection.LiveState.AWAITING_NEXT_SCAN
+        )
+        projection.issue_summary = "An even number of interior scans is required to pair flexible breaks."
+        if closed:
+            BiometricPunchIssue.objects.get_or_create(
+                organization=shift.organization,
+                projection=projection,
+                employee=shift.employee,
+                code=BiometricPunchIssue.Code.ODD_SEQUENCE,
+                status=BiometricPunchIssue.Status.OPEN,
+                summary=f"{shift.employee.employee_code} has an incomplete biometric break sequence.",
+                defaults={"details": {"punch_count": len(punches)}},
+            )
+        projection.save()
         return projection
+
     breaks = []
     for start, end in zip(interior[::2], interior[1::2]):
         if end.occurred_at <= start.occurred_at:
-            projection.status = BiometricAttendanceProjection.Status.NEEDS_REVIEW
+            projection.status = BiometricAttendanceProjection.Status.NEEDS_REVIEW if closed else BiometricAttendanceProjection.Status.COLLECTING
+            projection.live_state = BiometricAttendanceProjection.LiveState.NEEDS_REVIEW if closed else BiometricAttendanceProjection.LiveState.AWAITING_NEXT_SCAN
             projection.issue_summary = "Biometric scans are out of order."
             projection.save()
             return projection
         breaks.append({"start": start.occurred_at.isoformat(), "end": end.occurred_at.isoformat()})
+
     projection.candidate_breaks = breaks
-    capture_window = getattr(getattr(shift.organization, "biometric_settings", None), "post_shift_capture_minutes", 240)
-    closed = (now or timezone.now()) >= shift.scheduled_end + timedelta(minutes=capture_window)
     projection.status = BiometricAttendanceProjection.Status.READY if closed else BiometricAttendanceProjection.Status.COLLECTING
-    projection.candidate_closed_at = (now or timezone.now()) if closed else None
+    projection.live_state = BiometricAttendanceProjection.LiveState.READY_FOR_REVIEW if closed else BiometricAttendanceProjection.LiveState.AWAITING_NEXT_SCAN
+    if closed:
+        _close_projection_sequence_issues(projection)
     projection.save()
-    for punch in punches:
-        if punch.projection_id != projection.pk:
-            punch.projection = projection
-            punch.save(update_fields=["projection"])
     return projection
+
+
+def reconcile_unmatched_punches_for_shift(shift, *, actor=None, now=None):
+    """Reprocess evidence after a schedule or identity mapping becomes available."""
+    policy = _biometric_policy(shift.organization)
+    start = shift.scheduled_start - timedelta(minutes=policy["early_clock_in_minutes"])
+    end = shift.scheduled_end + timedelta(minutes=policy["post_shift_capture_minutes"])
+    punches = BiometricPunch.objects.filter(
+        identity_assignment__employee=shift.employee,
+        occurred_at__gte=start,
+        occurred_at__lte=end,
+    ).select_related("identity_assignment", "device")
+    projections = set()
+    for punch in punches:
+        projection = projection_for_punch(punch, now=now)
+        if projection and projection.shift_id == shift.pk:
+            projections.add(projection.pk)
+    for projection_pk in projections:
+        reconcile_biometric_projection(shift, now=now)
+    return BiometricAttendanceProjection.objects.filter(pk__in=projections)
+
+
+def refresh_due_biometric_projections(now=None):
+    stamp = now or timezone.now()
+    projections = BiometricAttendanceProjection.objects.filter(
+        status=BiometricAttendanceProjection.Status.COLLECTING,
+    ).select_related("shift", "shift__organization", "shift__employee")
+    refreshed = []
+    for projection in projections:
+        close_at = projection.candidate_closes_at
+        if close_at is None:
+            policy = _biometric_policy(projection.shift.organization)
+            close_at = projection.shift.scheduled_end + timedelta(minutes=policy["post_shift_capture_minutes"])
+        if close_at <= stamp:
+            refreshed.append(reconcile_biometric_projection(projection.shift, now=stamp))
+    return refreshed
 
 
 @transaction.atomic
@@ -860,6 +1109,7 @@ def materialize_biometric_projection(projection, *, actor=None, force=False):
     generate_timesheet(session)
     projection.materialized_session = session
     projection.status = BiometricAttendanceProjection.Status.MATERIALIZED
-    projection.save(update_fields=["materialized_session", "status", "updated_at"])
+    projection.live_state = BiometricAttendanceProjection.LiveState.MATERIALIZED
+    projection.save(update_fields=["materialized_session", "status", "live_state", "updated_at"])
     return session
 

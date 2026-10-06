@@ -14,5 +14,7 @@ urlpatterns = [
     path("<int:device_pk>/sync-punches/", views.sync_punches, name="sync_punches"),
     path("<int:device_pk>/identities/", views.identity_list, name="identities"),
     path("<int:device_pk>/punches/", views.punch_list, name="punches"),
+    path("projections/<int:projection_pk>/", views.projection_detail, name="projection_detail"),
+    path("projections/<int:projection_pk>/reprocess/", views.reprocess_projection, name="reprocess_projection"),
     path("projections/<int:projection_pk>/apply/", views.apply_projection, name="apply_projection"),
 ]

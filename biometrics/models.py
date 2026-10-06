@@ -265,20 +265,64 @@ class BiometricAttendanceProjection(models.Model):
         MATERIALIZED = "MATERIALIZED", "Materialized"
         CONFLICT = "CONFLICT", "Source conflict"
 
+    class LiveState(models.TextChoices):
+        NONE = "NONE", "No visible activity"
+        WORKING = "WORKING", "Working — biometric provisional"
+        AWAITING_NEXT_SCAN = "AWAITING_NEXT_SCAN", "Awaiting next biometric scan"
+        READY_FOR_REVIEW = "READY_FOR_REVIEW", "Ready for review"
+        NEEDS_REVIEW = "NEEDS_REVIEW", "Needs review"
+        MATERIALIZED = "MATERIALIZED", "Attendance applied"
+        CONFLICT = "CONFLICT", "Attendance conflict"
+
     shift = models.OneToOneField("schedules.Shift", on_delete=models.PROTECT, related_name="biometric_projection")
     employee = models.ForeignKey("employees.Employee", on_delete=models.PROTECT, related_name="biometric_projections")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.COLLECTING, db_index=True)
+    live_state = models.CharField(max_length=24, choices=LiveState.choices, default=LiveState.NONE, db_index=True)
     first_punch_at = models.DateTimeField(null=True, blank=True)
     last_punch_at = models.DateTimeField(null=True, blank=True)
+    provisional_started_at = models.DateTimeField(null=True, blank=True)
+    last_effective_scan_at = models.DateTimeField(null=True, blank=True)
     candidate_breaks = models.JSONField(default=list, blank=True)
     punch_count = models.PositiveIntegerField(default=0)
     issue_summary = models.TextField(blank=True)
     candidate_closed_at = models.DateTimeField(null=True, blank=True)
+    candidate_closes_at = models.DateTimeField(null=True, blank=True)
+    last_reconciled_at = models.DateTimeField(null=True, blank=True)
+    input_fingerprint = models.CharField(max_length=64, blank=True)
+    algorithm_version = models.CharField(max_length=32, blank=True)
     materialized_session = models.OneToOneField("attendance.AttendanceSession", null=True, blank=True, on_delete=models.PROTECT, related_name="biometric_projection_materialized")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        indexes = [models.Index(fields=["employee", "status"], name="biometric_projection_emp_idx")]
+        indexes = [
+            models.Index(fields=["employee", "status"], name="biometric_projection_emp_idx"),
+            models.Index(fields=["employee", "live_state"], name="bio_projection_live_emp_idx"),
+            models.Index(fields=["status", "candidate_closes_at"], name="bio_projection_due_idx"),
+        ]
+
+    @property
+    def effective_live_state(self):
+        """Return a useful display state for projections created before migration 0002."""
+        if self.live_state != self.LiveState.NONE:
+            return self.live_state
+        if self.status == self.Status.READY:
+            return self.LiveState.READY_FOR_REVIEW
+        if self.status == self.Status.NEEDS_REVIEW:
+            return self.LiveState.NEEDS_REVIEW
+        if self.status == self.Status.MATERIALIZED:
+            return self.LiveState.MATERIALIZED
+        if self.status == self.Status.CONFLICT:
+            return self.LiveState.CONFLICT
+        if self.status == self.Status.COLLECTING:
+            if self.punch_count == 1:
+                return self.LiveState.WORKING
+            if self.punch_count > 1:
+                return self.LiveState.AWAITING_NEXT_SCAN
+        return self.LiveState.NONE
+
+    @property
+    def effective_live_state_label(self):
+        return dict(self.LiveState.choices).get(self.effective_live_state, self.get_status_display())
 
 
 class BiometricPunchIssue(models.Model):

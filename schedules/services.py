@@ -76,6 +76,11 @@ def create_shift(*, organization, employee, work_date, scheduled_start, schedule
             "scheduled_break_minutes": shift.scheduled_break_minutes,
         },
     )
+    # A terminal scan may have arrived before the employer created the shift.
+    # Re-run biometric matching now that this shift is an eligible candidate.
+    from biometrics.services import reconcile_unmatched_punches_for_shift
+
+    reconcile_unmatched_punches_for_shift(shift, actor=actor)
     return shift
 
 
@@ -178,6 +183,9 @@ def update_shift(shift, *, organization, employee, work_date, scheduled_start, s
                 "scheduled_end": shift.scheduled_end.isoformat(),
             },
         )
+    from biometrics.services import reconcile_unmatched_punches_for_shift
+
+    reconcile_unmatched_punches_for_shift(shift, actor=actor)
     return shift
 
 

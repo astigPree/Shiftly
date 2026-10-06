@@ -52,6 +52,11 @@
       <span class="attendance-summary-copy"><span>On shift</span><strong>{{ summary.on_shift }}</strong><small>Working or on break</small></span>
       <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
     </a>
+    <a class="attendance-summary-card attendance-summary-card--provisional{% if status_filter == 'PROVISIONAL' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=PROVISIONAL&amp;q={{ search_query|urlencode }}"{% if status_filter == "PROVISIONAL" %} aria-current="page"{% endif %}>
+      <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="fingerprint" %}</span>
+      <span class="attendance-summary-copy"><span>Biometric activity</span><strong>{{ summary.provisional }}</strong><small>Provisional · not payroll-ready</small></span>
+      <span class="attendance-summary-arrow" aria-hidden="true">{% include "components/icon.html" with icon_name="chevron-right" %}</span>
+    </a>
     <a class="attendance-summary-card attendance-summary-card--amber{% if status_filter == 'LATE' %} is-selected{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&amp;status=LATE&amp;q={{ search_query|urlencode }}"{% if status_filter == "LATE" %} aria-current="page"{% endif %}>
       <span class="attendance-summary-icon">{% include "components/icon.html" with icon_name="clock" %}</span>
       <span class="attendance-summary-copy"><span>Late</span><strong>{{ summary.late }}</strong><small>After scheduled start</small></span>
@@ -103,7 +108,7 @@
                   {% for exception in row.exceptions %}<span class="attendance-exception">{{ exception }}</span>{% endfor %}
                 </td>
                 <td class="attendance-actions-cell">
-                  {% if row.can_edit_attendance %}<a class="table-action-button" href="{% url 'attendance:correct' row.session.pk %}">Edit attendance</a>{% elif row.can_record_attendance %}<a class="table-action-button" href="{% url 'attendance:record' row.shift.pk %}">Record attendance</a>{% else %}<a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a>{% endif %}
+                  {% if row.can_review_biometric %}<a class="table-action-button" href="{% url 'biometrics:projection_detail' row.biometric_projection.pk %}">Review scans</a>{% elif row.can_edit_attendance %}<a class="table-action-button" href="{% url 'attendance:correct' row.session.pk %}">Edit attendance</a>{% elif row.can_record_attendance %}<a class="table-action-button" href="{% url 'attendance:record' row.shift.pk %}">Record attendance</a>{% else %}<a class="table-action-button" href="{% url 'schedules:detail' row.shift.pk %}">View</a>{% endif %}
                 </td>
               </tr>
             {% endfor %}

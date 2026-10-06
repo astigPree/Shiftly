@@ -17,6 +17,8 @@ from .models import AttendanceDevice, BiometricAttendanceProjection, BiometricPu
 from .services import (
     assign_identity,
     materialize_biometric_projection,
+    reconcile_biometric_projection,
+    refresh_due_biometric_projections,
     safe_operation_error,
     sync_device_punches,
     sync_device_users,
@@ -333,6 +335,44 @@ def punch_list(request, device_pk):
         "unmapped_punch_count": punch_qs.filter(identity_assignment__isnull=True).count(),
         "review_punch_count": punch_qs.filter(projection__status__in=[BiometricAttendanceProjection.Status.NEEDS_REVIEW, BiometricAttendanceProjection.Status.CONFLICT]).count(),
     })
+
+
+@employer_required
+def projection_detail(request, projection_pk):
+    organization = organization_for_user(request.user)
+    projection = get_object_or_404(
+        BiometricAttendanceProjection.objects.select_related(
+            "shift", "employee", "shift__organization", "materialized_session"
+        ).prefetch_related("punches", "issues"),
+        pk=projection_pk,
+        shift__organization=organization,
+    )
+    return render(request, "biometrics/projection_detail.html", {
+        "organization": organization,
+        "projection": projection,
+        "shift": projection.shift,
+        "punches": projection.punches.all(),
+        "issues": projection.issues.filter(status=BiometricPunchIssue.Status.OPEN),
+        "can_apply": projection.status == BiometricAttendanceProjection.Status.READY,
+    })
+
+
+@employer_required
+@require_POST
+def reprocess_projection(request, projection_pk):
+    organization = organization_for_user(request.user)
+    projection = get_object_or_404(
+        BiometricAttendanceProjection.objects.select_related("shift"),
+        pk=projection_pk,
+        shift__organization=organization,
+    )
+    try:
+        projection = reconcile_biometric_projection(projection.shift)
+        refresh_due_biometric_projections()
+        messages.success(request, f"Biometric evidence refreshed for {projection.employee.full_name}.")
+    except Exception as error:
+        messages.error(request, _safe_error(error, "The biometric projection could not be refreshed."))
+    return redirect("biometrics:projection_detail", projection_pk=projection_pk)
 
 
 @employer_required

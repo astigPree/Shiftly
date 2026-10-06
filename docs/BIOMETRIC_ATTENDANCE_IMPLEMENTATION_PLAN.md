@@ -6,6 +6,8 @@
 **Primary problem:** Employees who have an active biometric-terminal identity should clock in, take flexible breaks, and clock out through assigned terminals instead of the Shiftly website, while employers retain a controlled, auditable fallback for missed or ambiguous scans.  
 **Intended reader:** A developer or coding agent implementing and verifying one phase at a time.
 
+**Companion plan:** [Biometric provisional attendance implementation plan](BIOMETRIC_PROVISIONAL_ATTENDANCE_IMPLEMENTATION_PLAN.md) defines the live, first-scan display state without creating payroll-visible attendance before a complete biometric sequence is reviewed.
+
 ## Implementation status (2026-10-05)
 
 The first implementation slice is now present in the repository:

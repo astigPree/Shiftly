@@ -325,6 +325,10 @@ th {
   color: var(--color-green-text);
   background: var(--color-green-bg);
 }
+.status-provisional {
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+}
 .status-inactive {
   color: var(--color-neutral-text);
   background: var(--color-neutral-bg);

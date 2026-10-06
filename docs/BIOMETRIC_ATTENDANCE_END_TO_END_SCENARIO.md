@@ -362,11 +362,25 @@ employer workflow.
 
 1. Set the organization default interval to 120 seconds and leave device
    overrides blank.
-2. Configure the office scheduler to run:
+2. Start the web server separately as usual:
 
 ~~~text
-python manage.py sync_biometric_devices
+python manage.py runserver 127.0.0.1:8000
 ~~~
+
+   `runserver` serves the browser only; it does **not** run the biometric
+   scheduler. For local development, run the sync command from a second
+   terminal whenever you want to import scans:
+
+~~~text
+python manage.py sync_biometric_devices --force
+~~~
+
+   To exercise the normal due-time behavior, omit `--force` and run the
+   command at least every two minutes. In an office deployment, configure
+   Windows Task Scheduler (or another scheduler) to invoke the command on
+   that cadence. The command checks each device's effective interval and
+   skips devices that are not due.
 
 3. Observe three normal runs with no new scans.
 4. Add one test scan and confirm import occurs within the interval.

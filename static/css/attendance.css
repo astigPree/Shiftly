@@ -171,7 +171,7 @@
 
 .attendance-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -228,6 +228,11 @@
 }
 
 .attendance-summary-card--blue .attendance-summary-icon {
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.attendance-summary-card--provisional .attendance-summary-icon {
   color: var(--color-primary);
   background: var(--color-primary-50);
 }

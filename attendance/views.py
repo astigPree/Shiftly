@@ -14,6 +14,7 @@ from accounts.permissions import employee_required, employer_required, organizat
 from employees.models import Employee
 from schedules.models import Shift
 from timesheets.models import Timesheet
+from biometrics.models import BiometricAttendanceProjection, BiometricPunch
 from .dashboard import get_employer_attendance_dashboard
 from .forms import AttendanceCorrectionForm, AttendanceManualEntryForm
 from .models import AttendanceCorrection, AttendanceSession, BreakSession
@@ -32,9 +33,13 @@ from .services import (
 
 
 def _with_attendance(queryset):
-    return queryset.select_related("attendance_session").prefetch_related(
+    return queryset.select_related("attendance_session", "biometric_projection").prefetch_related(
         Prefetch("attendance_session__breaks", queryset=BreakSession.objects.order_by("started_at")),
         Prefetch("attendance_session__corrections", queryset=AttendanceCorrection.objects.order_by("-created_at", "-pk")),
+        Prefetch(
+            "biometric_projection__punches",
+            queryset=BiometricPunch.objects.select_related("device").order_by("occurred_at", "pk"),
+        ),
     )
 
 
@@ -93,7 +98,7 @@ def attendance_list(request):
     status_filter = request.GET.get("status", "").upper()
     allowed_statuses = [
         "SCHEDULED", "LATE", "ABSENT", "WORKING", "ON_BREAK", "COMPLETED",
-        "CANCELLED", "OPEN_CLOCKOUT", "NEEDS_FOLLOWUP",
+        "CANCELLED", "OPEN_CLOCKOUT", "NEEDS_FOLLOWUP", "PROVISIONAL",
     ]
     if status_filter not in allowed_statuses:
         status_filter = ""
@@ -123,7 +128,7 @@ def attendance_list(request):
                 ("SCHEDULED", "Scheduled"), ("LATE", "Late"), ("ABSENT", "Absent"),
                 ("WORKING", "Working"), ("ON_BREAK", "On break"), ("COMPLETED", "Completed"),
                 ("CANCELLED", "Cancelled"), ("OPEN_CLOCKOUT", "Open clock-outs"),
-                ("NEEDS_FOLLOWUP", "Needs follow-up"),
+                ("NEEDS_FOLLOWUP", "Needs follow-up"), ("PROVISIONAL", "Biometric · provisional"),
             ],
             "organization": organization,
             "local_today": local_today,
@@ -321,7 +326,30 @@ def my_attendance(request):
     biometric_required = employee_requires_biometric(employee)
     for shift in shifts:
         session = getattr(shift, "attendance_session", None)
+        try:
+            projection = shift.biometric_projection
+        except BiometricAttendanceProjection.DoesNotExist:
+            projection = None
+        projection_state = projection.effective_live_state if projection else BiometricAttendanceProjection.LiveState.NONE
+        biometric_provisional = (
+            session is None
+            and projection is not None
+            and projection_state in {
+                BiometricAttendanceProjection.LiveState.WORKING,
+                BiometricAttendanceProjection.LiveState.AWAITING_NEXT_SCAN,
+            }
+        )
         state = attendance_state(shift, at=now)
+        if biometric_provisional:
+            state = {
+                "code": "PROVISIONAL",
+                "label": (
+                    "Working · biometric provisional"
+                    if projection_state == BiometricAttendanceProjection.LiveState.WORKING
+                    else "Awaiting next biometric scan"
+                ),
+                "missing_clock_out": False,
+            }
         effective = effective_attendance_values(session) if session else None
         breaks = effective["breaks"] if effective else []
         completed_break_seconds = sum(
@@ -340,6 +368,13 @@ def my_attendance(request):
                 break_seconds += max(0, int((now - active_break.started_at).total_seconds()))
                 elapsed -= max(0, int((now - active_break.started_at).total_seconds()))
             worked_seconds = max(0, elapsed - completed_break_seconds)
+        elif biometric_provisional and projection and projection.first_punch_at:
+            worked_seconds = max(0, int((now - projection.first_punch_at).total_seconds()))
+        provisional_terminal_name = "Assigned fingerprint terminal"
+        if biometric_provisional and projection:
+            first_punch = next(iter(projection.punches.all()), None)
+            if first_punch and first_punch.device:
+                provisional_terminal_name = first_punch.device.name
         show_clock_in = (
             session is None
             and shift.status == Shift.Status.SCHEDULED
@@ -369,6 +404,15 @@ def my_attendance(request):
                 "break_duration_label": _duration_label(break_seconds),
                 "scheduled_duration_label": _employee_duration_label(shift.scheduled_minutes),
                 "biometric_required": biometric_required,
+                "biometric_projection": projection,
+                "biometric_provisional": biometric_provisional,
+                "provisional_scan_at": projection.last_effective_scan_at if projection else None,
+                "provisional_scan_label": (
+                    "Fingerprint scan received"
+                    if projection_state == BiometricAttendanceProjection.LiveState.WORKING
+                    else "Additional fingerprint scan received"
+                ),
+                "provisional_terminal_name": provisional_terminal_name,
             }
         )
     has_open_session = any(card["session"] and not card["effective_clock_out_at"] for card in cards)

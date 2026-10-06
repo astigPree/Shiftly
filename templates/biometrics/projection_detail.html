@@ -1,0 +1,44 @@
+{% extends "layouts/employer.html" %}
+{% load tz %}
+{% block title %}Biometric review | Shiftly{% endblock %}
+{% block app_content %}
+<div class="page-shell biometric-page biometric-page--review">
+  <header class="bio-header">
+    <div>
+      <nav class="bio-breadcrumb" aria-label="Breadcrumb"><a href="{% url 'attendance:list' %}">Attendance</a><span aria-hidden="true">›</span><a href="{% url 'biometrics:devices' %}">Biometric attendance</a><span aria-hidden="true">›</span><span>Projection review</span></nav>
+      <h1>Review biometric attendance</h1>
+      <p>{{ projection.employee.full_name }} · {{ shift.work_date|date:"M j, Y" }} · {{ shift.scheduled_start|timezone:organization.timezone|date:"g:i A" }}–{{ shift.scheduled_end|timezone:organization.timezone|date:"g:i A" }}</p>
+    </div>
+    <div class="bio-header-actions"><span class="bio-status bio-status--{% if projection.effective_live_state == 'WORKING' %}info{% elif projection.status == 'READY' %}success{% elif projection.status == 'NEEDS_REVIEW' or projection.status == 'CONFLICT' %}warning{% else %}neutral{% endif %}"><span></span>{{ projection.effective_live_state_label }}</span></div>
+  </header>
+
+  <section class="bio-callout" aria-label="Projection safety notice"><span class="bio-callout-icon">{% include "components/icon.html" with icon_name="info" %}</span><div><strong>Provisional evidence is not payroll time.</strong><p>A projection becomes attendance only after an employer reviews a complete scan sequence and applies it.</p></div><form method="post" action="{% url 'biometrics:reprocess_projection' projection.pk %}">{% csrf_token %}<button class="button-secondary" type="submit">Refresh projection</button></form></section>
+
+  <div class="bio-review-layout">
+    <section class="card bio-panel">
+      <div class="bio-panel-header"><div><h2>Scan timeline</h2><p>Raw terminal events are retained. Duplicate events are excluded only from effective pairing.</p></div><span class="bio-panel-kicker">{{ projection.punch_count }} effective scan{{ projection.punch_count|pluralize }}</span></div>
+      {% if punches %}
+        <ol class="bio-scan-timeline">
+          {% for punch in punches %}
+            <li><span class="bio-timeline-dot" aria-hidden="true"></span><div><strong>{{ punch.occurred_at|timezone:organization.timezone|date:"g:i A" }}</strong><small>{{ punch.source_local_timestamp }} · {{ punch.device.name }} · terminal ID {{ punch.terminal_user_id }}</small></div><span class="bio-status bio-status--neutral"><span></span>Immutable</span></li>
+          {% endfor %}
+        </ol>
+      {% else %}<div class="bio-empty bio-empty--compact"><strong>No scan evidence</strong><p>Refresh after the next terminal sync.</p></div>{% endif %}
+    </section>
+
+    <aside class="card bio-panel">
+      <div class="bio-panel-header"><div><h2>Review result</h2><p>Current projection status and next action.</p></div></div>
+      <dl class="bio-review-facts">
+        <div><dt>State</dt><dd>{{ projection.effective_live_state_label }}</dd></div>
+        <div><dt>First scan</dt><dd>{% if projection.first_punch_at %}{{ projection.first_punch_at|timezone:organization.timezone|date:"M j, g:i A" }}{% else %}—{% endif %}</dd></div>
+        <div><dt>Latest scan</dt><dd>{% if projection.last_punch_at %}{{ projection.last_punch_at|timezone:organization.timezone|date:"M j, g:i A" }}{% else %}—{% endif %}</dd></div>
+        <div><dt>Review window closes</dt><dd>{% if projection.candidate_closes_at %}{{ projection.candidate_closes_at|timezone:organization.timezone|date:"M j, g:i A" }}{% else %}Calculating{% endif %}</dd></div>
+      </dl>
+      {% if projection.issue_summary %}<p class="bio-review-issue">{{ projection.issue_summary }}</p>{% endif %}
+      {% if issues %}<div class="bio-review-issue-list"><strong>Open issues</strong>{% for issue in issues %}<p>{{ issue.summary }}</p>{% endfor %}</div>{% endif %}
+      {% if projection.candidate_breaks %}<div class="bio-review-breaks"><strong>Derived breaks</strong>{% for item in projection.candidate_breaks %}<p>{{ item.start|slice:"11:16" }}–{{ item.end|slice:"11:16" }}</p>{% endfor %}</div>{% endif %}
+      {% if can_apply %}<form method="post" action="{% url 'biometrics:apply_projection' projection.pk %}" class="bio-review-apply">{% csrf_token %}<button class="button-primary" type="submit">Apply confirmed attendance</button><small>Creates the attendance snapshot and pending timesheet.</small></form>{% elif projection.status == 'MATERIALIZED' %}<p class="bio-review-success">Attendance was applied and is now handled by the normal timesheet review workflow.</p>{% else %}<p class="bio-muted">Wait for the candidate window to close or resolve the listed issue before applying attendance.</p>{% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

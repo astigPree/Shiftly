@@ -53,6 +53,24 @@
             <a class="button-link button-link-secondary" href="{% url 'schedules:my_schedule' %}">View schedule</a>
           </div>
 
+        {% elif card.biometric_provisional %}
+          <div class="employee-live-attendance employee-live-attendance--provisional">
+            <div class="employee-primary-timer employee-primary-timer--provisional">
+              <span>Provisional elapsed time</span>
+              <strong class="live-timer" data-base-seconds="{{ card.worked_seconds }}" data-started-at="{{ card.provisional_scan_at|date:'c' }}" aria-live="off">{{ card.worked_duration_label }}</strong>
+            </div>
+            <dl class="employee-shift-facts">
+              <div><dt>First fingerprint scan</dt><dd>{{ card.biometric_projection.first_punch_at|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              <div><dt>Latest scan</dt><dd>{{ card.biometric_projection.last_punch_at|timezone:organization.timezone|date:"g:i A" }}</dd></div>
+              <div><dt>Attendance source</dt><dd>{{ card.provisional_terminal_name }}</dd></div>
+              <div><dt>Payroll status</dt><dd>Not ready</dd></div>
+            </dl>
+          </div>
+          <p class="employee-provisional-notice" role="status">
+            <strong>{{ card.state.label }}</strong>. {{ card.provisional_scan_label }}. Shiftly is waiting for the remaining fingerprint scans before creating reviewed attendance.
+          </p>
+          <p class="employee-attendance-warning" role="status">Web clock-in, break, and clock-out controls are disabled because this shift uses the assigned fingerprint terminal.</p>
+
         {% elif session %}
           <div class="employee-live-attendance">
             <div class="employee-primary-timer{% if session.status == 'ON_BREAK' %} employee-primary-timer--break{% endif %}">

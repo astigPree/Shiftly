@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase
 from django.urls import reverse
 
+from attendance.models import AttendanceSession
 from attendance.services import clock_in
 from biometrics.forms import DeviceIdentityAssignmentForm
 from biometrics.models import (
@@ -22,6 +24,8 @@ from biometrics.services import (
     BiometricErrorCode,
     assign_identity,
     reconcile_biometric_projection,
+    refresh_due_biometric_projections,
+    materialize_biometric_projection,
     sync_device_users,
     test_device_connection,
 )
@@ -104,6 +108,150 @@ class BiometricWorkflowTests(TestCase):
         self.assertEqual(projection.status, BiometricAttendanceProjection.Status.READY)
         self.assertEqual(projection.punch_count, 4)
         self.assertEqual(len(projection.candidate_breaks), 1)
+
+    def test_first_scan_is_visible_as_provisional_without_attendance_side_effects(self):
+        shift = Shift.objects.create(
+            organization=self.organization,
+            employee=self.employee,
+            work_date=datetime(2026, 9, 21, tzinfo=ZoneInfo("Asia/Manila")).date(),
+            scheduled_start=self._utc(9),
+            scheduled_end=self._utc(18),
+            scheduled_break_minutes=60,
+        )
+        assignment = DeviceIdentityAssignment.objects.create(
+            device_identity=self.identity,
+            employee=self.employee,
+            effective_from=self._utc(0),
+            assigned_by=self.owner,
+        )
+        BiometricPunch.objects.create(
+            device=self.device,
+            device_identity=self.identity,
+            identity_assignment=assignment,
+            sync_run=self.run,
+            terminal_user_id="17",
+            source_local_timestamp="2026-09-21 09:03:00",
+            source_timezone="Asia/Manila",
+            occurred_at=self._utc(9, 3),
+            canonical_key="provisional-first",
+            payload_hash="b" * 64,
+            raw_payload={"record_id": "provisional-first"},
+        )
+
+        projection = reconcile_biometric_projection(shift, now=self._utc(9, 5))
+
+        self.assertEqual(projection.status, BiometricAttendanceProjection.Status.COLLECTING)
+        self.assertEqual(projection.live_state, BiometricAttendanceProjection.LiveState.WORKING)
+        self.assertEqual(projection.punch_count, 1)
+        self.assertIsNone(projection.materialized_session_id)
+        self.assertEqual(AttendanceSession.objects.count(), 0)
+
+        self.client.force_login(self.owner)
+        review_response = self.client.get(reverse("biometrics:projection_detail", args=[projection.pk]))
+        self.assertEqual(review_response.status_code, 200)
+        employer_response = self.client.get(reverse("attendance:list"), {"date": "2026-09-21"})
+        self.assertEqual(employer_response.status_code, 200)
+        self.assertContains(employer_response, "Working · provisional")
+        self.client.force_login(self.employee.user)
+        with patch("attendance.views.timezone.now", return_value=self._utc(9, 5)):
+            employee_response = self.client.get(reverse("attendance:my_attendance"))
+        self.assertEqual(employee_response.status_code, 200)
+        self.assertContains(employee_response, "Working · biometric provisional")
+
+    def test_projection_waits_for_candidate_close_then_becomes_ready(self):
+        shift = Shift.objects.create(
+            organization=self.organization,
+            employee=self.employee,
+            work_date=datetime(2026, 9, 21, tzinfo=ZoneInfo("Asia/Manila")).date(),
+            scheduled_start=self._utc(9),
+            scheduled_end=self._utc(18),
+            scheduled_break_minutes=0,
+        )
+        assignment = DeviceIdentityAssignment.objects.create(
+            device_identity=self.identity,
+            employee=self.employee,
+            effective_from=self._utc(0),
+            assigned_by=self.owner,
+        )
+        for index, (hour, minute) in enumerate(((9, 0), (18, 0))):
+            BiometricPunch.objects.create(
+                device=self.device,
+                device_identity=self.identity,
+                identity_assignment=assignment,
+                sync_run=self.run,
+                terminal_user_id="17",
+                source_local_timestamp=f"2026-09-21 {hour:02d}:{minute:02d}:00",
+                source_timezone="Asia/Manila",
+                occurred_at=self._utc(hour, minute),
+                canonical_key=f"close-{index}",
+                payload_hash=str(index + 2) * 64,
+                raw_payload={"record_id": f"close-{index}"},
+            )
+
+        collecting = reconcile_biometric_projection(shift, now=self._utc(18, 1))
+        self.assertEqual(collecting.live_state, BiometricAttendanceProjection.LiveState.AWAITING_NEXT_SCAN)
+        self.assertEqual(collecting.status, BiometricAttendanceProjection.Status.COLLECTING)
+
+        refreshed = refresh_due_biometric_projections(now=self._utc(23))
+        self.assertEqual(len(refreshed), 1)
+        collecting.refresh_from_db()
+        self.assertEqual(collecting.status, BiometricAttendanceProjection.Status.READY)
+        self.assertEqual(collecting.live_state, BiometricAttendanceProjection.LiveState.READY_FOR_REVIEW)
+        self.assertEqual(AttendanceSession.objects.count(), 0)
+
+    def test_late_scan_after_application_is_retained_as_issue(self):
+        shift = Shift.objects.create(
+            organization=self.organization,
+            employee=self.employee,
+            work_date=datetime(2026, 9, 21, tzinfo=ZoneInfo("Asia/Manila")).date(),
+            scheduled_start=self._utc(9),
+            scheduled_end=self._utc(18),
+            scheduled_break_minutes=0,
+        )
+        assignment = DeviceIdentityAssignment.objects.create(
+            device_identity=self.identity,
+            employee=self.employee,
+            effective_from=self._utc(0),
+            assigned_by=self.owner,
+        )
+        for index, hour in enumerate((9, 18)):
+            BiometricPunch.objects.create(
+                device=self.device,
+                device_identity=self.identity,
+                identity_assignment=assignment,
+                sync_run=self.run,
+                terminal_user_id="17",
+                source_local_timestamp=f"2026-09-21 {hour:02d}:00:00",
+                source_timezone="Asia/Manila",
+                occurred_at=self._utc(hour),
+                canonical_key=f"applied-{index}",
+                payload_hash=str(index + 5) * 64,
+                raw_payload={"record_id": f"applied-{index}"},
+            )
+        projection = reconcile_biometric_projection(shift, now=self._utc(23))
+        session = materialize_biometric_projection(projection, actor=self.owner)
+        late_punch = BiometricPunch.objects.create(
+            device=self.device,
+            device_identity=self.identity,
+            identity_assignment=assignment,
+            sync_run=self.run,
+            terminal_user_id="17",
+            source_local_timestamp="2026-09-21 19:00:00",
+            source_timezone="Asia/Manila",
+            occurred_at=self._utc(19),
+            canonical_key="applied-late",
+            payload_hash="z" * 64,
+            raw_payload={"record_id": "applied-late"},
+        )
+
+        reconcile_biometric_projection(shift, now=self._utc(23, 5))
+
+        late_punch.refresh_from_db()
+        projection.refresh_from_db()
+        self.assertEqual(projection.status, BiometricAttendanceProjection.Status.MATERIALIZED)
+        self.assertEqual(late_punch.projection_id, projection.pk)
+        self.assertTrue(projection.issues.filter(code="LATE_EVIDENCE", status="OPEN").exists())
+        self.assertEqual(session.clock_out_at, self._utc(18))
 
     def test_mapped_employee_cannot_use_web_clock_in(self):
         shift = Shift.objects.create(

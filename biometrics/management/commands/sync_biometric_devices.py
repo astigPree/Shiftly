@@ -4,7 +4,12 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from biometrics.models import AttendanceDevice, DeviceSyncRun, OrganizationBiometricSettings
-from biometrics.services import BiometricOperationError, sync_device_punches, sync_device_users
+from biometrics.services import (
+    BiometricOperationError,
+    refresh_due_biometric_projections,
+    sync_device_punches,
+    sync_device_users,
+)
 
 
 class Command(BaseCommand):
@@ -67,6 +72,9 @@ class Command(BaseCommand):
             except Exception:
                 totals["errors"] += 1
                 self.stderr.write(self.style.ERROR(f"{device.name}: biometric operation failed; review the sync history"))
+        refreshed = refresh_due_biometric_projections(now=timezone.now())
+        if refreshed:
+            self.stdout.write(f"Projection refresh: {len(refreshed)} candidate(s) moved to review or issue state")
         self.stdout.write(
             f"Devices: {totals['devices']} · users: {totals['users']} · punches: {totals['punches']} · partial: {totals['partial']} · skipped: {totals['skipped']} · errors: {totals['errors']}"
         )

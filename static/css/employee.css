@@ -424,6 +424,10 @@
 .employee-attendance-card--on_break {
   border-color: var(--color-primary-200);
 }
+.employee-attendance-card--provisional {
+  border-color: var(--color-primary-200);
+  background: linear-gradient(180deg, var(--color-primary-50), var(--color-surface) 42%);
+}
 .employee-attendance-card--cancelled {
   background: #fffafa;
   border-color: var(--color-error-border);
@@ -494,6 +498,10 @@
   background: var(--color-warning-bg);
   border-color: var(--color-warning-border);
 }
+.employee-primary-timer--provisional {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-200);
+}
 .employee-primary-timer > span {
   color: var(--color-text-muted);
 }
@@ -531,6 +539,16 @@
   padding: 11px 13px;
   color: var(--color-warning);
   background: var(--color-warning-bg);
+  border-radius: var(--radius-md);
+}
+.employee-provisional-notice {
+  display: grid;
+  gap: 3px;
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  color: var(--color-primary);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-100);
   border-radius: var(--radius-md);
 }
 .employee-home .employee-actions {
