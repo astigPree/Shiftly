@@ -24,6 +24,7 @@ from audit.services import record_event
 from employees.models import Employee
 from .statutory import AGENCIES, record_statutory_review, statutory_review_rows
 from .exports import PayrollExportError, build_finalized_export_data, build_finalized_workbook, csv_export_rows
+from .payslips import PayslipError, build_finalized_payslip_data, build_payslip_pdf, payslip_filename
 
 from .forms import (
     EmployeeCompensationForm,
@@ -2093,6 +2094,56 @@ def run_export_xlsx(request, pk):
     return response
 
 
+def _payslip_pdf_response(*, request, statement, organization, access_scope):
+    """Return one finalized statement as a secure downloadable PDF."""
+    try:
+        data = build_finalized_payslip_data(statement)
+        document = build_payslip_pdf(data)
+    except PayslipError as error:
+        return HttpResponse(
+            f"Payslip unavailable: {error}",
+            content_type="text/plain; charset=utf-8",
+            status=409,
+        )
+
+    response = HttpResponse(document, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{payslip_filename(data)}"'
+    response["X-Content-Type-Options"] = "nosniff"
+    record_event(
+        organization=organization,
+        actor=request.user,
+        action=AuditEvent.Action.PAYROLL_EXPORT_ACCESSED,
+        target_type="payroll_statement",
+        target_id=statement.pk,
+        summary=f"Downloaded finalized PDF payslip for {statement.run.reference}.",
+        metadata={
+            "format": "pdf",
+            "statement_id": statement.pk,
+            "run_id": statement.run_id,
+            "access_scope": access_scope,
+        },
+    )
+    return response
+
+
+@employer_required
+@require_GET
+def run_statement_payslip_pdf(request, pk, statement_pk):
+    organization = _organization(request)
+    statement = get_object_or_404(
+        PayrollStatement.objects.select_related("run", "run__organization", "employee").prefetch_related("lines"),
+        pk=statement_pk,
+        run_id=pk,
+        run__organization=organization,
+    )
+    return _payslip_pdf_response(
+        request=request,
+        statement=statement,
+        organization=organization,
+        access_scope="employer",
+    )
+
+
 @employee_required
 @require_GET
 def my_statements(request):
@@ -2132,3 +2183,22 @@ def my_statement_detail(request, pk):
     statement.rule_profile_summary = _statement_rule_profile_summary(statement)
     record_event(organization=employee.organization, actor=request.user, action=AuditEvent.Action.PAYROLL_STATEMENT_ACCESSED, target_type="payroll_statement", target_id=statement.pk, summary=f"Viewed finalized payslip for {statement.run.reference}.")
     return render(request, "payroll/statement.html", {"organization": employee.organization, "statement": statement, "printable": True})
+
+
+@employee_required
+@require_GET
+def my_statement_payslip_pdf(request, pk):
+    employee = request.user.employee_profile
+    statement = get_object_or_404(
+        PayrollStatement.objects.select_related("run", "run__organization", "employee").prefetch_related("lines"),
+        pk=pk,
+        employee=employee,
+        run__organization=employee.organization,
+        run__status=PayrollRun.Status.FINALIZED,
+    )
+    return _payslip_pdf_response(
+        request=request,
+        statement=statement,
+        organization=employee.organization,
+        access_scope="employee",
+    )

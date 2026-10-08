@@ -28,6 +28,8 @@ urlpatterns = [
     path("runs/<int:pk>/statutory/<int:assessment_pk>/", views.statutory_exception, name="statutory_exception"),
     path("runs/<int:pk>/export.csv", views.run_export, name="run_export"),
     path("runs/<int:pk>/export.xlsx", views.run_export_xlsx, name="run_export_xlsx"),
+    path("runs/<int:pk>/statements/<int:statement_pk>/payslip.pdf", views.run_statement_payslip_pdf, name="run_statement_payslip_pdf"),
     path("my/", views.my_statements, name="my_statements"),
     path("my/<int:pk>/", views.my_statement_detail, name="my_statement_detail"),
+    path("my/<int:pk>/payslip.pdf", views.my_statement_payslip_pdf, name="my_statement_payslip_pdf"),
 ]

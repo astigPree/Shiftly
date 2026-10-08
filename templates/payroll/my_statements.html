@@ -67,7 +67,7 @@
             <td data-label="Gross" class="payroll-my-money">{{ statement.run.currency }} {{ statement.gross_amount|floatformat:2|intcomma }}</td>
             <td data-label="Deductions" class="payroll-my-money">{{ statement.run.currency }} {{ statement.deduction_amount|floatformat:2|intcomma }}</td>
             <td data-label="Net pay" class="payroll-my-money"><strong>{{ statement.run.currency }} {{ statement.net_amount|floatformat:2|intcomma }}</strong></td>
-            <td data-label="Payslip"><a class="table-action-button" href="{% url 'payroll:my_statement_detail' statement.pk %}">View payslip</a></td>
+            <td data-label="Payslip"><div class="payroll-statement-actions"><a class="table-action-button" href="{% url 'payroll:my_statement_detail' statement.pk %}">View</a><a class="table-action-button" href="{% url 'payroll:my_statement_payslip_pdf' statement.pk %}">PDF</a></div></td>
           </tr>
           {% endfor %}
         </tbody>

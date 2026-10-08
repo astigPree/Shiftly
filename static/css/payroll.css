@@ -689,6 +689,9 @@ html.payroll-dialog-open { overflow: hidden; }
 .payroll-payslip { width: min(100%, 860px); }
 .payroll-payslip__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border); }
 .payroll-payslip__header h1 { margin: 0 0 5px; }
+.payroll-payslip__actions,
+.payroll-statement-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.payroll-payslip__actions { justify-content: flex-end; }
 .payroll-payslip__totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
 .payroll-payslip__total { padding: 14px; background: var(--color-gray-50); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 .payroll-payslip__total span,.payroll-payslip__total strong { display: block; }
@@ -760,6 +763,7 @@ html.payroll-dialog-open { overflow: hidden; }
   .payroll-pagination { width: 100%; justify-content: flex-start; }
   .payroll-line { align-items: flex-start; flex-direction: column; }
   .payroll-payslip__header { flex-direction: column; }
+  .payroll-payslip__actions { justify-content: flex-start; }
   .payroll-payslip__totals { grid-template-columns: 1fr; }
   .payroll-setup-callout { align-items: flex-start; flex-direction: column; }
   .payroll-notice { align-items: flex-start; }
