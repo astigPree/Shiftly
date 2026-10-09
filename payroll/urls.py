@@ -20,6 +20,7 @@ urlpatterns = [
     path("components/<int:pk>/edit/", views.component_edit, name="component_edit"),
     path("components/<int:pk>/toggle/", views.component_toggle, name="component_toggle"),
     path("runs/new/", views.run_create, name="run_create"),
+    path("runs/preview/", views.run_preview, name="run_preview"),
     path("runs/create/", views.run_create_submit, name="run_create_submit"),
     path("runs/<int:pk>/", views.run_detail, name="run_detail"),
     path("runs/<int:pk>/statutory/", views.statutory_workspace, name="statutory_workspace"),

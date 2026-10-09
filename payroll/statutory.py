@@ -75,6 +75,7 @@ def statutory_review_rows(statement):
                 assessment.status == 'REVIEWED'
                 and assessment.input_fingerprint == scoped_fingerprint
                 and assessment.reviewed_by_id
+                and (not review or review.get('fingerprint') == fingerprint)
             )
             if current and not review:
                 review = {
@@ -179,7 +180,11 @@ def record_statutory_review(*, statement, actor, agency, registration,
         defaults={
             'organization': organization,
             'employee_id': statement.employee_id,
-            'status': PayrollStatutoryAssessment.Status.REVIEWED,
+            # Build the row as a valid pending assessment first. The reviewed
+            # state is assigned only after all evidence and the fingerprint are
+            # populated below, so model validation cannot observe a partial
+            # reviewed record.
+            'status': PayrollStatutoryAssessment.Status.PROPOSED,
             'source_type': PayrollStatutoryAssessment.SourceType.MANUAL,
         },
     )

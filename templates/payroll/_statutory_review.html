@@ -43,7 +43,7 @@
     <div><span class="payroll-statutory-form-step">Next</span><div><strong>Record a statutory review</strong><p>Save one agency at a time. The cards above update after each save.</p></div></div>
     <span>{{ statement.statutory_reviewed_count }} of {{ statement.statutory_total_count }} complete</span>
   </div>
-  <form method="post" class="payroll-statutory-form" data-statutory-review-form data-toast-feedback="off" novalidate>
+  <form method="post" action="{{ statutory_form_action|default:'' }}" class="payroll-statutory-form" data-statutory-review-form data-toast-feedback="off" novalidate>
     {% csrf_token %}<input type="hidden" name="action" value="statutory_review"><input type="hidden" name="statement_id" value="{{ statement.pk }}">
     {% if statement.statutory_form.non_field_errors %}<div class="field-error" role="alert">{{ statement.statutory_form.non_field_errors }}</div>{% endif %}
     {% for field in statement.statutory_form %}{% include 'components/form_field.html' with field=field %}{% endfor %}

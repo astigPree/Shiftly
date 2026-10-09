@@ -10,6 +10,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from io import BytesIO
 
 from .models import PayrollLine, PayrollRun
+from .presentation import snapshot_pay_basis
 
 
 class PayrollExportError(ValueError):
@@ -140,16 +141,12 @@ def _statement_row(statement, *, require_classification=True):
 
     employee_code = employee_snapshot.get("code") or statement.employee.employee_code
     employee_name = employee_snapshot.get("name") or statement.employee.full_name
-    pay_basis = ""
-    for value in (snapshot.get("compensation_versions") or snapshot.get("rate_versions") or {}).values():
-        if isinstance(value, dict) and value.get("basis"):
-            pay_basis = value["basis"].title()
-            break
+    pay_basis = snapshot_pay_basis(snapshot)
     row = {
         "group": employment_status,
         "employee_code": safe_text(employee_code),
         "employee": safe_text(employee_name),
-        "pay_basis": safe_text(pay_basis or "Hourly"),
+        "pay_basis": safe_text(pay_basis),
         "rule_profiles": safe_text(_rule_profile_summary(snapshot)),
         "salary_rate": _salary_rate(snapshot),
         "basic": basic,

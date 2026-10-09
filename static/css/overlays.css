@@ -160,6 +160,35 @@
 html.overlay-open,
 body.overlay-open { overflow: hidden; }
 
+/* Opt-in long-form dialog contract: only the body scrolls. */
+.payroll-dialog > form.dialog-form-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  height: min(calc(100dvh - 32px), 760px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.payroll-dialog > form.dialog-form-layout > .payroll-card-heading {
+  position: static;
+  margin: 0;
+  padding: 22px 24px 16px;
+}
+.payroll-dialog > form.dialog-form-layout > .dialog-form-body {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 24px 20px;
+  overscroll-behavior: contain;
+}
+.payroll-dialog > form.dialog-form-layout > .payroll-dialog-actions {
+  position: static;
+  margin: 0;
+  padding: 14px 24px 20px;
+}
+
 /* Popovers remain inside the viewport and read as one compact action surface. */
 .account-popover,
 .schedule-row-menu-popover {
@@ -209,6 +238,11 @@ body.overlay-open { overflow: hidden; }
 
   .payroll-dialog > form,
   .payroll-dialog > div { padding: 20px; }
+
+  .payroll-dialog > form.dialog-form-layout { height: calc(100dvh - 20px); max-height: calc(100dvh - 20px); }
+  .payroll-dialog > form.dialog-form-layout > .payroll-card-heading { padding: 18px 20px 14px; }
+  .payroll-dialog > form.dialog-form-layout > .dialog-form-body { padding: 10px 20px 16px; }
+  .payroll-dialog > form.dialog-form-layout > .payroll-dialog-actions { margin: 0; padding: 12px 20px max(20px, env(safe-area-inset-bottom)); }
 
   .payroll-dialog > form > .payroll-card-heading,
   .payroll-dialog > div > .payroll-card-heading {

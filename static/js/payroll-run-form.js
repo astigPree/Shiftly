@@ -21,11 +21,68 @@
   var previewPayDate = root.querySelector("[data-preview-pay-date]");
   var previewApproved = root.querySelector("[data-preview-approved]");
   var previewReview = root.querySelector("[data-preview-review]");
+  var previewPeriodInputs = root.querySelector("[data-preview-period-inputs]");
+  var previewStatus = root.querySelector("[data-preview-status]");
   var previewReviewRow = previewReview && previewReview.closest(".payroll-source-row");
   var periodValidation = root.querySelector("[data-period-validation]");
   var scopeReadiness = root.querySelector("[data-scope-readiness]");
   var scopeReadinessDetail = root.querySelector("[data-scope-readiness-detail]");
   var createButton = root.querySelector("[data-create-run]");
+  var previewTimer = null;
+  var previewController = null;
+  var previewSequence = 0;
+
+  function setSourcePreview(approved, review, periodInputs) {
+    if (previewApproved) previewApproved.textContent = approved;
+    if (previewReview) previewReview.textContent = review;
+    if (previewPeriodInputs) previewPeriodInputs.textContent = periodInputs;
+    if (previewReviewRow) previewReviewRow.classList.toggle("payroll-source-row--warning", Number(review) > 0);
+  }
+
+  function requestSourcePreview() {
+    var start = parseDate(startField && startField.value);
+    var end = parseDate(endField && endField.value);
+    var validation = periodValidationMessage(start, end);
+    if (!start || !end || validation) {
+      if (previewStatus) previewStatus.textContent = validation || "Choose a valid period to load source counts.";
+      setSourcePreview("—", "—", "—");
+      return;
+    }
+    if (previewTimer) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(function () {
+      if (previewController) previewController.abort();
+      previewController = typeof AbortController === "function" ? new AbortController() : null;
+      var sequence = ++previewSequence;
+      var previewUrl = root.dataset.previewUrl;
+      if (!previewUrl || !form) return;
+      if (previewStatus) previewStatus.textContent = "Updating source counts…";
+      setSourcePreview("…", "…", "…");
+      fetch(previewUrl, {
+        method: "POST",
+        body: new FormData(form),
+        headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
+        credentials: "same-origin",
+        signal: previewController ? previewController.signal : undefined,
+      }).then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (data) {
+          if (!response.ok || !data.ok) throw new Error(data.message || "Preview unavailable.");
+          return data;
+        });
+      }).then(function (data) {
+        if (sequence !== previewSequence) return;
+        setSourcePreview(data.approved_timesheets, data.timesheets_needing_review, data.period_inputs);
+        if (previewStatus) {
+          previewStatus.textContent = data.source_mode === "off_cycle_adjustment"
+            ? "Off-cycle runs use adjustments from the linked finalized run; attendance sources are not counted here."
+            : "Source counts updated for this period and employee scope.";
+        }
+      }).catch(function (error) {
+        if (error.name === "AbortError" || sequence !== previewSequence) return;
+        setSourcePreview("—", "—", "—");
+        if (previewStatus) previewStatus.textContent = error.message || "Preview unavailable. Retry after checking the dates and scope.";
+      });
+    }, 180);
+  }
 
   function parseDate(value) {
     if (!value) return null;
@@ -162,6 +219,7 @@
     if (previewPayDate) previewPayDate.textContent = formatDate(payDate);
     updatePeriodValidation(start, end);
     updateCreateAvailability();
+    requestSourcePreview();
   }
 
   function updateCreateAvailability() {
@@ -193,7 +251,7 @@
     var offCycle = selected && selected.value === "OFF_CYCLE";
     if (parentSection) parentSection.hidden = !offCycle;
     if (parentField) parentField.disabled = !offCycle;
-    updateCreateAvailability();
+    updatePreview();
   }
 
   function setPeriod(which) {
@@ -234,7 +292,7 @@
   root.querySelectorAll("[data-select-all]").forEach(function (button) { button.addEventListener("click", function () { employeeCheckboxes.forEach(function (checkbox) { if (!checkbox.disabled) checkbox.checked = true; }); updatePreview(); }); });
   root.querySelectorAll("[data-clear-all]").forEach(function (button) { button.addEventListener("click", function () { employeeCheckboxes.forEach(function (checkbox) { if (!checkbox.disabled) checkbox.checked = false; }); updatePreview(); }); });
   employeeCheckboxes.forEach(function (checkbox) { checkbox.addEventListener("change", updatePreview); });
-  if (parentField) parentField.addEventListener("change", updateCreateAvailability);
+  if (parentField) parentField.addEventListener("change", function () { updateCreateAvailability(); requestSourcePreview(); });
   if (form) form.addEventListener("submit", function () {
     var button = form.querySelector("[data-create-run]");
     if (button) { button.disabled = true; button.classList.add("is-loading"); button.innerHTML = "Creating draft…"; }

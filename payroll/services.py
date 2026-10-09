@@ -1330,6 +1330,20 @@ def remove_adjustment(*, run, line_id, actor):
         "effective_date": line.effective_date.isoformat() if line.effective_date else None,
         "reason": line.note,
     }
+    # A reviewed assessment keeps a protected reference to its manual source
+    # line. Removing that source must first invalidate the assessment so the
+    # draft cannot retain a review that no longer has evidence.
+    from .models import PayrollStatutoryAssessment
+    PayrollStatutoryAssessment.objects.filter(
+        statement=statement,
+    ).filter(Q(employee_line=line) | Q(employer_line=line)).update(
+        employee_line=None,
+        employer_line=None,
+        status=PayrollStatutoryAssessment.Status.SUPERSEDED,
+        reviewed_by=None,
+        reviewed_at=None,
+        input_fingerprint="",
+    )
     line.delete()
     _refresh_statement(statement)
     run.review_revision += 1

@@ -1830,7 +1830,49 @@ html.payroll-dialog-open { overflow: hidden; }
   .payroll-statutory-review > summary { align-items: flex-start; }
   .payroll-statutory-amounts, .payroll-statutory-meta { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The statutory queue adapts to the content column, not the full viewport. */
+.statutory-bulk-workspace,
+.statutory-bulk-workspace > *,
+.statutory-bulk-toolbar,
+.statutory-bulk-table-wrap { min-width: 0; max-width: 100%; }
+.statutory-bulk-filters { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.statutory-bulk-filters > * { min-width: 0; }
+.statutory-bulk-selection-bar { min-width: 0; flex-wrap: wrap; }
+.statutory-selection-summary { min-width: 0; }
+.statutory-selection-summary span,
+.statutory-selection-summary small { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .statutory-bulk-filters { grid-template-columns: minmax(0, 1fr); }
+  .statutory-bulk-filters input { grid-column: auto; }
+  .statutory-bulk-selection-bar { position: static; }
+  .statutory-bulk-table-wrap { overflow: visible; border: 0; }
+  .statutory-bulk-table { min-width: 0; display: block; }
+  .statutory-bulk-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .statutory-bulk-table tbody,
+  .statutory-bulk-table tr { display: block; }
+  .statutory-bulk-table tr { margin-bottom: 10px; padding: 10px; border: 1px solid var(--border, #d8e1ee); border-radius: 10px; background: var(--color-surface, #fff); }
+  .statutory-bulk-table td { display: grid; grid-template-columns: minmax(88px, 34%) minmax(0, 1fr); gap: 8px; width: auto; padding: 7px 2px; border: 0; overflow-wrap: anywhere; }
+  .statutory-bulk-table td::before { color: var(--color-text-muted); font-size: 12px; font-weight: 700; }
+  .statutory-bulk-table td:nth-child(1) { display: flex; justify-content: flex-start; padding-top: 0; }
+  .statutory-bulk-table td:nth-child(1)::before { content: "Select"; margin-right: 8px; }
+  .statutory-bulk-table td:nth-child(2)::before { content: "Employee"; }
+  .statutory-bulk-table td:nth-child(3)::before { content: "Agency"; }
+  .statutory-bulk-table td:nth-child(4)::before { content: "Reviewed amounts"; }
+  .statutory-bulk-table td:nth-child(5)::before { content: "Source"; }
+  .statutory-bulk-table td:nth-child(6)::before { content: "Status"; }
+  .statutory-bulk-table td:nth-child(7)::before { content: "Action"; }
+  .statutory-bulk-table td[colspan] { display: block; }
+}
 .payroll-empty-state--compact .payroll-empty-icon { width: 34px; height: 34px; }
+
+/* Migrated form dialogs use one structural grid; legacy form grids must not
+   place the header/body/footer into separate columns. */
+.payroll-holiday-dialog .payroll-holiday-form.dialog-form-layout,
+.payroll-component-dialog .payroll-component-form.dialog-form-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
 
 @media (max-width: 1180px) {
   .payroll-run-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }

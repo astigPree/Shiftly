@@ -8,6 +8,7 @@
      data-preview-start="{{ preview_start|date:'Y-m-d' }}"
      data-preview-end="{{ preview_end|date:'Y-m-d' }}"
      data-preview-pay-date="{{ preview_pay_date|date:'Y-m-d' }}"
+     data-preview-url="{% url 'payroll:run_preview' %}"
      data-eligible-count="{{ eligible_employee_count }}"
      data-preview-approved-total="{{ preview_approved_timesheets }}"
      data-preview-review-total="{{ preview_timesheets_needing_review }}"
@@ -76,7 +77,7 @@
       <aside class="payroll-card payroll-create-preview" aria-labelledby="run-preview-heading">
         <div class="payroll-preview-heading"><div><h2 id="run-preview-heading">Run preview</h2><p>Check the scope and source data before creating the draft.</p></div><span class="payroll-live-pill">Live preview</span></div>
         <dl class="payroll-preview-list"><div><dt>Frequency</dt><dd data-preview-frequency>{{ payroll_frequency_label }}</dd></div><div><dt>Period</dt><dd data-preview-period>{{ preview_start|date:'M j' }} &ndash; {{ preview_end|date:'M j, Y' }}</dd></div><div><dt>Pay date</dt><dd data-preview-pay-date>{{ preview_pay_date|date:'M j, Y' }}</dd></div><div><dt>Employees</dt><dd data-preview-employees>{{ eligible_employee_count }} selected</dd></div><div><dt>Timezone</dt><dd>{{ organization.timezone }}</dd></div><div><dt>Currency</dt><dd>{{ payroll_currency }}</dd></div></dl>
-        <div class="payroll-preview-section"><h3>Attendance sources</h3><p>Based on the preview period and selected employees.</p><div class="payroll-source-row payroll-source-row--ok"><span>Approved timesheets</span><strong data-preview-approved>{{ preview_approved_timesheets }}</strong></div><div class="payroll-source-row{% if preview_timesheets_needing_review %} payroll-source-row--warning{% endif %}"><span>Need review</span><strong data-preview-review>{{ preview_timesheets_needing_review }}</strong></div><div class="payroll-source-row"><span>Reviewed period inputs</span><strong>{{ preview_period_inputs }}</strong></div></div>
+        <div class="payroll-preview-section"><h3>Attendance sources</h3><p>Based on the preview period and selected employees.</p><div class="payroll-source-row payroll-source-row--ok"><span>Approved timesheets</span><strong data-preview-approved>{{ preview_approved_timesheets }}</strong></div><div class="payroll-source-row{% if preview_timesheets_needing_review %} payroll-source-row--warning{% endif %}"><span>Need review</span><strong data-preview-review>{{ preview_timesheets_needing_review }}</strong></div><div class="payroll-source-row"><span>Reviewed period inputs</span><strong data-preview-period-inputs>{{ preview_period_inputs }}</strong></div><p class="payroll-preview-status" data-preview-status role="status" aria-live="polite"></p></div>
         <div class="payroll-preview-section"><h3>Readiness</h3><p>Warnings reflect the employees currently selected for this draft.</p>{% for item in payroll_readiness.items %}{% if item.title != "Employee pay profiles" %}<div class="payroll-readiness-row payroll-readiness-row--{{ item.complete|yesno:'complete,warning' }}"><span class="payroll-readiness-icon" aria-hidden="true">{% if item.complete %}&check;{% else %}!{% endif %}</span><span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span></div>{% endif %}{% endfor %}<div class="payroll-readiness-row payroll-readiness-row--complete" data-scope-readiness><span class="payroll-readiness-icon" aria-hidden="true">&check;</span><span><strong>Selected employee profiles</strong><small data-scope-readiness-detail>Checking selected employees…</small></span></div></div>
         <div class="payroll-preview-note">Creating a draft snapshots the selected period and employees. Recalculate the draft after late-approved attendance changes.</div>
       </aside>
@@ -85,4 +86,4 @@
   </form>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/payroll-run-form.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/payroll-run-form.js' %}?v=20261009-preview-contract" defer></script>{% endblock %}

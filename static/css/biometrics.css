@@ -151,9 +151,9 @@
 .button-quiet:hover { background: var(--color-primary-50); border-color: var(--color-primary-100); }
 .button-quiet .icon { width: 16px; height: 16px; }
 .button-small { min-height: 34px !important; padding: 0 11px !important; font-size: var(--text-sm); }
-.bio-dialog { width: min(620px, calc(100% - 32px)); max-width: calc(100% - 32px); max-height: min(760px, calc(100dvh - 32px)); padding: 0; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; box-shadow: 0 24px 72px rgb(15 23 42 / 24%); }
+.bio-dialog { box-sizing: border-box; width: min(620px, calc(100% - 32px)); max-width: calc(100% - 32px); height: min(760px, calc(100dvh - 48px)); max-height: min(760px, calc(100dvh - 48px)); padding: 0; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; box-shadow: 0 24px 72px rgb(15 23 42 / 24%); overflow: hidden; }
 .bio-dialog::backdrop { background: rgb(15 23 42 / 56%); backdrop-filter: blur(3px); }
-.bio-dialog > form { display: grid; max-height: min(760px, calc(100dvh - 32px)); overflow: hidden; }
+.bio-dialog > form { box-sizing: border-box; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-width: 0; min-height: 0; height: 100%; max-height: none; overflow: hidden; }
 .bio-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 24px 26px 18px; border-bottom: 1px solid var(--color-border); }
 .bio-dialog-header > div { min-width: 0; }
 .bio-dialog-header h2 { margin: 2px 0 4px; font-size: 24px; }
@@ -244,8 +244,8 @@
   .bio-form-field--full { grid-column: auto; }
   .bio-form-actions { grid-column: auto; justify-content: stretch; }
   .bio-form-actions > * { flex: 1; justify-content: center; }
-  .bio-dialog { width: calc(100% - 20px); max-width: calc(100% - 20px); max-height: calc(100dvh - 20px); border-radius: 14px; }
-  .bio-dialog > form { max-height: calc(100dvh - 20px); }
+  .bio-dialog { width: calc(100% - 20px); max-width: calc(100% - 20px); height: calc(100dvh - 32px); max-height: calc(100dvh - 32px); border-radius: 14px; }
+  .bio-dialog > form { height: 100%; max-height: none; }
   .bio-dialog-header { padding: 20px 20px 15px; }
   .bio-dialog-body { padding: 18px 20px; }
   .bio-dialog-actions { padding: 13px 20px max(18px, env(safe-area-inset-bottom)); }

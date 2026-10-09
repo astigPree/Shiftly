@@ -40,7 +40,9 @@
   }
 
   function updatePendingCount(count) {
-    const numericCount = Number(count) || 0;
+    if (count === undefined || count === null || count === "") return;
+    const numericCount = Number(count);
+    if (!Number.isFinite(numericCount)) return;
     document.querySelectorAll("[data-statutory-pending-count]").forEach((element) => {
       element.textContent = String(numericCount);
     });
@@ -123,14 +125,17 @@
     }
 
     try {
-      const response = await fetch(form.action || window.location.href, {
+      const action = form.getAttribute("action") || window.location.href;
+      const response = await fetch(new URL(action, window.location.href).href, {
         method: "POST",
         body: new FormData(form),
         headers: { "X-Requested-With": "XMLHttpRequest", Accept: "application/json" },
         credentials: "same-origin",
       });
       const data = await readResponse(response);
-      if (!response.ok || !data.html) throw new Error(data.message || "The review could not be saved.");
+      if (!data.html || (!response.ok && response.status !== 422)) {
+        throw new Error(data.message || `The review could not be saved (HTTP ${response.status}).`);
+      }
 
       const currentDetails = form.closest(".payroll-statutory-review");
       let updatedDetails = null;
@@ -151,6 +156,10 @@
         const firstError = updatedDetails.querySelector(".field-error");
         (firstInvalid || firstError)?.scrollIntoView({ behavior: "smooth", block: "center" });
         firstInvalid?.focus({ preventScroll: true });
+      }
+      if (!data.ok && submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = originalLabel;
       }
     } catch (error) {
       const message = error instanceof TypeError

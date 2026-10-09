@@ -10,6 +10,17 @@ values only and do not finalize or pay a real employee from this checklist.
 **Currency:** PHP  
 **Browser start URL:** `http://127.0.0.1:8000/login/`
 
+## Latest walkthrough status — 2026-10-09
+
+The payroll and modal fixes from `PAYROLL_UI_WALKTHROUGH_FIX_IMPLEMENTATION_PLAN.md`
+are implemented. Automated verification passed with `manage.py check` and 128
+Django tests (8 expected skips). A live local-browser pass at 1024 × 668 also
+confirmed that changing the payroll period refreshes the preview, component and
+holiday modal actions remain reachable, and Sync settings/Add terminal dialogs
+keep their footer actions inside the viewport. The full 320/390/mobile viewport
+matrix and a live successful individual statutory-save walkthrough remain
+acceptance work; do not treat this status block as completion of those checks.
+
 > Use the password already stored in `.secrets/email_password.txt`. Do not copy
 > the password into this document, a screenshot, or a commit.
 

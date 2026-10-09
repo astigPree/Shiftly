@@ -81,7 +81,9 @@ from .statutory_assessments import (
     bulk_review_statutory_assessments,
     generate_statutory_assessments,
 )
+from attendance.services import effective_attendance_values
 from timesheets.models import Timesheet
+from .presentation import snapshot_pay_basis
 
 
 def _organization(request):
@@ -243,15 +245,80 @@ def _organization_local_date(organization):
         return timezone.localdate()
 
 
+def _preview_source_counts(organization, period_start, period_end, *, employee_ids=None, run_type=None):
+    """Return read-only source counts using effective attendance dates."""
+    if run_type == PayrollRun.RunType.OFF_CYCLE:
+        return {"approved": 0, "review": 0, "period_inputs": 0, "by_employee": {}}
+    timesheets = Timesheet.objects.filter(
+        organization=organization,
+        employee__status=Employee.Status.ACTIVE,
+        shift__work_date__range=(period_start - timedelta(days=2), period_end + timedelta(days=2)),
+    ).select_related("employee", "employee__payroll_profile", "shift", "attendance_session")
+    if employee_ids is not None:
+        timesheets = timesheets.filter(employee_id__in=employee_ids)
+    counts = {"approved": 0, "review": 0, "period_inputs": 0, "by_employee": {}}
+    for timesheet in timesheets:
+        effective = effective_attendance_values(timesheet.attendance_session)
+        clock_in, clock_out = effective.get("clock_in_at"), effective.get("clock_out_at")
+        profile = getattr(timesheet.employee, "payroll_profile", None)
+        payroll_timezone = profile.payroll_timezone if profile and profile.payroll_timezone else organization.timezone
+        try:
+            zone = ZoneInfo(payroll_timezone)
+            local_start = clock_in.astimezone(zone).date() if clock_in else timesheet.shift.work_date
+            local_end = clock_out.astimezone(zone).date() if clock_out else local_start
+        except (ZoneInfoNotFoundError, TypeError, ValueError):
+            local_start = local_end = timesheet.shift.work_date
+        if local_end < period_start or local_start > period_end:
+            continue
+        bucket = counts["by_employee"].setdefault(timesheet.employee_id, {"approved": 0, "review": 0})
+        if timesheet.status == Timesheet.Status.APPROVED:
+            counts["approved"] += 1
+            bucket["approved"] += 1
+        else:
+            counts["review"] += 1
+            bucket["review"] += 1
+    period_inputs = PayrollPeriodInput.objects.filter(
+        organization=organization,
+        period_start=period_start,
+        period_end=period_end,
+        reviewed_at__isnull=False,
+    )
+    if employee_ids is not None:
+        period_inputs = period_inputs.filter(employee_id__in=employee_ids)
+    counts["period_inputs"] = period_inputs.count()
+    return counts
+
+
+def _preview_form_values(organization, form):
+    settings_row = PayrollSettings.objects.filter(organization=organization).first()
+    frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY
+    today = _organization_local_date(organization)
+    default_start, default_end = _period_bounds(today, frequency, "previous")
+    if form.is_bound:
+        start = parse_date(form.data.get("period_start", "")) or default_start
+        end = parse_date(form.data.get("period_end", "")) or default_end
+        run_type = form.data.get("run_type") or PayrollRun.RunType.REGULAR
+        scope_mode = form.data.get("scope_mode") or PayrollRun.ScopeMode.ALL_ACTIVE
+        selected_ids = {int(value) for value in form.data.getlist("employees") if str(value).isdigit()}
+    else:
+        start, end, run_type, scope_mode, selected_ids = default_start, default_end, PayrollRun.RunType.REGULAR, PayrollRun.ScopeMode.ALL_ACTIVE, set()
+    return start, end, run_type, (selected_ids if scope_mode == PayrollRun.ScopeMode.SELECTED else None), frequency
+
+
 def _run_form_context(organization, form, payroll_readiness):
     """Build the reviewable, server-rendered data used by the create-run preflight."""
     organization_today = _organization_local_date(organization)
     settings_row = PayrollSettings.objects.filter(organization=organization).first()
     frequency = settings_row.frequency if settings_row else PayrollSettings.Frequency.SEMI_MONTHLY
-    preview_start, preview_end = _period_bounds(organization_today, frequency, "previous")
+    preview_start, preview_end, preview_run_type, selected_scope_ids, frequency = _preview_form_values(organization, form)
     preview_pay_date = preview_end + timedelta(days=5)
 
     employees = form.fields["employees"].queryset.select_related("payroll_profile")
+    source_counts = _preview_source_counts(
+        organization, preview_start, preview_end,
+        employee_ids=selected_scope_ids,
+        run_type=preview_run_type,
+    )
     employee_options = []
     for employee in employees:
         profile = getattr(employee, "payroll_profile", None)
@@ -276,30 +343,14 @@ def _run_form_context(organization, form, payroll_readiness):
             "status_label": "Needs attention" if warnings else "Ready",
         })
 
-    timesheet_scope = Timesheet.objects.filter(
-        organization=organization,
-        employee__status=Employee.Status.ACTIVE,
-        shift__work_date__range=(preview_start, preview_end),
-    )
-    approved_timesheets = timesheet_scope.filter(status=Timesheet.Status.APPROVED).count()
-    timesheets_needing_review = timesheet_scope.exclude(status=Timesheet.Status.APPROVED).count()
-    timesheet_counts = {
-        row["employee_id"]: row
-        for row in timesheet_scope.values("employee_id").annotate(
-            approved=Count("id", filter=Q(status=Timesheet.Status.APPROVED)),
-            needs_review=Count("id", filter=~Q(status=Timesheet.Status.APPROVED)),
-        )
-    }
+    approved_timesheets = source_counts["approved"]
+    timesheets_needing_review = source_counts["review"]
+    timesheet_counts = source_counts["by_employee"]
     for option in employee_options:
         counts = timesheet_counts.get(option["employee"].pk, {})
         option["approved_timesheets"] = counts.get("approved", 0)
-        option["timesheets_needing_review"] = counts.get("needs_review", 0)
-    period_input_count = PayrollPeriodInput.objects.filter(
-        organization=organization,
-        period_start=preview_start,
-        period_end=preview_end,
-        reviewed_at__isnull=False,
-    ).count()
+        option["timesheets_needing_review"] = counts.get("review", 0)
+    period_input_count = source_counts["period_inputs"]
     selected_employee_ids = {
         str(value) for value in (form["employees"].value() or [])
     }
@@ -1548,6 +1599,43 @@ def run_create(request):
 
 @employer_required
 @require_POST
+def run_preview(request):
+    """Return source availability for a prospective run without writing data."""
+    organization = _organization(request)
+    payload = request.POST.copy()
+    payload.setdefault("request_key", str(uuid.uuid4()))
+    form = PayrollRunForm(payload, organization=organization)
+    if not form.is_valid():
+        return JsonResponse({"ok": False, "errors": form.errors.get_json_data()}, status=422)
+    scope_mode = form.cleaned_data["scope_mode"]
+    selected = form.cleaned_data["employees"] if scope_mode == PayrollRun.ScopeMode.SELECTED else None
+    selected_ids = [employee.pk for employee in selected] if selected is not None else None
+    counts = _preview_source_counts(
+        organization,
+        form.cleaned_data["period_start"],
+        form.cleaned_data["period_end"],
+        employee_ids=selected_ids,
+        run_type=form.cleaned_data["run_type"],
+    )
+    if selected_ids is None:
+        employee_count = form.fields["employees"].queryset.count()
+    else:
+        employee_count = len(selected_ids)
+    return JsonResponse({
+        "ok": True,
+        "period_start": form.cleaned_data["period_start"].isoformat(),
+        "period_end": form.cleaned_data["period_end"].isoformat(),
+        "pay_date": form.cleaned_data["pay_date"].isoformat(),
+        "employee_count": employee_count,
+        "approved_timesheets": counts["approved"],
+        "timesheets_needing_review": counts["review"],
+        "period_inputs": counts["period_inputs"],
+        "source_mode": "off_cycle_adjustment" if form.cleaned_data["run_type"] == PayrollRun.RunType.OFF_CYCLE else "attendance",
+    })
+
+
+@employer_required
+@require_POST
 def run_create_submit(request):
     organization = _organization(request)
     form = PayrollRunForm(request.POST, organization=organization)
@@ -1605,6 +1693,7 @@ def statutory_exception(request, pk, assessment_pk):
         if statement.statutory_form.is_valid():
             try:
                 record_statutory_review(statement=statement, actor=request.user, **statement.statutory_form.cleaned_data)
+                statement.refresh_from_db()
             except ValidationError as error:
                 statement.statutory_form.add_error(None, error)
             else:
@@ -1623,6 +1712,7 @@ def statutory_exception(request, pk, assessment_pk):
                     "run": run,
                     "open_statutory_statement_id": statement.pk,
                     "dedicated_statutory_exception": True,
+                    "statutory_form_action": reverse("payroll:statutory_exception", kwargs={"pk": run.pk, "assessment_pk": assessment.pk}),
                 },
                 request=request,
             )
@@ -1631,6 +1721,9 @@ def statutory_exception(request, pk, assessment_pk):
                 "ok": not statement.statutory_form.errors,
                 "html": html,
                 "message": message,
+                "pending_count": PayrollStatutoryAssessment.objects.filter(statement__run=run).exclude(
+                    status=PayrollStatutoryAssessment.Status.REVIEWED
+                ).values("statement_id").distinct().count(),
                 "reviewed_count": statement.statutory_reviewed_count,
                 "total_count": statement.statutory_total_count,
                 "complete": statement.statutory_complete,
@@ -1642,6 +1735,7 @@ def statutory_exception(request, pk, assessment_pk):
         "assessment": assessment,
         "open_statutory_statement_id": statement.pk,
         "dedicated_statutory_exception": True,
+        "statutory_form_action": reverse("payroll:statutory_exception", kwargs={"pk": run.pk, "assessment_pk": assessment.pk}),
     })
 
 
@@ -1932,7 +2026,11 @@ def run_detail(request, pk):
         if ajax_statement is not None:
             statutory_html = render_to_string(
                 "payroll/_statutory_review.html",
-                {"statement": ajax_statement, "run": run},
+                {
+                    "statement": ajax_statement,
+                    "run": run,
+                    "statutory_form_action": reverse("payroll:run_detail", kwargs={"pk": run.pk}),
+                },
                 request=request,
             )
             statutory_error_message = ""
@@ -1955,7 +2053,7 @@ def run_detail(request, pk):
                 "reviewed_count": ajax_statement.statutory_reviewed_count,
                 "total_count": ajax_statement.statutory_total_count,
                 "complete": ajax_statement.statutory_complete,
-            })
+            }, status=200 if invalid_statutory_form is None else 422)
         return JsonResponse({
             "ok": False,
             "message": "The statutory review panel could not be refreshed. Refresh the page and try again.",
@@ -1988,11 +2086,7 @@ def run_detail(request, pk):
     for statement in statement_page.object_list:
         statement.statement_exception_count = active_exception_by_employee.get(statement.employee_id, 0)
         statement.statement_status = "Blocked" if statement.statement_exception_count > 1 else ("Needs review" if statement.statement_exception_count else "Ready")
-        snapshot = statement.snapshot or {}
-        compensation_versions = snapshot.get("compensation_versions") or {}
-        first_compensation = next(iter(compensation_versions.values()), {}) if isinstance(compensation_versions, dict) else {}
-        basis = snapshot.get("pay_basis") or first_compensation.get("basis") or ""
-        statement.pay_basis = {"HOURLY": "Hourly", "DAILY": "Daily", "MONTHLY": "Monthly"}.get(basis, basis.title() if basis else "—")
+        statement.pay_basis = snapshot_pay_basis(statement.snapshot)
     adjustment_form = invalid_adjustment_form or PayrollAdjustmentForm(organization=organization, initial={"effective_date": run.period_start})
     manual_lines = PayrollLine.objects.filter(
         statement__run=run,
@@ -2024,6 +2118,7 @@ def run_detail(request, pk):
         "statutory_query": statutory_query,
         "open_statutory_statement_id": open_statutory_statement_id,
         "open_statutory_statement": open_statutory_statement,
+        "statutory_form_action": reverse("payroll:run_detail", kwargs={"pk": run.pk}),
         "finalize_form": invalid_finalize_form or FinalizePayrollForm(),
         "void_form": invalid_void_form or VoidPayrollForm(),
         "finalize_form_invalid": invalid_finalize_form is not None,

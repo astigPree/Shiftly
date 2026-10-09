@@ -13,6 +13,7 @@ from io import BytesIO
 from django.utils.text import slugify
 
 from .models import PayrollLine, PayrollRun
+from .presentation import snapshot_pay_basis
 
 
 MONEY_ZERO = Decimal("0.00")
@@ -100,15 +101,7 @@ def _snapshot_compensation_rates(snapshot):
 
 
 def _snapshot_pay_basis(snapshot):
-    direct_basis = _safe_text(snapshot.get("pay_basis"))
-    if direct_basis:
-        return _pay_basis_label(direct_basis)
-    sources = snapshot.get("compensation_versions") or snapshot.get("rate_versions") or {}
-    if isinstance(sources, dict):
-        for source in sources.values():
-            if isinstance(source, dict) and _safe_text(source.get("basis")):
-                return _pay_basis_label(source["basis"])
-    return "Not recorded"
+    return snapshot_pay_basis(snapshot)
 
 
 def _line_matches(line, *terms):
@@ -413,7 +406,7 @@ def build_payslip_pdf(data):
 
     employee = data["employee"]
     pay_basis_value = employee["pay_basis"]
-    if pay_basis_value == "Not recorded" and employee["rates"]:
+    if pay_basis_value in {"Not recorded", "Pay basis not recorded"} and employee["rates"]:
         pay_basis_value = "Approved rate in finalized snapshot"
     pay_details = "<br/>".join(escape(rate) for rate in employee["rates"]) or "Not recorded in finalized snapshot"
     info_rows = [
